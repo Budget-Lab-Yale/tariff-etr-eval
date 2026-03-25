@@ -84,6 +84,33 @@ tryCatch({
   cat("  ERROR rendering Word:", conditionMessage(e), "\n")
 })
 
+# --- Step 3: Render v2 report (monthly decomposition) ---
+cat("\nStep 3: Rendering ETR evaluation report v2...\n")
+
+tryCatch({
+  rmarkdown::render(
+    here("R", "etr_eval_report_v2.Rmd"),
+    output_format = "html_document",
+    output_dir = output_dir,
+    quiet = TRUE
+  )
+  cat("  v2 HTML report generated.\n")
+}, error = function(e) {
+  cat("  ERROR rendering v2 HTML:", conditionMessage(e), "\n")
+})
+
+tryCatch({
+  rmarkdown::render(
+    here("R", "etr_eval_report_v2.Rmd"),
+    output_format = "word_document",
+    output_dir = output_dir,
+    quiet = TRUE
+  )
+  cat("  v2 Word report generated.\n")
+}, error = function(e) {
+  cat("  ERROR rendering v2 Word:", conditionMessage(e), "\n")
+})
+
 # --- Summary ---
 cat("\n=== Pipeline complete ===\n")
 cat("Finished:", format(Sys.time()), "\n")

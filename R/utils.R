@@ -172,7 +172,7 @@ assign_partner_group <- function(cty_code) {
     cty_code == "5700" ~ "China",
     cty_code == "1220" ~ "Canada",
     cty_code == "2010" ~ "Mexico",
-    cty_code == "4280" ~ "Japan",
+    cty_code == "5880" ~ "Japan",
     cty_code == "5800" ~ "S. Korea",
     cty_code == "4120" ~ "UK",
     cty_code %in% eu27 ~ "EU",

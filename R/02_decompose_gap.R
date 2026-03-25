@@ -39,6 +39,31 @@ actual_etr <- load_actual_etr() %>%
   filter(date >= "2025-01-01") %>%
   mutate(actual_rate = effective_rate / 100)
 
+# --- Load HTS10-level import weights (2024 annual) ---
+# These are essential for correctly weighting product-level rates when
+# aggregating to HS2 x country. An unweighted mean drastically overstates
+# rates (many low-import products with high tariffs).
+imports_hs10 <- NULL
+import_weights_file <- file.path(TRACKER_DIR, "config", "local_paths.yaml")
+if (file.exists(import_weights_file)) {
+  local_paths <- yaml::read_yaml(import_weights_file)
+  iw_path <- local_paths$import_weights
+  if (!is.null(iw_path) && !startsWith(iw_path, "/")) {
+    iw_path <- normalizePath(file.path(TRACKER_DIR, iw_path), mustWork = FALSE)
+  }
+  if (!is.null(iw_path) && file.exists(iw_path)) {
+    imports_hs10 <- readRDS(iw_path) %>%
+      group_by(hs10, cty_code) %>%
+      summarize(imports = sum(imports, na.rm = TRUE), .groups = "drop") %>%
+      filter(imports > 0) %>%
+      mutate(cty_code = as.character(cty_code))
+    cat("HTS10 import weights loaded:", nrow(imports_hs10), "product-country pairs\n")
+  }
+}
+if (is.null(imports_hs10)) {
+  stop("HTS10 import weights not found. Configure local_paths.yaml in tariff-rate-tracker.")
+}
+
 # --- 2024 annual weights by HS2 x country ---
 # Ensure cty_code is character for joining with timeseries
 weights_2024 <- census %>%
@@ -64,12 +89,20 @@ for (month_str in ANALYSIS_MONTHS) {
   snapshot <- ts %>%
     filter(valid_from <= query_date, valid_until >= query_date)
 
-  # Aggregate statutory to HS2 x country
-  stat_hs2_cty <- snapshot %>%
-    mutate(hs2 = substr(hts10, 1, 2)) %>%
-    group_by(hs2, country) %>%
-    summarize(mean_rate = mean(total_rate, na.rm = TRUE), .groups = "drop") %>%
-    rename(cty_code = country)
+  # Join HTS10-level import weights, then aggregate to HS2 x country
+  # using import-weighted means (not simple means)
+  snapshot_weighted <- snapshot %>%
+    rename(hs10 = hts10, cty_code = country) %>%
+    inner_join(imports_hs10, by = c("hs10", "cty_code")) %>%
+    mutate(hs2 = substr(hs10, 1, 2))
+
+  stat_hs2_cty <- snapshot_weighted %>%
+    group_by(hs2, cty_code) %>%
+    summarize(
+      mean_rate = weighted.mean(total_rate, w = imports, na.rm = TRUE),
+      imports_hs10 = sum(imports),
+      .groups = "drop"
+    )
 
   # Get actual monthly imports
   m <- as.integer(format(query_date, "%m"))
@@ -84,9 +117,12 @@ for (month_str in ANALYSIS_MONTHS) {
     left_join(actual_imports, by = c("hs2", "cty_code")) %>%
     mutate(imports_actual = coalesce(imports_actual, 0))
 
+  # Coverage diagnostic
+  coverage <- sum(merged$imports_2024) / sum(weights_2024$imports_2024)
+
   # --- Compute ETR at each level ---
 
-  # (a) Aggregate with 2024 weights
+  # (a) Aggregate with 2024 Census weights (consistent two-stage aggregation)
   etr_agg_2024w <- weighted.mean(merged$mean_rate, w = merged$imports_2024, na.rm = TRUE)
 
   # (b) Aggregate with actual 2025 weights
@@ -106,9 +142,11 @@ for (month_str in ANALYSIS_MONTHS) {
     group_by(cty_code) %>%
     summarize(
       etr_2024w = weighted.mean(mean_rate, w = imports_2024, na.rm = TRUE),
-      etr_actualw = if (sum(imports_actual) > 0) {
-        weighted.mean(mean_rate, w = imports_actual, na.rm = TRUE)
-      } else NA_real_,
+      etr_actualw = ifelse(
+        sum(imports_actual) > 0,
+        weighted.mean(mean_rate, w = imports_actual, na.rm = TRUE),
+        NA_real_
+      ),
       imports_2024 = sum(imports_2024),
       imports_actual = sum(imports_actual),
       .groups = "drop"
@@ -125,9 +163,11 @@ for (month_str in ANALYSIS_MONTHS) {
     group_by(hs2) %>%
     summarize(
       etr_2024w = weighted.mean(mean_rate, w = imports_2024, na.rm = TRUE),
-      etr_actualw = if (sum(imports_actual) > 0) {
-        weighted.mean(mean_rate, w = imports_actual, na.rm = TRUE)
-      } else NA_real_,
+      etr_actualw = ifelse(
+        sum(imports_actual) > 0,
+        weighted.mean(mean_rate, w = imports_actual, na.rm = TRUE),
+        NA_real_
+      ),
       imports_2024 = sum(imports_2024),
       imports_actual = sum(imports_actual),
       .groups = "drop"
@@ -145,13 +185,14 @@ for (month_str in ANALYSIS_MONTHS) {
   # The gap at cell level = 0 because the rate is the rate. The question is
   # whether reweighting from 2024 to 2025 changes the aggregate.
 
-  cat(sprintf("  Statutory ETR (2024 weights):  %.2f%%\n", etr_agg_2024w * 100))
-  cat(sprintf("  Statutory ETR (actual weights): %.2f%%\n", etr_agg_actual_w * 100))
-  cat(sprintf("  Weight-shift effect:            %.2f pp\n", (etr_agg_2024w - etr_agg_actual_w) * 100))
-  cat(sprintf("  Treasury actual ETR:            %.2f%%\n", treasury_actual * 100))
-  cat(sprintf("  Total gap (statutory - actual):  %.2f pp\n", (etr_agg_2024w - treasury_actual) * 100))
-  cat(sprintf("  Behavioral (weight shift):       %.2f pp\n", (etr_agg_2024w - etr_agg_actual_w) * 100))
-  cat(sprintf("  Residual (implementation etc):   %.2f pp\n", (etr_agg_actual_w - treasury_actual) * 100))
+  cat(sprintf("  Coverage (2024 imports):         %.1f%%\n", coverage * 100))
+  cat(sprintf("  Statutory ETR (2024 weights):    %.2f%%\n", etr_agg_2024w * 100))
+  cat(sprintf("  Statutory ETR (actual weights):  %.2f%%\n", etr_agg_actual_w * 100))
+  cat(sprintf("  Weight-shift effect:             %.2f pp\n", (etr_agg_2024w - etr_agg_actual_w) * 100))
+  cat(sprintf("  Treasury actual ETR:             %.2f%%\n", treasury_actual * 100))
+  cat(sprintf("  Total gap (statutory - actual):   %.2f pp\n", (etr_agg_2024w - treasury_actual) * 100))
+  cat(sprintf("  Behavioral (weight shift):        %.2f pp\n", (etr_agg_2024w - etr_agg_actual_w) * 100))
+  cat(sprintf("  Residual (implementation etc):    %.2f pp\n", (etr_agg_actual_w - treasury_actual) * 100))
 
   results[[month_label]] <- tibble(
     month = month_label,
@@ -161,7 +202,8 @@ for (month_str in ANALYSIS_MONTHS) {
     etr_treasury = treasury_actual,
     gap_total = etr_agg_2024w - treasury_actual,
     gap_behavioral = etr_agg_2024w - etr_agg_actual_w,
-    gap_residual = etr_agg_actual_w - treasury_actual
+    gap_residual = etr_agg_actual_w - treasury_actual,
+    coverage = coverage
   )
 }
 
@@ -175,11 +217,18 @@ print(decomp_results %>% mutate(across(where(is.numeric) & !matches("date"), ~ r
 # Re-run for December 2025 and save country detail
 query_date <- as.Date("2025-12-01")
 snapshot <- ts %>% filter(valid_from <= query_date, valid_until >= query_date)
-stat_hs2_cty <- snapshot %>%
-  mutate(hs2 = substr(hts10, 1, 2)) %>%
-  group_by(hs2, country) %>%
-  summarize(mean_rate = mean(total_rate, na.rm = TRUE), .groups = "drop") %>%
-  rename(cty_code = country)
+
+snapshot_weighted <- snapshot %>%
+  rename(hs10 = hts10, cty_code = country) %>%
+  inner_join(imports_hs10, by = c("hs10", "cty_code")) %>%
+  mutate(hs2 = substr(hs10, 1, 2))
+
+stat_hs2_cty <- snapshot_weighted %>%
+  group_by(hs2, cty_code) %>%
+  summarize(
+    mean_rate = weighted.mean(total_rate, w = imports, na.rm = TRUE),
+    .groups = "drop"
+  )
 
 actual_dec <- census %>%
   filter(year == 2025, month == 12) %>%
@@ -197,7 +246,11 @@ country_detail <- merged_dec %>%
   group_by(partner_group) %>%
   summarize(
     etr_2024w = weighted.mean(mean_rate, w = imports_2024, na.rm = TRUE),
-    etr_actualw = weighted.mean(mean_rate, w = pmax(imports_actual, 1), na.rm = TRUE),
+    etr_actualw = ifelse(
+      sum(imports_actual) > 0,
+      weighted.mean(mean_rate, w = imports_actual, na.rm = TRUE),
+      NA_real_
+    ),
     imports_2024_B = sum(imports_2024) / 1e9,
     imports_actual_B = sum(imports_actual) / 1e9,
     import_change_pct = (sum(imports_actual) / sum(imports_2024) * 12 - 1) * 100,
@@ -217,7 +270,11 @@ chapter_detail <- merged_dec %>%
   group_by(hs2) %>%
   summarize(
     etr_2024w = weighted.mean(mean_rate, w = imports_2024, na.rm = TRUE),
-    etr_actualw = weighted.mean(mean_rate, w = pmax(imports_actual, 1), na.rm = TRUE),
+    etr_actualw = ifelse(
+      sum(imports_actual) > 0,
+      weighted.mean(mean_rate, w = imports_actual, na.rm = TRUE),
+      NA_real_
+    ),
     imports_2024_B = sum(imports_2024) / 1e9,
     imports_actual_B = sum(imports_actual) / 1e9,
     .groups = "drop"

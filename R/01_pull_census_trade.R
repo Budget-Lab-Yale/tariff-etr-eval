@@ -57,7 +57,7 @@ CENSUS_COUNTRIES <- tribble(
   "5700",    "China",          "China",
   "1220",    "Canada",         "Canada",
   "2010",    "Mexico",         "Mexico",
-  "4280",    "Japan",          "Japan",
+  "5880",    "Japan",          "Japan",
   "5800",    "South Korea",    "S. Korea",
   "4120",    "United Kingdom", "UK"
   # EU and ROW assigned by exclusion in downstream analysis
