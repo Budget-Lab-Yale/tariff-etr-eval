@@ -19,7 +19,10 @@ do 00_etr_eval.do                      # Steps 1-2: clean, merge, decompose, fig
 
 Pulls from four sources and writes CSVs to `data/raw/`:
 - **Census API** (HS2 x country x month): consumption value, calculated duty, dutiable value
-- **Census IMDB bulk ZIPs** (HS10 x country x month): fixed-width files, parsed with encoding fallback
+- **Census IMDB bulk ZIPs** — two outputs:
+  - `imdb_detail.csv`: HS10 x country x district x preference x rate_prov x month (for FTA decomposition, district crosscheck)
+  - `imdb_hs10_country_monthly.csv`: aggregated to HS10 x country x month (for main pipeline)
+- **Census API HS10 fallback**: fills months not yet available in IMDB bulk (auto-detected)
 - **tariff-rate-tracker** (sibling repo): converts RDS snapshots to CSV, copies daily ETRs, revision dates, 2024 import weights
 - **tariff-impact-tracker** (sibling repo): Treasury revenue (actual ETR)
 
