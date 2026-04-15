@@ -194,19 +194,34 @@ for (ym in months_to_pull) {
 }
 
 # Combine new data with cache
+log_msg("  Combining new data with cache...")
 new_data <- bind_rows(new_chunks)
+rm(new_chunks); gc(verbose = FALSE)
+log_msg(sprintf("  New data: %d rows from API", nrow(new_data)))
+
+RAW_COLS <- c("hs2", "cty_code", "con_val_mo", "cal_dut_mo", "dut_val_mo", "year_month")
+
 if (file.exists(CENSUS_HS2_CACHE) && length(cached_months) > 0) {
   old_data <- read_csv(CENSUS_HS2_CACHE, show_col_types = FALSE) |>
-    filter(year_month %in% cached_months)
-  census_hs2 <- bind_rows(old_data, new_data)
+    filter(year_month %in% cached_months) |>
+    select(any_of(RAW_COLS)) |>
+    mutate(across(c(con_val_mo, cal_dut_mo, dut_val_mo), as.numeric))
+  log_msg(sprintf("  Cache: %d rows from %d frozen months", nrow(old_data), length(cached_months)))
+  census_hs2 <- bind_rows(
+    old_data |> select(any_of(RAW_COLS)),
+    new_data |> select(any_of(RAW_COLS))
+  )
   rm(old_data)
 } else {
-  census_hs2 <- new_data
+  census_hs2 <- new_data |> select(any_of(RAW_COLS))
 }
-rm(new_data, new_chunks)
+rm(new_data); gc(verbose = FALSE)
 
 census_hs2 <- census_hs2 |>
   mutate(
+    con_val_mo = as.numeric(con_val_mo),
+    cal_dut_mo = as.numeric(cal_dut_mo),
+    dut_val_mo = as.numeric(dut_val_mo),
     year  = as.integer(substr(year_month, 1, 4)),
     month = as.integer(substr(year_month, 6, 7)),
     date  = as.Date(paste0(year_month, "-01")),
