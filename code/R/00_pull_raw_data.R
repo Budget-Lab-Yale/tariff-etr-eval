@@ -96,7 +96,7 @@ HS2_CHAPTERS <- sprintf("%02d", setdiff(1:99, 77))
 # Historical months (2024, early 2025) won't change; skip them on re-runs.
 cached_months <- character(0)
 if (file.exists(CENSUS_HS2_CACHE)) {
-  cached_data <- read_csv(CENSUS_HS2_CACHE, col_types = cols(.default = col_character()))
+  cached_data <- read.csv(CENSUS_HS2_CACHE, stringsAsFactors = FALSE, colClasses = "character")
   cached_months <- unique(cached_data$year_month)
   # Always re-pull the last 2 cached months (may have been revised)
   cached_months <- setdiff(cached_months, tail(sort(cached_months), 2))
@@ -202,7 +202,10 @@ log_msg(sprintf("  New data: %d rows from API", nrow(new_data)))
 RAW_COLS <- c("hs2", "cty_code", "con_val_mo", "cal_dut_mo", "dut_val_mo", "year_month")
 
 if (file.exists(CENSUS_HS2_CACHE) && length(cached_months) > 0) {
-  old_data <- read_csv(CENSUS_HS2_CACHE, show_col_types = FALSE) |>
+  # Use base read.csv — readr::read_csv segfaults under memory pressure
+  # when multiple R processes are running (R 4.5 + readr interaction)
+  old_data <- read.csv(CENSUS_HS2_CACHE, stringsAsFactors = FALSE) |>
+    as_tibble() |>
     filter(year_month %in% cached_months) |>
     select(any_of(RAW_COLS)) |>
     mutate(across(c(con_val_mo, cal_dut_mo, dut_val_mo), as.numeric))
