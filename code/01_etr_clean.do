@@ -321,13 +321,18 @@ merge m:1 ym using `month_rev_map', keep(match master) nogenerate
 assert _N > 0
 
 merge m:1 hs10 cty_code revision using "$working/tracker_snapshots.dta", ///
-    keep(match master) nogenerate
+    keep(match master) gen(_merge_snap)
 
 * Unmatched products get zero statutory rate
-local n_unmatched = _N - r(N)
+qui count if _merge_snap == 1
+local n_unmatched = r(N)
+qui count if _merge_snap == 3
+local n_matched = r(N)
 replace total_rate = 0 if missing(total_rate)
-di as text "      Snapshot match rate: " ///
-    string(100 - 100 * `n_unmatched' / _N, "%4.1f") "%"
+drop _merge_snap
+di as text "      Snapshot matched: `n_matched', unmatched: `n_unmatched'"
+di as text "      Match rate: " ///
+    string(100 * `n_matched' / _N, "%4.1f") "%"
 
 
 * ======================================================================
@@ -342,7 +347,10 @@ gen double w_monthly = con_val_mo / total_imports_monthly
 
 * 2024 annual weights
 merge m:1 hs10 cty_code using "$working/weights_2024.dta", ///
-    keep(match master) keepusing(imports w_2024) nogenerate
+    keep(match master) keepusing(imports w_2024) gen(_merge_wt)
+qui count if _merge_wt == 3
+di as text "      2024 weight match: " r(N) " of " _N " obs"
+drop _merge_wt
 replace imports = 0 if missing(imports)
 replace w_2024  = 0 if missing(w_2024)
 

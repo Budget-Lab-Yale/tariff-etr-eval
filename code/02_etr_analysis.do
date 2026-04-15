@@ -48,7 +48,7 @@ preserve
     keep if imports > 0
     gen double wtd_rev_2024 = total_rate * imports
     collapse (sum) wtd_rev_2024 imports, by(ym)
-    gen double tier1 = wtd_rev_2024 / imports
+    safe_divide wtd_rev_2024 imports tier1
     keep ym tier1
     tempfile tier1
     save `tier1'
@@ -61,7 +61,7 @@ di as text "      Tier 2: statutory x monthly weights"
 preserve
     gen double wtd_rev_monthly = total_rate * con_val_mo
     collapse (sum) wtd_rev_monthly con_val_mo, by(ym)
-    gen double tier2 = wtd_rev_monthly / con_val_mo
+    safe_divide wtd_rev_monthly con_val_mo tier2
     keep ym tier2
     tempfile tier2
     save `tier2'
@@ -73,7 +73,7 @@ di as text "      Tier 3: Census calculated"
 
 preserve
     collapse (sum) cal_dut_mo con_val_mo, by(ym)
-    gen double tier3 = cal_dut_mo / con_val_mo
+    safe_divide cal_dut_mo con_val_mo tier3
     keep ym tier3
     tempfile tier3
     save `tier3'
@@ -152,9 +152,9 @@ preserve
     keep if imports > 0
     gen double wtd_rev_c = total_rate * imports
     collapse (sum) wtd_rev_c imports, by(ym partner_group)
-    gen double etr_c_2024 = wtd_rev_c / imports
+    safe_divide wtd_rev_c imports etr_c_2024
     bysort ym: egen double total_imp = total(imports)
-    gen double share_c_2024 = imports / total_imp
+    safe_divide imports total_imp share_c_2024
     keep ym partner_group etr_c_2024 share_c_2024
     tempfile country_2024
     save `country_2024'
@@ -164,9 +164,9 @@ restore
 preserve
     gen double wtd_rev_c = total_rate * con_val_mo
     collapse (sum) wtd_rev_c con_val_mo, by(ym partner_group)
-    gen double etr_c_monthly = wtd_rev_c / con_val_mo
+    safe_divide wtd_rev_c con_val_mo etr_c_monthly
     bysort ym: egen double total_val = total(con_val_mo)
-    gen double share_c_monthly = con_val_mo / total_val
+    safe_divide con_val_mo total_val share_c_monthly
     keep ym partner_group etr_c_monthly share_c_monthly
     tempfile country_monthly
     save `country_monthly'

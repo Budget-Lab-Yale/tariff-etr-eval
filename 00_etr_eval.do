@@ -62,6 +62,7 @@ do "${dir}code/utils/globals.do"
 do "${dir}code/utils/programs.do"
 
 * Create output directories if needed
+capture mkdir "${working}"
 capture mkdir "${results}"
 capture mkdir "${figures}"
 capture mkdir "${tables}"
@@ -83,13 +84,16 @@ di as text "  Project: ${dir}"
 di as text "==============================================" _n
 
 * ==============================================================================
-* Step 0: R data pulls (run manually if needed)
+* Step 0: R data pulls (hours-long API operation; off by default)
 * ==============================================================================
 
-* The R script populates data/raw/ from Census API, IMDB bulk files,
-* tariff-rate-tracker (RDS -> CSV), and tariff-impact-tracker.
-* Run manually before first use:
-   shell Rscript "${code}R/00_pull_raw_data.R"
+if $run_pull {
+    di as text "=== Step 0: R data pulls ===" _n
+    shell Rscript "${code}R/00_pull_raw_data.R"
+}
+else {
+    di as text "=== Step 0: SKIPPED (run_pull = 0) ===" _n
+}
 
 * ==============================================================================
 * Step 1: Import, clean, and merge
