@@ -32,6 +32,7 @@ library(dplyr)
 library(readr)
 library(here)
 library(stringi)
+library(yaml)
 
 here::i_am("code/R/00_pull_raw_data.R")
 
@@ -62,22 +63,26 @@ cat("--- 1. Census API (HS2 x country x month) ---\n\n")
 
 CENSUS_API_BASE <- "https://api.census.gov/data/timeseries/intltrade/imports/hs"
 
-# Coverage: 2024 baseline + 2025 escalation + 2026 as available
-YEAR_MONTHS_CENSUS <- c(
-  paste0("2024-", sprintf("%02d", 1:12)),
-  paste0("2025-", sprintf("%02d", 1:12)),
-  paste0("2026-", sprintf("%02d", 1:12))
+# Coverage: 2024 baseline through current month
+YEAR_MONTHS_CENSUS <- format(
+  seq(as.Date("2024-01-01"), Sys.Date(), by = "month"), "%Y-%m"
 )
 HS2_CHAPTERS <- sprintf("%02d", setdiff(1:99, 77))
 
 #' Pull one HS2 chapter x month from Census API.
 pull_chapter_month <- function(hs2, year_month, max_retries = 3) {
+  key_param <- if (nzchar(Sys.getenv("CENSUS_API_KEY"))) {
+    paste0("&key=", Sys.getenv("CENSUS_API_KEY"))
+  } else {
+    ""
+  }
   url <- paste0(
     CENSUS_API_BASE,
     "?get=CON_VAL_MO,CAL_DUT_MO,DUT_VAL_MO,CTY_CODE",
     "&I_COMMODITY=", hs2,
     "&time=", year_month,
-    "&COMM_LVL=HS2"
+    "&COMM_LVL=HS2",
+    key_param
   )
 
   for (attempt in seq_len(max_retries)) {
@@ -92,7 +97,7 @@ pull_chapter_month <- function(hs2, year_month, max_retries = 3) {
 
       # First row is header
       header <- parsed[1, ]
-      df <- as.data.frame(parsed[-1, , drop = FALSE], stringsAsFactors = FALSE)
+      row_data <- as.data.frame(parsed[-1, , drop = FALSE], stringsAsFactors = FALSE)
       cty_idx <- which(header == "CTY_CODE")[1]
       con_idx <- which(header == "CON_VAL_MO")[1]
       cal_idx <- which(header == "CAL_DUT_MO")[1]
@@ -101,24 +106,25 @@ pull_chapter_month <- function(hs2, year_month, max_retries = 3) {
 
       return(tibble(
         hs2        = hs2,
-        cty_code   = df[[cty_idx]],
-        con_val_mo = as.numeric(df[[con_idx]]),
-        cal_dut_mo = if (!is.na(cal_idx)) as.numeric(df[[cal_idx]]) else NA_real_,
-        dut_val_mo = if (!is.na(dut_idx)) as.numeric(df[[dut_idx]]) else NA_real_,
+        cty_code   = row_data[[cty_idx]],
+        con_val_mo = as.numeric(row_data[[con_idx]]),
+        cal_dut_mo = if (!is.na(cal_idx)) as.numeric(row_data[[cal_idx]]) else NA_real_,
+        dut_val_mo = if (!is.na(dut_idx)) as.numeric(row_data[[dut_idx]]) else NA_real_,
         year_month = year_month
-      ) %>%
-        filter(grepl("^[0-9]+$", cty_code), as.integer(cty_code) >= 1000))
+      ) |>
+        filter(grepl("^\\d{4,5}$", cty_code)))
     } else if (attempt < max_retries) {
-      Sys.sleep(0.5 * attempt)
+      wait <- if (!is.null(resp) && status_code(resp) == 429) 5 * attempt else 0.5 * attempt
+      Sys.sleep(wait)
     }
   }
   NULL
 }
 
 # Pull loop
-all_results <- list()
+census_chunks <- list()
 total_queries <- length(HS2_CHAPTERS) * length(YEAR_MONTHS_CENSUS)
-idx <- 0; empty <- 0
+idx <- 0; n_empty <- 0
 
 for (ym in YEAR_MONTHS_CENSUS) {
   for (ch in HS2_CHAPTERS) {
@@ -126,27 +132,27 @@ for (ym in YEAR_MONTHS_CENSUS) {
     if (idx %% 200 == 0 || idx == 1)
       cat(sprintf("  [%d/%d] %s ch%s\n", idx, total_queries, ym, ch))
 
-    result <- pull_chapter_month(ch, ym)
-    if (!is.null(result) && nrow(result) > 0) {
-      all_results[[length(all_results) + 1]] <- result
+    chunk <- pull_chapter_month(ch, ym)
+    if (!is.null(chunk) && nrow(chunk) > 0) {
+      census_chunks[[length(census_chunks) + 1]] <- chunk
     } else {
-      empty <- empty + 1
+      n_empty <- n_empty + 1
     }
     Sys.sleep(0.1)
   }
 }
 
-census_hs2 <- bind_rows(all_results) %>%
+census_hs2 <- bind_rows(census_chunks) |>
   mutate(
     year  = as.integer(substr(year_month, 1, 4)),
     month = as.integer(substr(year_month, 6, 7)),
     date  = as.Date(paste0(year_month, "-01")),
-    effective_rate = cal_dut_mo / con_val_mo * 100
-  ) %>%
+    effective_rate = ifelse(con_val_mo > 0, cal_dut_mo / con_val_mo * 100, NA_real_)
+  ) |>
   arrange(year_month, hs2, cty_code)
 
 write_csv(census_hs2, file.path(RAW_DIR, "census_hs2_country_monthly.csv"))
-cat(sprintf("  Saved: %d rows (%d empty queries)\n\n", nrow(census_hs2), empty))
+cat(sprintf("  Saved: %d rows (%d empty queries)\n\n", nrow(census_hs2), n_empty))
 
 
 # ======================================================================
@@ -168,12 +174,14 @@ imdb_fwf <- fwf_positions(
   col_names = c("commodity", "cty_code", "year", "month", "con_val_mo", "cal_dut_mo")
 )
 
-#' Download one IMDB ZIP. Returns path or NULL.
+#' Download one IMDB ZIP. Returns path or NULL. Skips if already cached.
 download_imdb_zip <- function(year_month) {
   yyyy <- substr(year_month, 1, 4)
   yymm <- paste0(substr(year_month, 3, 4), substr(year_month, 6, 7))
   url  <- sprintf(IMDB_URL_TEMPLATE, yyyy, yymm)
   zip_path <- file.path(IMDB_RAW, paste0("IMDB", yymm, ".ZIP"))
+
+  if (file.exists(zip_path) && file.size(zip_path) > 1000) return(zip_path)
 
   for (attempt in 1:3) {
     ok <- tryCatch({
@@ -201,23 +209,24 @@ parse_imdb_zip <- function(zip_path) {
   detl_path <- file.path(tmp_dir, detl_file[1])
 
   # Read fixed-width with latin1 encoding (tolerates non-UTF-8 bytes)
-  df <- tryCatch(
+  imdb_raw <- tryCatch(
     read_fwf(detl_path, col_positions = imdb_fwf,
              col_types = cols(.default = col_character()),
              locale = locale(encoding = "latin1"), progress = FALSE),
     error = function(e) {
-      # Fallback: sanitize non-ASCII bytes then re-read
-      raw <- readBin(detl_path, what = "raw", n = file.size(detl_path))
-      raw[raw > as.raw(0x7F)] <- as.raw(0x3F)
+      # Fallback: replace non-ASCII bytes with '?' — safe because all fields
+      # we use (commodity, cty_code, values) are pure ASCII numerics
+      raw_bytes <- readBin(detl_path, what = "raw", n = file.size(detl_path))
+      raw_bytes[raw_bytes > as.raw(0x7F)] <- as.raw(0x3F)
       clean <- file.path(tmp_dir, "CLEAN.TXT")
-      writeBin(raw, clean)
+      writeBin(raw_bytes, clean)
       read_fwf(clean, col_positions = imdb_fwf,
                col_types = cols(.default = col_character()), progress = FALSE)
     }
   )
 
   # Aggregate to HS10 x country x month
-  df %>%
+  imdb_raw |>
     mutate(
       commodity  = stri_pad_left(trimws(commodity), 10, "0"),
       cty_code   = trimws(cty_code),
@@ -225,41 +234,40 @@ parse_imdb_zip <- function(zip_path) {
       month      = as.integer(trimws(month)),
       con_val_mo = as.numeric(trimws(con_val_mo)),
       cal_dut_mo = as.numeric(trimws(cal_dut_mo))
-    ) %>%
+    ) |>
     filter(grepl("^[0-9]+$", commodity), !is.na(year),
-           coalesce(con_val_mo, 0) != 0) %>%
-    group_by(commodity, cty_code, year, month) %>%
-    summarize(con_val_mo = sum(con_val_mo, na.rm = TRUE),
+           coalesce(con_val_mo, 0) != 0) |>
+    summarise(con_val_mo = sum(con_val_mo, na.rm = TRUE),
               cal_dut_mo = sum(cal_dut_mo, na.rm = TRUE),
-              .groups = "drop") %>%
-    rename(hs10 = commodity) %>%
+              .by = c(commodity, cty_code, year, month)) |>
+    rename(hs10 = commodity) |>
     mutate(year_month = sprintf("%04d-%02d", year, month))
 }
 
 # Download + parse loop
-all_imdb <- list()
+imdb_chunks <- list()
 for (ym in YEAR_MONTHS_IMDB) {
   cat(sprintf("  %s ... ", ym))
 
   zip_path <- download_imdb_zip(ym)
   if (is.null(zip_path)) { cat("not available\n"); next }
 
-  parsed <- tryCatch(parse_imdb_zip(zip_path), error = function(e) {
+  month_data <- tryCatch(parse_imdb_zip(zip_path), error = function(e) {
     cat(sprintf("ERROR: %s\n", conditionMessage(e))); NULL
   })
 
-  if (is.null(parsed) || nrow(parsed) == 0) { cat("empty\n"); next }
+  if (is.null(month_data) || nrow(month_data) == 0) { cat("empty\n"); next }
 
   cat(sprintf("%s pairs, $%.0fB\n",
-              format(nrow(parsed), big.mark = ","),
-              sum(parsed$con_val_mo, na.rm = TRUE) / 1e9))
-  all_imdb[[ym]] <- parsed
-  rm(parsed); gc(verbose = FALSE)
+              format(nrow(month_data), big.mark = ","),
+              sum(month_data$con_val_mo, na.rm = TRUE) / 1e9))
+  imdb_chunks[[ym]] <- month_data
+  rm(month_data); gc(verbose = FALSE)
 }
 
-imdb_combined <- bind_rows(all_imdb)
+imdb_combined <- bind_rows(imdb_chunks)
 write_csv(
-  imdb_combined %>% select(hs10, cty_code, year_month, con_val_mo, cal_dut_mo),
+  imdb_combined |> select(hs10, cty_code, year_month, con_val_mo, cal_dut_mo),
   file.path(RAW_DIR, "imdb_hs10_country_monthly.csv")
 )
 cat(sprintf("  Saved: %s rows, %d months\n\n",
@@ -273,7 +281,10 @@ cat(sprintf("  Saved: %s rows, %d months\n\n",
 
 cat("--- 3. Tariff-Rate-Tracker Exports ---\n\n")
 
-if (!dir.exists(TRACKER_DIR)) stop("tariff-rate-tracker not found at: ", TRACKER_DIR)
+if (!dir.exists(TRACKER_DIR)) {
+  stop("tariff-rate-tracker not found at: ", TRACKER_DIR,
+       "\n  Expected sibling directory alongside this repo.", call. = FALSE)
+}
 
 # --- 3a. Snapshot rate CSVs (RDS -> CSV) ---
 
@@ -295,25 +306,27 @@ for (f in snap_files) {
   out_csv <- file.path(SNAP_DIR, paste0("snapshot_", rev_name, ".csv"))
 
   snap <- tryCatch(readRDS(f), error = function(e) NULL)
-  if (is.null(snap) || nrow(snap) == 0) next
+  if (is.null(snap) || nrow(snap) == 0) { rm(snap); next }
 
-  snap %>%
-    select(all_of(intersect(SNAP_COLS, colnames(snap)))) %>%
+  snap |>
+    select(all_of(intersect(SNAP_COLS, colnames(snap)))) |>
     write_csv(out_csv)
+  rm(snap)
 }
+gc(verbose = FALSE)
 cat(sprintf("    -> %d snapshot CSVs written\n", length(snap_files)))
 
 # --- 3b. 2024 import weights (RDS -> CSV) ---
 
 cat("  Exporting 2024 import weights...\n")
-local_paths <- yaml::read_yaml(file.path(TRACKER_DIR, "config", "local_paths.yaml"))
+local_paths <- read_yaml(file.path(TRACKER_DIR, "config", "local_paths.yaml"))
 iw_path <- normalizePath(file.path(TRACKER_DIR, local_paths$import_weights), mustWork = FALSE)
 
 if (file.exists(iw_path)) {
-  readRDS(iw_path) %>%
-    group_by(hs10, cty_code) %>%
-    summarize(imports = sum(imports, na.rm = TRUE), .groups = "drop") %>%
-    filter(imports > 0) %>%
+  readRDS(iw_path) |>
+    summarise(imports = sum(imports, na.rm = TRUE),
+              .by = c(hs10, cty_code)) |>
+    filter(imports > 0) |>
     write_csv(file.path(RAW_DIR, "import_weights_2024.csv"))
   cat("    -> import_weights_2024.csv written\n")
 } else {
@@ -347,7 +360,10 @@ for (src_rel in names(tracker_copies)) {
 
 cat("\n--- 4. Tariff-Impact-Tracker (Revenue) ---\n\n")
 
-if (!dir.exists(IMPACTS_DIR)) stop("tariff-impact-tracker not found at: ", IMPACTS_DIR)
+if (!dir.exists(IMPACTS_DIR)) {
+  stop("tariff-impact-tracker not found at: ", IMPACTS_DIR,
+       "\n  Expected sibling directory alongside this repo.", call. = FALSE)
+}
 
 rev_src <- file.path(IMPACTS_DIR, "output", "tariff_revenue.csv")
 if (file.exists(rev_src)) {
