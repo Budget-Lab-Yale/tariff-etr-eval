@@ -53,20 +53,21 @@ dir.create(SNAP_DIR, showWarnings = FALSE, recursive = TRUE)
 
 # --- Logging ---
 # Writes to both console and a log file in logs/ for monitoring.
+# Uses write(append=TRUE) instead of a file connection — Windows file
+# connections don't flush reliably when R is backgrounded.
 # Check progress with: tail -f logs/pull_raw_data.log
 LOG_DIR <- here("logs")
 dir.create(LOG_DIR, showWarnings = FALSE, recursive = TRUE)
 LOG_FILE <- file.path(LOG_DIR, "pull_raw_data.log")
-log_con <- file(LOG_FILE, open = "wt")
+
+# Truncate log at start of run
+writeLines("", LOG_FILE)
 
 log_msg <- function(...) {
   msg <- paste0(...)
   cat(msg, "\n")
-  writeLines(msg, log_con)
-  flush(log_con)
+  write(msg, LOG_FILE, append = TRUE)
 }
-
-on.exit(close(log_con), add = TRUE)
 
 log_msg("=======================================================")
 log_msg("  Raw Data Assembly for tariff-etr-eval")
