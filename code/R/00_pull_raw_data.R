@@ -64,22 +64,44 @@ cat("=======================================================\n\n")
 cat("--- 1. Census API (HS2 x country x month) ---\n\n")
 
 CENSUS_API_BASE <- "https://api.census.gov/data/timeseries/intltrade/imports/hs"
+CENSUS_HS2_CACHE <- file.path(RAW_DIR, "census_hs2_country_monthly.csv")
 
-# Coverage: 2024 baseline through current month
+# Census releases data ~2 months after the reference month.
+# Cap at 2 months before today to avoid timeouts on unreleased data.
+latest_census_month <- seq(Sys.Date(), by = "-2 months", length.out = 2)[2]
 YEAR_MONTHS_CENSUS <- format(
-  seq(as.Date("2024-01-01"), Sys.Date(), by = "month"), "%Y-%m"
+  seq(as.Date("2024-01-01"), latest_census_month, by = "month"), "%Y-%m"
 )
 HS2_CHAPTERS <- sprintf("%02d", setdiff(1:99, 77))
 
-#' Pull one HS2 chapter x month from Census API.
-pull_chapter_month <- function(hs2, year_month, max_retries = 3) {
-  key_param <- if (nzchar(Sys.getenv("CENSUS_API_KEY"))) {
-    paste0("&key=", Sys.getenv("CENSUS_API_KEY"))
-  } else {
-    ""
-  }
-  url <- paste0(
-    CENSUS_API_BASE,
+# Incremental pull: only query months not already cached.
+# Historical months (2024, early 2025) won't change; skip them on re-runs.
+cached_months <- character(0)
+if (file.exists(CENSUS_HS2_CACHE)) {
+  cached_data <- read_csv(CENSUS_HS2_CACHE, col_types = cols(.default = col_character()))
+  cached_months <- unique(cached_data$year_month)
+  # Always re-pull the last 2 cached months (may have been revised)
+  cached_months <- setdiff(cached_months, tail(sort(cached_months), 2))
+  cat(sprintf("  Cache: %d months frozen, re-pulling last 2\n", length(cached_months)))
+}
+months_to_pull <- setdiff(YEAR_MONTHS_CENSUS, cached_months)
+cat(sprintf("  Months to pull: %d (of %d total)\n",
+            length(months_to_pull), length(YEAR_MONTHS_CENSUS)))
+
+# Reusable HTTP handle — keeps TCP+TLS connection alive across requests.
+# Eliminates ~1-2s handshake overhead per query.
+census_handle <- handle("https://api.census.gov")
+
+key_param <- if (nzchar(Sys.getenv("CENSUS_API_KEY"))) {
+  paste0("&key=", Sys.getenv("CENSUS_API_KEY"))
+} else {
+  ""
+}
+
+#' Pull one HS2 chapter x month from Census API (with connection reuse).
+pull_chapter_month <- function(hs2, year_month, max_retries = 2) {
+  path <- paste0(
+    "/data/timeseries/intltrade/imports/hs",
     "?get=CON_VAL_MO,CAL_DUT_MO,DUT_VAL_MO,CTY_CODE",
     "&I_COMMODITY=", hs2,
     "&time=", year_month,
@@ -88,7 +110,11 @@ pull_chapter_month <- function(hs2, year_month, max_retries = 3) {
   )
 
   for (attempt in seq_len(max_retries)) {
-    resp <- tryCatch(GET(url, timeout(30)), error = function(e) NULL)
+    resp <- tryCatch(
+      GET(paste0("https://api.census.gov", path),
+          handle = census_handle, timeout(15)),
+      error = function(e) NULL
+    )
 
     if (!is.null(resp) && status_code(resp) == 200) {
       txt <- content(resp, as = "text", encoding = "UTF-8")
@@ -97,7 +123,6 @@ pull_chapter_month <- function(hs2, year_month, max_retries = 3) {
       parsed <- tryCatch(fromJSON(txt), error = function(e) NULL)
       if (is.null(parsed) || nrow(parsed) < 2) return(NULL)
 
-      # First row is header
       header <- parsed[1, ]
       row_data <- as.data.frame(parsed[-1, , drop = FALSE], stringsAsFactors = FALSE)
       cty_idx <- which(header == "CTY_CODE")[1]
@@ -116,35 +141,53 @@ pull_chapter_month <- function(hs2, year_month, max_retries = 3) {
       ) |>
         filter(grepl("^\\d{4,5}$", cty_code)))
     } else if (attempt < max_retries) {
-      wait <- if (!is.null(resp) && status_code(resp) == 429) 5 * attempt else 0.5 * attempt
+      wait <- if (!is.null(resp) && status_code(resp) == 429) 5 * attempt else 1
       Sys.sleep(wait)
     }
   }
   NULL
 }
 
-# Pull loop (pre-allocate list to avoid growing in place)
-total_queries <- length(HS2_CHAPTERS) * length(YEAR_MONTHS_CENSUS)
-census_chunks <- vector("list", total_queries)
+# Pull loop — only months not in cache
+total_queries <- length(HS2_CHAPTERS) * length(months_to_pull)
+new_chunks <- vector("list", total_queries)
 idx <- 0; n_empty <- 0
+t_start <- Sys.time()
 
-for (ym in YEAR_MONTHS_CENSUS) {
+for (ym in months_to_pull) {
   for (ch in HS2_CHAPTERS) {
     idx <- idx + 1
-    if (idx %% 200 == 0 || idx == 1)
-      cat(sprintf("  [%d/%d] %s ch%s\n", idx, total_queries, ym, ch))
+    if (idx %% 100 == 0 || idx == 1) {
+      elapsed <- as.numeric(difftime(Sys.time(), t_start, units = "secs"))
+      rate <- if (idx > 1) elapsed / (idx - 1) else NA
+      eta <- if (!is.na(rate)) round((total_queries - idx) * rate / 60, 1) else NA
+      cat(sprintf("  [%d/%d] %s ch%s (%.1fs/q, ~%.0fm left)\n",
+                  idx, total_queries, ym, ch, rate, eta))
+    }
 
     chunk <- pull_chapter_month(ch, ym)
     if (!is.null(chunk) && nrow(chunk) > 0) {
-      census_chunks[[idx]] <- chunk
+      new_chunks[[idx]] <- chunk
     } else {
       n_empty <- n_empty + 1
     }
-    Sys.sleep(0.1)
+    Sys.sleep(0.05)
   }
 }
 
-census_hs2 <- bind_rows(census_chunks) |>
+# Combine new data with cache
+new_data <- bind_rows(new_chunks)
+if (file.exists(CENSUS_HS2_CACHE) && length(cached_months) > 0) {
+  old_data <- read_csv(CENSUS_HS2_CACHE, show_col_types = FALSE) |>
+    filter(year_month %in% cached_months)
+  census_hs2 <- bind_rows(old_data, new_data)
+  rm(old_data)
+} else {
+  census_hs2 <- new_data
+}
+rm(new_data, new_chunks)
+
+census_hs2 <- census_hs2 |>
   mutate(
     year  = as.integer(substr(year_month, 1, 4)),
     month = as.integer(substr(year_month, 6, 7)),
