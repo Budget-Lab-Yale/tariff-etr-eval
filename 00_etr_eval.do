@@ -120,6 +120,42 @@ else {
 }
 
 * ==============================================================================
+* Step 3: FTA / preference decomposition (requires IMDB detail)
+* ==============================================================================
+
+if $run_fta {
+    di as text "=== Step 3: FTA decomposition ===" _n
+    do "${code}03_fta_decomposition.do"
+}
+else {
+    di as text "=== Step 3: SKIPPED (run_fta = 0) ===" _n
+}
+
+* ==============================================================================
+* Step 4: Max-district cross-check (requires IMDB detail)
+* ==============================================================================
+
+if $run_crosscheck {
+    di as text "=== Step 4: Max-district crosscheck ===" _n
+    do "${code}04_max_district_crosscheck.do"
+}
+else {
+    di as text "=== Step 4: SKIPPED (run_crosscheck = 0) ===" _n
+}
+
+* ==============================================================================
+* Step 5: Counterfactual ladder (Gopinath-Neiman waterfall)
+* ==============================================================================
+
+if $run_ladder {
+    di as text "=== Step 5: Counterfactual ladder ===" _n
+    do "${code}05_counterfactual_ladder.do"
+}
+else {
+    di as text "=== Step 5: SKIPPED (run_ladder = 0) ===" _n
+}
+
+* ==============================================================================
 * Done
 * ==============================================================================
 

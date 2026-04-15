@@ -40,6 +40,18 @@ Four-tier decomposition:
 
 Gap channels: T1->T2 = behavioral, T2->T3 = exemptions, T3->T4 = timing/enforcement/evasion. Also runs Shapley decomposition by country.
 
+### Step 3 — FTA decomposition (`code/03_fta_decomposition.do`)
+
+Decomposes the T2->T3 exemptions gap into preference channels using IMDB detail data (`cty_subco`, `rate_prov`): USMCA, KORUS, other FTAs, GSP/AGOA, duty-free entries, ch99 dutiable, MFN dutiable. Also computes USMCA/KORUS utilization rates. Requires `imdb_detail.csv`.
+
+### Step 4 — Max-district crosscheck (`code/04_max_district_crosscheck.do`)
+
+Validates tracker statutory rates against max observed ETR across customs districts per HS10 x country. Classifies into match/tracker_higher/observed_higher. Tracker-higher = universal preference use; observed-higher = possible tracker parsing error. Requires `imdb_detail.csv`.
+
+### Step 5 — Counterfactual ladder (`code/05_counterfactual_ladder.do`)
+
+Gopinath-Neiman-style waterfall: S0 (full statutory) -> S1 (USMCA baseline) -> S2 (USMCA surge) -> S3 (behavioral reweighting) -> T (Treasury actual). Separates USMCA baseline from surge, trade diversion from exemptions.
+
 ## Running the pipeline
 
 ```stata
@@ -48,10 +60,14 @@ do 00_etr_eval.do
 ```
 
 Toggle steps via globals in `code/utils/globals.do`:
-- `$run_clean` (default 1): skip Step 1 if data is already built
-- `$run_analysis` (default 1): skip Step 2
+- `$run_pull` (default 0): R data pulls (hours-long, off by default)
+- `$run_clean` (default 1): import, clean, merge
+- `$run_analysis` (default 1): four-tier decomposition and figures
+- `$run_fta` (default 1): FTA/preference decomposition (needs `imdb_detail.csv`)
+- `$run_crosscheck` (default 1): max-district validation (needs `imdb_detail.csv`)
+- `$run_ladder` (default 1): counterfactual waterfall
 
-The R step must be run separately first (or is called via `shell Rscript` in the orchestrator).
+The R step must be run separately first (or is called via `shell Rscript` when `$run_pull = 1`).
 
 ## Sibling repo dependencies
 

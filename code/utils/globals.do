@@ -72,9 +72,12 @@ global event_label_6 "Phase 2 Recip."
 global event_label_7 "SCOTUS / S.122"
 
 * --- Run-mode flags (toggle pipeline steps) ---
-global run_pull     0       // Step 0: R data pulls (hours-long, off by default)
-global run_clean    1       // Step 1: import, clean, merge
-global run_analysis 1       // Step 2: decomposition and figures
+global run_pull       0     // Step 0: R data pulls (hours-long, off by default)
+global run_clean      1     // Step 1: import, clean, merge
+global run_analysis   1     // Step 2: four-tier decomposition and figures
+global run_fta        1     // Step 3: FTA/preference decomposition (needs imdb_detail.csv)
+global run_crosscheck 1     // Step 4: max-district tracker validation (needs imdb_detail.csv)
+global run_ladder     1     // Step 5: counterfactual waterfall
 
 * --- Confirmation ---
 di as text "  globals.do loaded: $dir"
