@@ -1,45 +1,78 @@
 # Tariff ETR Evaluation
 
-Comparing actual vs. statutory effective tariff rates during the 2025--2026 US tariff escalation.
+Comparing actual vs. statutory effective tariff rates during the 2025-2026 US tariff escalation.
 
 ## Overview
 
-This project evaluates the gap between **statutory** tariff rates (what the Harmonized Tariff Schedule says importers should pay) and **actual** collection rates (customs duties actually collected as a share of import value). The gap reflects a mix of collection timing, trade agreement utilization, avoidance, stockpiling, and evasion.
+This project evaluates the gap between **statutory** tariff rates (what the Harmonized Tariff Schedule says importers should pay) and **actual** collection rates (customs duties actually collected as a share of import value). The gap is decomposed into behavioral (trade diversion), exemptions (USMCA/FTA utilization), and timing/enforcement channels using a four-tier framework.
+
+## Pipeline
+
+The pipeline has two stages: R assembles raw data from external APIs and sibling repos; Stata cleans, merges, and runs all analysis.
+
+| Step | Script | What |
+|------|--------|------|
+| 0 | `code/R/00_pull_raw_data.R` | Census API (HS2), IMDB bulk (HS10 detail), tracker snapshots, Treasury revenue |
+| 1 | `code/01_etr_clean.do` | Import CSVs, clean, merge Census x tracker at HS10 x country x month |
+| 2 | `code/02_etr_analysis.do` | Four-tier ETR decomposition, Shapley by country, figures |
+| 3 | `code/03_fta_decomposition.do` | Preference channel decomposition (USMCA, KORUS, GSP, duty-free, etc.) |
+| 4 | `code/04_max_district_crosscheck.do` | Validate tracker rates vs. max observed across customs districts |
+| 5 | `code/05_counterfactual_ladder.do` | Gopinath-Neiman waterfall (USMCA baseline/surge, behavioral, residual) |
+
+### Usage
+
+```
+Rscript code/R/00_pull_raw_data.R                    # Step 0 (run once, hours-long)
+cd "C:/Users/ji252/Documents/GitHub/tariff-etr-eval"  # Stata
+do 00_etr_eval.do                                     # Steps 1-5
+```
+
+Toggle individual steps via `$run_*` flags in `code/utils/globals.do`.
 
 ## Data Sources
 
-| Source | Repo | What |
-|--------|------|------|
-| `rate_timeseries.rds` | `tariff-rate-tracker` | HTS10 × country statutory rates by revision |
-| `daily_overall.csv` | `tariff-rate-tracker` | Daily import-weighted statutory ETR |
-| `daily_by_authority.csv` | `tariff-rate-tracker` | Daily ETR decomposed by tariff authority |
-| `daily_by_country.csv` | `tariff-rate-tracker` | Daily ETR by trading partner |
-| `tariff_revenue.csv` | `tariff-impact-tracker` | Monthly actual ETR (customs duties / imports) |
+| Source | Repo/API | What |
+|--------|----------|------|
+| Census Bureau API | `api.census.gov` | HS2 x country monthly trade (consumption value, duties) |
+| Census IMDB bulk | `census.gov/trade/downloads/` | HS10 x country x district x preference detail |
+| Tariff Rate Tracker | `tariff-rate-tracker` (sibling) | HTS10 x country statutory rates, daily ETR, import weights |
+| Tariff Impact Tracker | `tariff-impact-tracker` (sibling) | Monthly actual ETR (Treasury customs duties / imports) |
 
-Both sibling repos must be present at the same directory level (e.g., `Documents/GitHub/tariff-rate-tracker` and `Documents/GitHub/tariff-impact-tracker`).
+Both sibling repos must be at the same directory level as this repo.
 
-## Report Contents
+## Four-Tier Decomposition
 
-1. **Actual vs. Statutory ETR** (Figure 1): Daily statutory line + monthly actual scatter
-2. **Statutory-Actual Gap** (Figure 2): Monthly gap in percentage points
-3. **Country-Level Decomposition** (Figure 3): Statutory ETR by major trading partner
-4. **Stockpiling Analysis** (Figure 4): Tariff increases vs. import timing by HS chapter
-5. **Gap Decomposition Framework** (Figure 5): Illustrative attribution to avoidance channels
+| Tier | Definition | Weights |
+|------|------------|---------|
+| 1 | Statutory ETR (tracker rates) | 2024 annual |
+| 2 | Statutory ETR (tracker rates) | Actual monthly |
+| 3 | Census calculated ETR (duty / value) | Actual monthly |
+| 4 | Treasury actual ETR | Aggregate |
 
-## Usage
+**Gap channels**: T1->T2 = behavioral (trade diversion + product substitution); T2->T3 = exemptions (USMCA, FTA, specific-rate effects); T3->T4 = timing, enforcement, evasion.
 
-```r
-source("run_all.R")
-```
+## Output
 
-Or render the report directly:
+**Figures** (`results/figures/`):
+- Figure 1: Actual vs. statutory ETR comparison (monthly line chart)
+- Figure 2: Gap decomposition (grouped and stacked bar charts)
 
-```r
-rmarkdown::render("R/etr_eval_report.Rmd", output_dir = "output")
-```
+**Tables** (`results/tables/`):
+- `decomp_monthly.csv` -- monthly four-tier decomposition
+- `decomp_by_country.csv` -- Shapley between/within by partner group
+- `fta_decomp_monthly.csv` -- preference channel breakdown
+- `fta_utilization_rates.csv` -- USMCA/KORUS utilization rates
+- `max_district_summary.csv` -- tracker validation statistics
+- `counterfactual_ladder.csv` -- waterfall decomposition
+
+## Requirements
+
+**R** (step 0 only): `httr`, `jsonlite`, `dplyr`, `readr`, `here`, `stringi`, `yaml`
+
+**Stata 17+**: `ftools`, `reghdfe`, `gtools`, `estout`, `plotplainblind`
+
+Set `CENSUS_API_KEY` in `~/.Renviron` for Census API access.
 
 ## Methodology
 
-**Monthly collapsing**: Statutory rates are collapsed from daily to monthly using first-of-month snapshots, preserving the step-function nature of tariff policy.
-
-**Gap decomposition**: The statutory-actual gap is decomposed into timing lags, USMCA utilization, stockpiling, other preferences, and evasion. See the report for details on each channel.
+See `docs/weighting_note.md` for the two-stage aggregation approach (HTS10 -> HS2 x country -> overall) and `docs/etr-literature-review.md` for context on the statutory-actual ETR gap literature.
