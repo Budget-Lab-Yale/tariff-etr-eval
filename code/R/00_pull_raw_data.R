@@ -51,17 +51,34 @@ dir.create(IMDB_DIR, showWarnings = FALSE, recursive = TRUE)
 dir.create(IMDB_RAW, showWarnings = FALSE, recursive = TRUE)
 dir.create(SNAP_DIR, showWarnings = FALSE, recursive = TRUE)
 
-cat("=======================================================\n")
-cat("  Raw Data Assembly for tariff-etr-eval\n")
-cat("  Started:", format(Sys.time()), "\n")
-cat("=======================================================\n\n")
+# --- Logging ---
+# Writes to both console and a log file in logs/ for monitoring.
+# Check progress with: tail -f logs/pull_raw_data.log
+LOG_DIR <- here("logs")
+dir.create(LOG_DIR, showWarnings = FALSE, recursive = TRUE)
+LOG_FILE <- file.path(LOG_DIR, "pull_raw_data.log")
+log_con <- file(LOG_FILE, open = "wt")
+
+log_msg <- function(...) {
+  msg <- paste0(...)
+  cat(msg, "\n")
+  writeLines(msg, log_con)
+  flush(log_con)
+}
+
+on.exit(close(log_con), add = TRUE)
+
+log_msg("=======================================================")
+log_msg("  Raw Data Assembly for tariff-etr-eval")
+log_msg("  Started: ", format(Sys.time()))
+log_msg("=======================================================")
 
 
 # ======================================================================
 # 1. CENSUS API: HS2 x country x month
 # ======================================================================
 
-cat("--- 1. Census API (HS2 x country x month) ---\n\n")
+log_msg("--- 1. Census API (HS2 x country x month) ---")
 
 CENSUS_API_BASE <- "https://api.census.gov/data/timeseries/intltrade/imports/hs"
 CENSUS_HS2_CACHE <- file.path(RAW_DIR, "census_hs2_country_monthly.csv")
@@ -82,11 +99,11 @@ if (file.exists(CENSUS_HS2_CACHE)) {
   cached_months <- unique(cached_data$year_month)
   # Always re-pull the last 2 cached months (may have been revised)
   cached_months <- setdiff(cached_months, tail(sort(cached_months), 2))
-  cat(sprintf("  Cache: %d months frozen, re-pulling last 2\n", length(cached_months)))
+  log_msg(sprintf("  Cache: %d months frozen, re-pulling last 2", length(cached_months)))
 }
 months_to_pull <- setdiff(YEAR_MONTHS_CENSUS, cached_months)
-cat(sprintf("  Months to pull: %d (of %d total)\n",
-            length(months_to_pull), length(YEAR_MONTHS_CENSUS)))
+log_msg(sprintf("  Months to pull: %d (of %d total)",
+                length(months_to_pull), length(YEAR_MONTHS_CENSUS)))
 
 # Reusable HTTP handle — keeps TCP+TLS connection alive across requests.
 # Eliminates ~1-2s handshake overhead per query.
@@ -161,8 +178,8 @@ for (ym in months_to_pull) {
       elapsed <- as.numeric(difftime(Sys.time(), t_start, units = "secs"))
       rate <- if (idx > 1) elapsed / (idx - 1) else NA
       eta <- if (!is.na(rate)) round((total_queries - idx) * rate / 60, 1) else NA
-      cat(sprintf("  [%d/%d] %s ch%s (%.1fs/q, ~%.0fm left)\n",
-                  idx, total_queries, ym, ch, rate, eta))
+      log_msg(sprintf("  [%d/%d] %s ch%s (%.1fs/q, ~%.0fm left)",
+                      idx, total_queries, ym, ch, rate, eta))
     }
 
     chunk <- pull_chapter_month(ch, ym)
@@ -197,14 +214,14 @@ census_hs2 <- census_hs2 |>
   arrange(year_month, hs2, cty_code)
 
 write_csv(census_hs2, file.path(RAW_DIR, "census_hs2_country_monthly.csv"))
-cat(sprintf("  Saved: %d rows (%d empty queries)\n\n", nrow(census_hs2), n_empty))
+log_msg(sprintf("  Saved: %d rows (%d empty queries)", nrow(census_hs2), n_empty))
 
 
 # ======================================================================
 # 2. CENSUS IMDB: HS10 x country x month (rich detail + aggregated)
 # ======================================================================
 
-cat("--- 2. Census IMDB Bulk Files (HS10 x country x month) ---\n\n")
+log_msg("--- 2. Census IMDB Bulk Files (HS10 x country x month) ---")
 
 IMDB_URL_TEMPLATE <- "https://www.census.gov/trade/downloads/%s/Merch/im_m/IMDB%s.ZIP"
 
@@ -298,20 +315,20 @@ names(imdb_detail_chunks) <- YEAR_MONTHS_IMDB
 imdb_months_available <- character(0)
 
 for (ym in YEAR_MONTHS_IMDB) {
-  cat(sprintf("  %s ... ", ym))
+  log_msg(sprintf("  %s ...", ym))
 
   zip_path <- download_imdb_zip(ym)
-  if (is.null(zip_path)) { cat("not available\n"); next }
+  if (is.null(zip_path)) { log_msg("    not available"); next }
 
   month_data <- tryCatch(parse_imdb_detail(zip_path), error = function(e) {
-    cat(sprintf("ERROR: %s\n", conditionMessage(e))); NULL
+    log_msg(sprintf("    ERROR: %s", conditionMessage(e))); NULL
   })
 
-  if (is.null(month_data) || nrow(month_data) == 0) { cat("empty\n"); next }
+  if (is.null(month_data) || nrow(month_data) == 0) { log_msg("    empty"); next }
 
-  cat(sprintf("%s rows, $%.0fB\n",
-              format(nrow(month_data), big.mark = ","),
-              sum(month_data$con_val_mo, na.rm = TRUE) / 1e9))
+  log_msg(sprintf("    %s rows, $%.0fB",
+                  format(nrow(month_data), big.mark = ","),
+                  sum(month_data$con_val_mo, na.rm = TRUE) / 1e9))
   imdb_detail_chunks[[ym]] <- month_data
   imdb_months_available <- c(imdb_months_available, ym)
   rm(month_data); gc(verbose = FALSE)
@@ -326,9 +343,9 @@ write_csv(
                          year_month, con_val_mo, dut_val_mo, cal_dut_mo),
   file.path(RAW_DIR, "imdb_detail.csv")
 )
-cat(sprintf("  Detail: %s rows, %d months\n",
-            format(nrow(imdb_detail), big.mark = ","),
-            n_distinct(imdb_detail$year_month)))
+log_msg(sprintf("  Detail: %s rows, %d months",
+                format(nrow(imdb_detail), big.mark = ","),
+                n_distinct(imdb_detail$year_month)))
 
 # --- Output 2: Aggregated to HS10 x country x month (for main pipeline) ---
 imdb_agg <- imdb_detail |>
@@ -336,7 +353,7 @@ imdb_agg <- imdb_detail |>
             cal_dut_mo = sum(cal_dut_mo, na.rm = TRUE),
             .by = c(hs10, cty_code, year_month))
 write_csv(imdb_agg, file.path(RAW_DIR, "imdb_hs10_country_monthly.csv"))
-cat(sprintf("  Aggregated: %s rows\n", format(nrow(imdb_agg), big.mark = ",")))
+log_msg(sprintf("  Aggregated: %s rows", format(nrow(imdb_agg), big.mark = ",")))
 rm(imdb_detail, imdb_agg); gc(verbose = FALSE)
 
 
@@ -351,8 +368,8 @@ imdb_gap_months <- setdiff(YEAR_MONTHS_CENSUS, imdb_months_available)
 imdb_gap_months <- imdb_gap_months[imdb_gap_months >= "2025-01"]
 
 if (length(imdb_gap_months) > 0) {
-  cat(sprintf("\n--- 2b. Census API HS10 fallback (%d months) ---\n\n",
-              length(imdb_gap_months)))
+  log_msg(sprintf("--- 2b. Census API HS10 fallback (%d months) ---",
+                  length(imdb_gap_months)))
 
   # Countries with meaningful trade volume (from HS2 pull)
   top_countries <- census_hs2 |>
@@ -360,8 +377,8 @@ if (length(imdb_gap_months) > 0) {
     summarise(total = sum(con_val_mo, na.rm = TRUE), .by = cty_code) |>
     filter(total > 1e8) |>
     pull(cty_code)
-  cat(sprintf("  Querying %d countries x %d months at HS10\n",
-              length(top_countries), length(imdb_gap_months)))
+  log_msg(sprintf("  Querying %d countries x %d months at HS10",
+                  length(top_countries), length(imdb_gap_months)))
 
   pull_hs10_country_month <- function(cty, year_month, max_retries = 3) {
     key_param <- if (nzchar(Sys.getenv("CENSUS_API_KEY"))) {
@@ -417,8 +434,8 @@ if (length(imdb_gap_months) > 0) {
 
   for (i in seq_len(n_queries)) {
     if (i %% 50 == 0 || i == 1)
-      cat(sprintf("  [%d/%d] %s cty=%s\n", i, n_queries,
-                  hs10_queries$ym[i], hs10_queries$cty[i]))
+      log_msg(sprintf("  [%d/%d] %s cty=%s", i, n_queries,
+                      hs10_queries$ym[i], hs10_queries$cty[i]))
     hs10_chunks[[i]] <- pull_hs10_country_month(
       hs10_queries$cty[i], hs10_queries$ym[i])
     Sys.sleep(0.15)
@@ -427,14 +444,14 @@ if (length(imdb_gap_months) > 0) {
   hs10_fallback <- bind_rows(hs10_chunks)
   if (nrow(hs10_fallback) > 0) {
     write_csv(hs10_fallback, file.path(RAW_DIR, "census_hs10_fallback.csv"))
-    cat(sprintf("  Saved fallback: %s rows, %d months\n\n",
-                format(nrow(hs10_fallback), big.mark = ","),
-                n_distinct(hs10_fallback$year_month)))
+    log_msg(sprintf("  Saved fallback: %s rows, %d months",
+                    format(nrow(hs10_fallback), big.mark = ","),
+                    n_distinct(hs10_fallback$year_month)))
   } else {
-    cat("  No fallback data needed (IMDB covers all months)\n\n")
+    log_msg("  No fallback data needed (IMDB covers all months)")
   }
 } else {
-  cat("\n--- 2b. Census API HS10 fallback: SKIPPED (IMDB complete) ---\n\n")
+  log_msg("--- 2b. Census API HS10 fallback: SKIPPED (IMDB complete) ---")
 }
 
 
@@ -442,7 +459,7 @@ if (length(imdb_gap_months) > 0) {
 # 3. TARIFF-RATE-TRACKER: snapshots, daily ETRs, weights, revision dates
 # ======================================================================
 
-cat("--- 3. Tariff-Rate-Tracker Exports ---\n\n")
+log_msg("--- 3. Tariff-Rate-Tracker Exports ---")
 
 if (!dir.exists(TRACKER_DIR)) {
   stop("tariff-rate-tracker not found at: ", TRACKER_DIR,
@@ -453,7 +470,7 @@ if (!dir.exists(TRACKER_DIR)) {
 
 ts_dir <- file.path(TRACKER_DIR, "data", "timeseries")
 snap_files <- list.files(ts_dir, pattern = "^snapshot_.*\\.rds$", full.names = TRUE)
-cat(sprintf("  Exporting %d snapshot RDS files...\n", length(snap_files)))
+log_msg(sprintf("  Exporting %d snapshot RDS files...", length(snap_files)))
 
 # Columns to export from each snapshot
 SNAP_COLS <- c("hts10", "country", "total_rate",
@@ -477,11 +494,11 @@ for (f in snap_files) {
   rm(snap)
 }
 gc(verbose = FALSE)
-cat(sprintf("    -> %d snapshot CSVs written\n", length(snap_files)))
+log_msg(sprintf("    -> %d snapshot CSVs written", length(snap_files)))
 
 # --- 3b. 2024 import weights (RDS -> CSV) ---
 
-cat("  Exporting 2024 import weights...\n")
+log_msg("  Exporting 2024 import weights...")
 local_paths <- read_yaml(file.path(TRACKER_DIR, "config", "local_paths.yaml"))
 iw_path <- normalizePath(file.path(TRACKER_DIR, local_paths$import_weights), mustWork = FALSE)
 
@@ -491,14 +508,14 @@ if (file.exists(iw_path)) {
               .by = c(hs10, cty_code)) |>
     filter(imports > 0) |>
     write_csv(file.path(RAW_DIR, "import_weights_2024.csv"))
-  cat("    -> import_weights_2024.csv written\n")
+  log_msg("    -> import_weights_2024.csv written")
 } else {
-  cat("    WARNING: import weights RDS not found at:", iw_path, "\n")
+  log_msg("    WARNING: import weights RDS not found at: ", iw_path)
 }
 
 # --- 3c. Daily ETR CSVs (copy from tracker output) ---
 
-cat("  Copying daily ETR files...\n")
+log_msg("  Copying daily ETR files...")
 tracker_copies <- c(
   "output/daily/daily_overall.csv"    = "daily_overall.csv",
   "output/daily/daily_by_country.csv" = "daily_by_country.csv",
@@ -510,9 +527,9 @@ for (src_rel in names(tracker_copies)) {
   dst <- file.path(RAW_DIR, tracker_copies[[src_rel]])
   if (file.exists(src)) {
     file.copy(src, dst, overwrite = TRUE)
-    cat(sprintf("    -> %s\n", tracker_copies[[src_rel]]))
+    log_msg(sprintf("    -> %s", tracker_copies[[src_rel]]))
   } else {
-    cat(sprintf("    WARNING: %s not found\n", src_rel))
+    log_msg(sprintf("    WARNING: %s not found", src_rel))
   }
 }
 
@@ -521,7 +538,7 @@ for (src_rel in names(tracker_copies)) {
 # 4. TARIFF-IMPACT-TRACKER: Treasury revenue
 # ======================================================================
 
-cat("\n--- 4. Tariff-Impact-Tracker (Revenue) ---\n\n")
+log_msg("--- 4. Tariff-Impact-Tracker (Revenue) ---")
 
 if (!dir.exists(IMPACTS_DIR)) {
   stop("tariff-impact-tracker not found at: ", IMPACTS_DIR,
@@ -531,9 +548,9 @@ if (!dir.exists(IMPACTS_DIR)) {
 rev_src <- file.path(IMPACTS_DIR, "output", "tariff_revenue.csv")
 if (file.exists(rev_src)) {
   file.copy(rev_src, file.path(RAW_DIR, "tariff_revenue.csv"), overwrite = TRUE)
-  cat("  -> tariff_revenue.csv copied\n")
+  log_msg("  -> tariff_revenue.csv copied")
 } else {
-  cat("  WARNING: tariff_revenue.csv not found\n")
+  log_msg("  WARNING: tariff_revenue.csv not found")
 }
 
 
@@ -541,11 +558,11 @@ if (file.exists(rev_src)) {
 # SUMMARY
 # ======================================================================
 
-cat("\n=======================================================\n")
-cat("  Raw data assembly complete\n")
-cat("  Finished:", format(Sys.time()), "\n")
-cat("  Output:", RAW_DIR, "\n")
-cat("=======================================================\n")
+log_msg("=======================================================")
+log_msg("  Raw data assembly complete")
+log_msg("  Finished: ", format(Sys.time()))
+log_msg("  Output: ", RAW_DIR)
+log_msg("=======================================================")
 
 raw_files <- list.files(RAW_DIR, recursive = TRUE)
-cat(sprintf("  %d files in data/raw/\n", length(raw_files)))
+log_msg(sprintf("  %d files in data/raw/", length(raw_files)))
