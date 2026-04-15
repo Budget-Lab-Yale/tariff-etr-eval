@@ -98,13 +98,6 @@ HTS10 rates are available only with 2024 annual weights. Monthly trade data from
 
 Zero-tariff products **must be included** in the denominator. Dropping them inflates the ETR from ~3.4% to ~27%. See `docs/weighting_note.md`.
 
-## R_archive/
-
-Contains the original R-based pipeline (pre-Stata refactor). No longer in the critical path, but includes analyses not yet ported:
-- `02b_fta_decomposition.R` — USMCA/FTA utilization detail using IMDB preference codes
-- `03_counterfactual_ladder.R` — Gopinath-Neiman-style waterfall decomposition
-- `02c_max_district_crosscheck.R` — validates tracker rates against max observed across customs districts
-
 ## Conventions
 
 - Orchestrator naming: `00_etr_eval.do` (numeric prefix `00_` signals top-level runner)
