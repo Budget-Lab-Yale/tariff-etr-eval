@@ -121,9 +121,9 @@ pull_chapter_month <- function(hs2, year_month, max_retries = 3) {
   NULL
 }
 
-# Pull loop
-census_chunks <- list()
+# Pull loop (pre-allocate list to avoid growing in place)
 total_queries <- length(HS2_CHAPTERS) * length(YEAR_MONTHS_CENSUS)
+census_chunks <- vector("list", total_queries)
 idx <- 0; n_empty <- 0
 
 for (ym in YEAR_MONTHS_CENSUS) {
@@ -134,7 +134,7 @@ for (ym in YEAR_MONTHS_CENSUS) {
 
     chunk <- pull_chapter_month(ch, ym)
     if (!is.null(chunk) && nrow(chunk) > 0) {
-      census_chunks[[length(census_chunks) + 1]] <- chunk
+      census_chunks[[idx]] <- chunk
     } else {
       n_empty <- n_empty + 1
     }
@@ -245,7 +245,8 @@ parse_imdb_zip <- function(zip_path) {
 }
 
 # Download + parse loop
-imdb_chunks <- list()
+imdb_chunks <- vector("list", length(YEAR_MONTHS_IMDB))
+names(imdb_chunks) <- YEAR_MONTHS_IMDB
 for (ym in YEAR_MONTHS_IMDB) {
   cat(sprintf("  %s ... ", ym))
 
