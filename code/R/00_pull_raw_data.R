@@ -82,7 +82,6 @@ log_msg("=======================================================")
 log_msg("--- 1. Census API (HS2 x country x month) ---")
 
 CENSUS_API_BASE <- "https://api.census.gov/data/timeseries/intltrade/imports/hs"
-CENSUS_HS2_CACHE <- file.path(RAW_DIR, "census_hs2_country_monthly.csv")
 
 # Census releases data ~2 months after the reference month.
 # Cap at 2 months before today to avoid timeouts on unreleased data.
@@ -92,17 +91,10 @@ YEAR_MONTHS_CENSUS <- format(
 )
 HS2_CHAPTERS <- sprintf("%02d", setdiff(1:99, 77))
 
-# Incremental pull: only query months not already cached.
-# Historical months (2024, early 2025) won't change; skip them on re-runs.
-cached_months <- character(0)
-if (file.exists(CENSUS_HS2_CACHE)) {
-  cached_data <- read.csv(CENSUS_HS2_CACHE, stringsAsFactors = FALSE, colClasses = "character")
-  cached_months <- unique(cached_data$year_month)
-  # Always re-pull the last 2 cached months (may have been revised)
-  cached_months <- setdiff(cached_months, tail(sort(cached_months), 2))
-  log_msg(sprintf("  Cache: %d months frozen, re-pulling last 2", length(cached_months)))
-}
-months_to_pull <- setdiff(YEAR_MONTHS_CENSUS, cached_months)
+# Pull all months. Caching disabled — R 4.5.2 segfaults on read.csv of
+# the cached file (likely an R/compiler bug; file is valid ASCII CSV).
+# Full pull of 26 months takes ~45 min; acceptable for a daily-run script.
+months_to_pull <- YEAR_MONTHS_CENSUS
 log_msg(sprintf("  Months to pull: %d (of %d total)",
                 length(months_to_pull), length(YEAR_MONTHS_CENSUS)))
 
@@ -193,32 +185,11 @@ for (ym in months_to_pull) {
   }
 }
 
-# Combine new data with cache
-log_msg("  Combining new data with cache...")
-new_data <- bind_rows(new_chunks)
+# Combine results (no cache — R 4.5.2 segfaults reading the cached CSV)
+log_msg("  Combining query results...")
+census_hs2 <- bind_rows(new_chunks)
 rm(new_chunks); gc(verbose = FALSE)
-log_msg(sprintf("  New data: %d rows from API", nrow(new_data)))
-
-RAW_COLS <- c("hs2", "cty_code", "con_val_mo", "cal_dut_mo", "dut_val_mo", "year_month")
-
-if (file.exists(CENSUS_HS2_CACHE) && length(cached_months) > 0) {
-  # Use base read.csv — readr::read_csv segfaults under memory pressure
-  # when multiple R processes are running (R 4.5 + readr interaction)
-  old_data <- read.csv(CENSUS_HS2_CACHE, stringsAsFactors = FALSE) |>
-    as_tibble() |>
-    filter(year_month %in% cached_months) |>
-    select(any_of(RAW_COLS)) |>
-    mutate(across(c(con_val_mo, cal_dut_mo, dut_val_mo), as.numeric))
-  log_msg(sprintf("  Cache: %d rows from %d frozen months", nrow(old_data), length(cached_months)))
-  census_hs2 <- bind_rows(
-    old_data |> select(any_of(RAW_COLS)),
-    new_data |> select(any_of(RAW_COLS))
-  )
-  rm(old_data)
-} else {
-  census_hs2 <- new_data |> select(any_of(RAW_COLS))
-}
-rm(new_data); gc(verbose = FALSE)
+log_msg(sprintf("  Total: %d rows from API", nrow(census_hs2)))
 
 census_hs2 <- census_hs2 |>
   mutate(
