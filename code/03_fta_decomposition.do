@@ -103,21 +103,25 @@ di as text "       Classification complete"
 
 di as text "  [B] Merging with statutory rates..."
 
-* Map months to revisions
-use "$working/revision_dates.dta", clear
-sort eff_date
-tempfile rev_dates
-save `rev_dates'
-
-use `imdb_classified', clear
-
-* Cross with revision dates to find applicable revision per month
+** Build month -> revision mapping (same approach as 01_etr_clean.do)
+clear
+local n_months = $end_ym - $start_ym + 1
+set obs `n_months'
+gen int ym = $start_ym + _n - 1
+format ym %tm
 gen first_of_month = dofm(ym)
 format first_of_month %td
-cross using `rev_dates'
+
+cross using "$working/revision_dates.dta"
 keep if eff_date <= first_of_month
-bysort ym hs10 cty_code cty_subco dist_entry rate_prov (eff_date): keep if _n == _N
-drop first_of_month eff_date eff_ym policy_event
+bysort ym (eff_date): keep if _n == _N
+keep ym revision
+tempfile month_rev_map
+save `month_rev_map'
+
+** Merge revision onto IMDB data via month
+use `imdb_classified', clear
+merge m:1 ym using `month_rev_map', keep(match master) nogenerate
 
 * Merge statutory rates
 merge m:1 hs10 cty_code revision using "$working/tracker_snapshots.dta", ///

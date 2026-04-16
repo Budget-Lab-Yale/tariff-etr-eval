@@ -91,13 +91,25 @@ di as text "       `=_N' HS10 x country x month cells"
 
 di as text "  [C] Merging tracker statutory rates..."
 
-* Month -> revision mapping
-gen first_of_month = dofm(ym)
-format first_of_month %td
-cross using "$working/revision_dates.dta"
-keep if eff_date <= first_of_month
-bysort ym hs10 cty_code (eff_date): keep if _n == _N
-drop first_of_month eff_date eff_ym policy_event
+** Build month -> revision mapping
+preserve
+    clear
+    local n_months = $end_ym - $start_ym + 1
+    set obs `n_months'
+    gen int ym = $start_ym + _n - 1
+    format ym %tm
+    gen first_of_month = dofm(ym)
+    format first_of_month %td
+    cross using "$working/revision_dates.dta"
+    keep if eff_date <= first_of_month
+    bysort ym (eff_date): keep if _n == _N
+    keep ym revision
+    tempfile month_rev_map
+    save `month_rev_map'
+restore
+
+** Merge revision onto collapsed data via month
+merge m:1 ym using `month_rev_map', keep(match master) nogenerate
 
 * Merge statutory rates
 merge m:1 hs10 cty_code revision using "$working/tracker_snapshots.dta", ///
