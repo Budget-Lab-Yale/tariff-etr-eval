@@ -53,16 +53,8 @@ keep if ym >= $start_ym & ym <= $end_ym
 
 di as text "       `=_N' detail rows in analysis period"
 
-* Assign partner groups
-rename hs10 hs10_orig
-rename cty_code cty_code_orig
-gen str10 cty_code = cty_code_orig
+* Assign partner groups (cty_code is already string from stringcols)
 assign_partner_group cty_code
-rename hs10_orig hs10
-rename cty_code_orig cty_code_str
-rename cty_code cty_code_tmp
-rename cty_code_str cty_code
-drop cty_code_tmp
 
 
 * --- Classify preference channels ---

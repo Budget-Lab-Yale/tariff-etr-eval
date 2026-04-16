@@ -49,28 +49,37 @@ di as text "  [A1] Census HS2 x country..."
 import delimited using "$raw/census_hs2_country_monthly.csv", ///
     clear stringcols(1 2 5)
 
-destring year month con_val_mo dut_val_mo effective_rate, replace force
+** Generate date information 
 gen int ym = ym(year, month)
 format ym %tm
-
+drop year_month date 	
+	
+** Destring variables 	
+destring effective_rate, replace ignore("NA")	
+destring dut_val_mo, replace
 destring hs2, gen(hs2_num) force
-label values hs2_num hs2_lbl
 
+** Run assign partern code 
 assign_partner_group cty_code
 
+** Set up labels
+label values hs2_num hs2_lbl
 label var hs2           "HS2 chapter code"
+label var hs2_num		"HS2 chapter code (numeric)"
 label var cty_code      "Census country code"
+label var cal_dut_mo    "Calculated duties value (USD)"
 label var con_val_mo    "Consumption value (USD)"
 label var dut_val_mo    "Dutiable value (USD)"
 label var effective_rate "Calculated duty ETR (%)"
 label var ym            "Month (Stata date)"
 label var partner_group "Trading partner group"
 
-sort ym hs2 cty_code
+sort ym year month hs2* cty_code partner_group
+order ym year month hs2* cty_code partner_group
+
 compress
 save "$working/census_hs2_clean.dta", replace
 di as text "       `=_N' obs saved"
-
 
 * --- A2. HS10 x country x month (IMDB source) ---
 
@@ -79,16 +88,23 @@ di as text "  [A2] Census HS10 x country (IMDB)..."
 import delimited using "$raw/imdb_hs10_country_monthly.csv", ///
     clear stringcols(1 2 3)
 
+** Generate date information 
 gen year  = real(substr(year_month, 1, 4))
 gen month = real(substr(year_month, 6, 7))
 gen int ym = ym(year, month)
 format ym %tm
+drop year_month 
 
-destring con_val_mo cal_dut_mo, replace force
-safe_divide cal_dut_mo con_val_mo census_etr
-gen str2 hs2 = substr(hs10, 1, 2)
+** Run assign partern code 
 assign_partner_group cty_code
 
+** Calculate census ETR 
+safe_divide cal_dut_mo con_val_mo census_etr
+
+** Get HS2 value 
+gen str2 hs2 = substr(hs10, 1, 2)
+
+** Set up labels
 label var hs10       "HTS10 product code"
 label var cty_code   "Census country code"
 label var con_val_mo "Consumption value (USD)"
@@ -96,8 +112,11 @@ label var cal_dut_mo "Calculated duty (USD)"
 label var census_etr "Census ETR (ratio)"
 label var hs2        "HS2 chapter"
 label var ym         "Month (Stata date)"
+label var partner_group "Trading partner group"
 
-sort ym hs10 cty_code
+sort ym year month hs2 hs10 cty_code partner_group
+order ym year month hs2 hs10 cty_code partner_group
+
 compress
 save "$working/census_hs10_clean.dta", replace
 di as text "       `=_N' obs saved"
@@ -113,16 +132,24 @@ di as text "  [B1] Daily overall ETR..."
 
 import delimited using "$raw/daily_overall.csv", clear stringcols(2)
 
+** Generate date
 gen daily_date = date(date, "YMD")
 format daily_date %td
+drop date
 
+** Keep relevant variables
 keep daily_date revision weighted_etr weighted_etr_additional ///
      matched_imports_b total_imports_b
 
-label var daily_date    "Date"
-label var revision      "HTS revision"
-label var weighted_etr  "Import-weighted statutory ETR"
+** Set up labels
+label var daily_date              "Date"
+label var revision                "HTS revision"
+label var weighted_etr            "Import-weighted statutory ETR"
+label var weighted_etr_additional "Additional statutory ETR"
+label var matched_imports_b       "Matched imports ($B)"
+label var total_imports_b         "Total imports ($B)"
 
+order daily_date revision weighted_etr
 sort daily_date
 compress
 save "$working/tracker_daily.dta", replace
@@ -135,11 +162,23 @@ di as text "  [B2] Daily ETR by country..."
 
 import delimited using "$raw/daily_by_country.csv", clear stringcols(2 3 4)
 
+** Generate date and standardize column names
 gen daily_date = date(date, "YMD")
 format daily_date %td
 rename country cty_code
+drop date
+
+** Keep relevant variables
 keep daily_date cty_code country_name revision weighted_etr
 
+** Set up labels
+label var daily_date    "Date"
+label var cty_code      "Census country code"
+label var country_name  "Country name"
+label var revision      "HTS revision"
+label var weighted_etr  "Import-weighted statutory ETR"
+
+order daily_date cty_code country_name revision weighted_etr
 sort daily_date cty_code
 compress
 save "$working/tracker_daily_by_country.dta", replace
@@ -152,17 +191,23 @@ di as text "  [B3] Revision dates..."
 
 import delimited using "$raw/revision_dates.csv", clear varnames(1)
 
+** Generate date information
 gen eff_date = date(effective_date, "YMD")
 format eff_date %td
 gen int eff_ym = mofd(eff_date)
 format eff_ym %tm
 capture tostring revision, replace
 
+** Keep relevant variables
 keep revision eff_date eff_ym policy_event
-label var revision  "HTS revision identifier"
-label var eff_date  "Effective date"
-label var eff_ym    "Effective month"
 
+** Set up labels
+label var revision     "HTS revision identifier"
+label var eff_date     "Effective date"
+label var eff_ym       "Effective month"
+label var policy_event "Policy event description"
+
+order revision eff_date eff_ym policy_event
 sort eff_date
 compress
 save "$working/revision_dates.dta", replace
@@ -189,20 +234,30 @@ foreach f of local snap_files {
         import delimited using "`snap_dir'/`f'", clear stringcols(1 2)
         gen str30 revision = "`rev'"
 
+        ** Standardize column names
         capture rename country cty_code
         capture rename hts10 hs10
 
+        ** Destring numeric rate and share columns
         foreach v of varlist total_rate statutory_rate_* rate_232 ///
                              metal_share steel_share aluminum_share ///
                              copper_share {
             capture destring `v', replace force
         }
 
+        ** Convert logical columns from "TRUE"/"FALSE" to byte
         capture confirm variable usmca_eligible
         if _rc == 0 {
             gen byte usmca = (usmca_eligible == "TRUE")
             drop usmca_eligible
             rename usmca usmca_eligible
+        }
+
+        capture confirm variable s232_usmca_eligible
+        if _rc == 0 {
+            gen byte s232_usmca = (s232_usmca_eligible == "TRUE")
+            drop s232_usmca_eligible
+            rename s232_usmca s232_usmca_eligible
         }
     }
 
@@ -217,11 +272,16 @@ foreach f of local snap_files {
 }
 
 use `snap_combined', clear
+
+** Set up labels
 label var hs10       "HTS10 product code"
 label var cty_code   "Census country code"
 label var total_rate "Total statutory tariff rate"
 label var revision   "HTS revision"
+capture label var usmca_eligible      "USMCA-eligible product (S/S+)"
+capture label var s232_usmca_eligible "232 USMCA-eligible (auto/MHD)"
 
+order revision hs10 cty_code total_rate
 sort revision hs10 cty_code
 compress
 save "$working/tracker_snapshots.dta", replace
@@ -233,17 +293,20 @@ di as text "       `=_N' snapshot obs (all revisions)"
 di as text "  [B5] 2024 import weights..."
 
 import delimited using "$raw/import_weights_2024.csv", clear stringcols(1 2)
-destring imports, replace force
 
+** Destring and compute weight shares
+destring imports, replace force
 egen double total_imports = total(imports)
 gen double w_2024 = imports / total_imports
 
+** Set up labels
 label var hs10          "HTS10 product code"
 label var cty_code      "Census country code"
 label var imports       "2024 imports (USD)"
 label var total_imports "Total 2024 imports (USD)"
 label var w_2024        "2024 import weight share"
 
+order hs10 cty_code imports total_imports w_2024
 sort hs10 cty_code
 compress
 save "$working/weights_2024.dta", replace
@@ -257,15 +320,21 @@ di as text "       `=_N' product-country pairs"
 di as text "  [C] Treasury revenue..."
 
 import delimited using "$raw/tariff_revenue.csv", clear
+
+** Destring variables
 destring imports_value effective_rate, replace force
 
+** Generate date information
 gen daily_date = date(date, "YMD")
 format daily_date %td
 gen int ym = mofd(daily_date)
 format ym %tm
+drop date
 
+** Compute actual ETR as ratio
 gen double actual_rate = effective_rate / 100
 
+** Set up labels
 label var daily_date     "Date (first of month)"
 label var ym             "Month (Stata date)"
 label var customs_duties "Customs duties ($M, SAAR)"
@@ -273,6 +342,7 @@ label var imports_value  "Goods imports value ($M, SAAR)"
 label var effective_rate "Actual ETR (%)"
 label var actual_rate    "Actual ETR (ratio)"
 
+order ym daily_date customs_duties imports_value effective_rate actual_rate
 sort ym
 compress
 save "$working/revenue_monthly.dta", replace
@@ -289,15 +359,16 @@ di as text _n "  [D] Building master analytical dataset..."
 
 di as text "      Month-revision crosswalk..."
 
+** Build a panel of months in the analysis window
 clear
 local n_months = $end_ym - $start_ym + 1
-
 set obs `n_months'
 gen int ym = $start_ym + _n - 1
 format ym %tm
 gen first_of_month = dofm(ym)
 format first_of_month %td
 
+** Cross with revision dates and keep latest revision per month
 cross using "$working/revision_dates.dta"
 keep if eff_date <= first_of_month
 bysort ym (eff_date): keep if _n == _N
@@ -317,13 +388,15 @@ keep if ym >= $start_ym & ym <= $end_ym
 local n_start = _N
 di as text "      Census obs in analysis period: `n_start'"
 
+** Map each month to its active HTS revision
 merge m:1 ym using `month_rev_map', keep(match master) nogenerate
 assert _N > 0
 
+** Merge tracker statutory rates on (hs10, country, revision)
 merge m:1 hs10 cty_code revision using "$working/tracker_snapshots.dta", ///
     keep(match master) gen(_merge_snap)
 
-* Unmatched products get zero statutory rate
+** Report match rates; unmatched products get zero statutory rate
 qui count if _merge_snap == 1
 local n_unmatched = r(N)
 qui count if _merge_snap == 3
@@ -341,11 +414,11 @@ di as text "      Match rate: " ///
 
 di as text "      Computing trade weights..."
 
-* Monthly weights
+** Monthly weights (Census trade values)
 bysort ym: egen double total_imports_monthly = total(con_val_mo)
 gen double w_monthly = con_val_mo / total_imports_monthly
 
-* 2024 annual weights
+** 2024 annual weights (from tracker import data)
 merge m:1 hs10 cty_code using "$working/weights_2024.dta", ///
     keep(match master) keepusing(imports w_2024) gen(_merge_wt)
 qui count if _merge_wt == 3
@@ -354,11 +427,11 @@ drop _merge_wt
 replace imports = 0 if missing(imports)
 replace w_2024  = 0 if missing(w_2024)
 
-* Implied tariff revenue
+** Implied tariff revenue
 gen double tariff_revenue_statutory = total_rate * con_val_mo
 gen double tariff_revenue_2024      = total_rate * imports
 
-* Ensure HS2 and partner group exist
+** Ensure HS2 and partner group exist
 capture confirm variable hs2
 if _rc != 0 {
     gen str2 hs2 = substr(hs10, 1, 2)
@@ -368,7 +441,7 @@ if _rc != 0 {
     assign_partner_group cty_code
 }
 
-* Labels
+** Set up labels
 label var w_monthly                 "Monthly import weight share"
 label var total_imports_monthly     "Total monthly imports (USD)"
 label var imports                   "2024 imports (USD)"
@@ -376,7 +449,7 @@ label var w_2024                    "2024 annual weight share"
 label var tariff_revenue_statutory  "Implied statutory revenue (monthly wts)"
 label var tariff_revenue_2024       "Implied statutory revenue (2024 wts)"
 
-order ym hs10 hs2 cty_code partner_group ///
+order ym year month hs2 hs10 cty_code partner_group ///
       con_val_mo cal_dut_mo census_etr ///
       total_rate tariff_revenue_statutory tariff_revenue_2024 ///
       w_monthly w_2024 imports revision

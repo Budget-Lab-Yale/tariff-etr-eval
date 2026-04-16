@@ -12,19 +12,21 @@ The pipeline has two stages. R assembles raw data; Stata cleans, merges, and ana
 
 ```
 Rscript code/R/00_pull_raw_data.R     # Step 0: populate data/raw/ from APIs + sibling repos
-do 00_etr_eval.do                      # Steps 1-2: clean, merge, decompose, figures
+do 00_etr_eval.do                      # Steps 1-5: clean, merge, decompose, figures, ladder
 ```
 
 ### Step 0 — R data assembly (`code/R/00_pull_raw_data.R`)
 
-Pulls from four sources and writes CSVs to `data/raw/`:
-- **Census API** (HS2 x country x month): consumption value, calculated duty, dutiable value
-- **Census IMDB bulk ZIPs** — two outputs:
+Pulls from four sources and writes CSVs to `data/raw/`. Sections can be toggled via command-line flags (see "Running the pipeline").
+
+- **Section 1 — Census API** (HS2 x country x month): consumption value, calculated duty, dutiable value
+- **Section 2 — Census IMDB bulk ZIPs** — two outputs:
   - `imdb_detail.csv`: HS10 x country x district x preference x rate_prov x month (for FTA decomposition, district crosscheck)
   - `imdb_hs10_country_monthly.csv`: aggregated to HS10 x country x month (for main pipeline)
-- **Census API HS10 fallback**: fills months not yet available in IMDB bulk (auto-detected)
-- **tariff-rate-tracker** (sibling repo): converts RDS snapshots to CSV, copies daily ETRs, revision dates, 2024 import weights
-- **tariff-impact-tracker** (sibling repo): Treasury revenue (actual ETR)
+  - Census API HS10 fallback: fills months not yet available in IMDB bulk (auto-detected)
+- **Section 3a-3c — tariff-rate-tracker** (sibling repo): converts RDS snapshots to CSV (including `statutory_rate_*` pre-USMCA components), copies daily ETRs, revision dates, 2024 import weights
+- **Section 3d-3e — Counterfactual rate reconstruction**: copies USMCA product-level utilization shares from tracker (2024 annual + monthly 2025-2026 from USITC DataWeb SPI data), then reconstructs HS10 x country x month rates under two scenarios by applying shares to pre-USMCA statutory components and day-weighting across revisions within months. Output: `counterfactual_usmca2024.csv` and `counterfactual_usmca_monthly.csv`
+- **Section 4 — tariff-impact-tracker** (sibling repo): Treasury revenue (actual ETR)
 
 ### Step 1 — Stata clean & merge (`code/01_etr_clean.do`)
 
@@ -50,9 +52,25 @@ Validates tracker statutory rates against max observed ETR across customs distri
 
 ### Step 5 — Counterfactual ladder (`code/05_counterfactual_ladder.do`)
 
-Gopinath-Neiman-style waterfall: S0 (full statutory) -> S1 (USMCA baseline) -> S2 (USMCA surge) -> S3 (behavioral reweighting) -> T (Treasury actual). Separates USMCA baseline from surge, trade diversion from exemptions.
+Gopinath-Neiman-style waterfall using product-level USMCA utilization shares from USITC DataWeb (via tariff-rate-tracker). Two counterfactual rate sets are pre-computed in the R data pull from tracker statutory_rate_* components, day-weighted to monthly:
+- S0 (USMCA @ 2024 shares × 2024 weights) -> S1 (USMCA @ 2024 × monthly weights) -> S2 (USMCA @ monthly shares × monthly weights) -> T (Treasury actual).
+- S0->S1 = trade diversion, S1->S2 = USMCA surge, S2->T = residual. Requires `counterfactual_usmca2024.csv` and `counterfactual_usmca_monthly.csv`.
 
 ## Running the pipeline
+
+### R data pull (Step 0)
+
+```bash
+Rscript code/R/00_pull_raw_data.R                     # full run (hours — Census API)
+Rscript code/R/00_pull_raw_data.R --skip-census        # skip Census HS2 API pulls
+Rscript code/R/00_pull_raw_data.R --skip-imdb          # skip IMDB bulk downloads
+Rscript code/R/00_pull_raw_data.R --only-tracker       # sections 3-3e only (~15 min)
+Rscript code/R/00_pull_raw_data.R --only-counterfactual # sections 3d-3e only (~10 min)
+```
+
+Use `--only-tracker` after updating the tracker repo to regenerate snapshot CSVs, USMCA shares, and counterfactual rate files without re-pulling Census data.
+
+### Stata pipeline (Steps 1-5)
 
 ```stata
 cd "C:/Users/ji252/Documents/GitHub/tariff-etr-eval"
@@ -65,14 +83,12 @@ Toggle steps via globals in `code/utils/globals.do`:
 - `$run_analysis` (default 1): four-tier decomposition and figures
 - `$run_fta` (default 1): FTA/preference decomposition (needs `imdb_detail.csv`)
 - `$run_crosscheck` (default 1): max-district validation (needs `imdb_detail.csv`)
-- `$run_ladder` (default 1): counterfactual waterfall
-
-The R step must be run separately first (or is called via `shell Rscript` when `$run_pull = 1`).
+- `$run_ladder` (default 1): counterfactual waterfall (needs `counterfactual_usmca*.csv`)
 
 ## Sibling repo dependencies
 
 Both must be at the same directory level as this repo:
-- `tariff-rate-tracker` — statutory rates, daily ETR, import weights, revision dates
+- `tariff-rate-tracker` — statutory rates, daily ETR, import weights, revision dates, USMCA product shares (from USITC DataWeb SPI data)
 - `tariff-impact-tracker` — Treasury revenue (actual ETR)
 
 ## Key configuration (`code/utils/globals.do`)
@@ -97,6 +113,16 @@ HTS10 rates are available only with 2024 annual weights. Monthly trade data from
 2. Aggregate HS2 x country to overall using Census monthly weights
 
 Zero-tariff products **must be included** in the denominator. Dropping them inflates the ETR from ~3.4% to ~27%. See `docs/weighting_note.md`.
+
+## Counterfactual ladder methodology (Step 5)
+
+The waterfall decomposes the gap between statutory and actual ETR into three channels:
+
+1. **Trade diversion (S0→S1)**: hold USMCA at 2024 baseline, shift from 2024 to actual monthly import weights. Captures firms redirecting trade away from tariffed products/countries.
+2. **USMCA surge (S1→S2)**: hold monthly weights fixed, shift USMCA from 2024 shares to actual monthly shares. Captures firms increasing USMCA preference claiming in response to tariff escalation (~38% → ~67% for CA, ~50% → ~68% for MX).
+3. **Residual (S2→T)**: remaining gap between statutory (with actual USMCA and actual weights) and Treasury actual collections. Captures other FTAs, enforcement lags, timing, evasion.
+
+USMCA shares are product-level (HS10 x country) from USITC DataWeb SPI program codes (S/S+). The tracker applies these to component rates: `base_rate`, `rate_ieepa_recip`, `rate_ieepa_fent`, `rate_s122` are scaled by `(1 - share)`. Section 232 rates are scaled by `(1 - share * 0.40)` for auto/MHD products (40% US-origin content). `rate_301` and `rate_section_201` are not USMCA-adjusted. The R data pull reconstructs rates from pre-USMCA `statutory_rate_*` columns in the tracker snapshots, applying the specified shares and day-weighting across revisions within each month.
 
 ## Conventions
 

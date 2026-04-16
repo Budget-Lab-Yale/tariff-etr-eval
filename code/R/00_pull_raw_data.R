@@ -13,7 +13,11 @@
 #   4. tariff-impact-tracker -- Treasury revenue (actual ETR)
 #
 # Usage:
-#   Rscript R/00_pull_raw_data.R
+#   Rscript code/R/00_pull_raw_data.R                 # full run (hours)
+#   Rscript code/R/00_pull_raw_data.R --skip-census    # skip Census API
+#   Rscript code/R/00_pull_raw_data.R --skip-imdb      # skip IMDB bulk
+#   Rscript code/R/00_pull_raw_data.R --only-tracker    # sections 3a-3e only
+#   Rscript code/R/00_pull_raw_data.R --only-counterfactual  # sections 3d-3e only
 #
 # Output (all in data/raw/):
 #   census_hs2_country_monthly.csv      -- HS2 x country x month
@@ -26,6 +30,9 @@
 #   daily_by_country.csv                -- daily ETR by country
 #   revision_dates.csv                  -- revision effective dates
 #   tariff_revenue.csv                  -- actual monthly ETR
+#   usmca_shares/usmca_product_shares_*.csv -- USMCA utilization shares
+#   counterfactual_usmca2024.csv        -- HS10 x country x month (2024 USMCA)
+#   counterfactual_usmca_monthly.csv    -- HS10 x country x month (monthly USMCA)
 # ==============================================================================
 
 library(httr)
@@ -69,15 +76,50 @@ log_msg <- function(...) {
   write(msg, LOG_FILE, append = TRUE)
 }
 
+# --- Run-mode flags ---
+# Control which sections run. By default all are TRUE.
+# Override from the command line:
+#   Rscript code/R/00_pull_raw_data.R --skip-census
+#   Rscript code/R/00_pull_raw_data.R --skip-imdb
+#   Rscript code/R/00_pull_raw_data.R --only-tracker
+#   Rscript code/R/00_pull_raw_data.R --only-counterfactual
+cli_args <- commandArgs(trailingOnly = TRUE)
+RUN_CENSUS         <- TRUE
+RUN_IMDB           <- TRUE
+RUN_TRACKER        <- TRUE
+RUN_COUNTERFACTUAL <- TRUE
+RUN_IMPACTS        <- TRUE
+
+if ("--skip-census" %in% cli_args) {
+  RUN_CENSUS <- FALSE
+}
+if ("--skip-imdb" %in% cli_args) {
+  RUN_IMDB <- FALSE
+}
+if ("--only-tracker" %in% cli_args) {
+  RUN_CENSUS <- FALSE; RUN_IMDB <- FALSE; RUN_IMPACTS <- FALSE
+}
+if ("--only-counterfactual" %in% cli_args) {
+  RUN_CENSUS <- FALSE; RUN_IMDB <- FALSE; RUN_TRACKER <- FALSE; RUN_IMPACTS <- FALSE
+  RUN_COUNTERFACTUAL <- TRUE
+}
+
 log_msg("=======================================================")
 log_msg("  Raw Data Assembly for tariff-etr-eval")
 log_msg("  Started: ", format(Sys.time()))
+log_msg("  Sections: census=", RUN_CENSUS, " imdb=", RUN_IMDB,
+        " tracker=", RUN_TRACKER, " counterfactual=", RUN_COUNTERFACTUAL,
+        " impacts=", RUN_IMPACTS)
 log_msg("=======================================================")
 
 
 # ======================================================================
 # 1. CENSUS API: HS2 x country x month
 # ======================================================================
+
+if (!RUN_CENSUS) {
+  log_msg("--- 1. Census API: SKIPPED ---")
+} else {
 
 log_msg("--- 1. Census API (HS2 x country x month) ---")
 
@@ -207,9 +249,16 @@ write_csv(census_hs2, file.path(RAW_DIR, "census_hs2_country_monthly.csv"))
 log_msg(sprintf("  Saved: %d rows (%d empty queries)", nrow(census_hs2), n_empty))
 
 
+} # end RUN_CENSUS
+
+
 # ======================================================================
 # 2. CENSUS IMDB: HS10 x country x month (rich detail + aggregated)
 # ======================================================================
+
+if (!RUN_IMDB) {
+  log_msg("--- 2. Census IMDB: SKIPPED ---")
+} else {
 
 log_msg("--- 2. Census IMDB Bulk Files (HS10 x country x month) ---")
 
@@ -444,17 +493,23 @@ if (length(imdb_gap_months) > 0) {
   log_msg("--- 2b. Census API HS10 fallback: SKIPPED (IMDB complete) ---")
 }
 
+} # end RUN_IMDB
+
 
 # ======================================================================
 # 3. TARIFF-RATE-TRACKER: snapshots, daily ETRs, weights, revision dates
 # ======================================================================
 
-log_msg("--- 3. Tariff-Rate-Tracker Exports ---")
-
 if (!dir.exists(TRACKER_DIR)) {
   stop("tariff-rate-tracker not found at: ", TRACKER_DIR,
        "\n  Expected sibling directory alongside this repo.", call. = FALSE)
 }
+
+if (!RUN_TRACKER) {
+  log_msg("--- 3. Tariff-Rate-Tracker Exports: SKIPPED (3a-3c) ---")
+} else {
+
+log_msg("--- 3. Tariff-Rate-Tracker Exports ---")
 
 # --- 3a. Snapshot rate CSVs (RDS -> CSV) ---
 
@@ -467,9 +522,10 @@ SNAP_COLS <- c("hts10", "country", "total_rate",
                "statutory_rate_232", "statutory_rate_ieepa_recip",
                "statutory_rate_ieepa_fent", "statutory_rate_301",
                "statutory_rate_s122", "statutory_rate_section_201",
-               "statutory_base_rate", "metal_share",
-               "steel_share", "aluminum_share", "copper_share",
-               "usmca_eligible", "rate_232")
+               "statutory_rate_other", "statutory_base_rate",
+               "metal_share", "steel_share", "aluminum_share",
+               "copper_share", "usmca_eligible",
+               "s232_usmca_eligible", "rate_232")
 
 for (f in snap_files) {
   rev_name <- gsub("^snapshot_|\\.rds$", "", basename(f))
@@ -523,10 +579,234 @@ for (src_rel in names(tracker_copies)) {
   }
 }
 
+} # end RUN_TRACKER
+
+
+if (!RUN_COUNTERFACTUAL) {
+  log_msg("--- 3d-3e. Counterfactual rate CSVs: SKIPPED ---")
+} else {
+
+# --- 3d. USMCA utilization shares (copy from tracker resources) ---
+
+log_msg("  Copying USMCA utilization shares...")
+USMCA_DIR <- file.path(RAW_DIR, "usmca_shares")
+dir.create(USMCA_DIR, showWarnings = FALSE, recursive = TRUE)
+
+# 2024 annual shares (pre-tariff baseline)
+usmca_2024_src <- file.path(TRACKER_DIR, "resources", "usmca_product_shares_2024.csv")
+if (file.exists(usmca_2024_src)) {
+  file.copy(usmca_2024_src, file.path(USMCA_DIR, basename(usmca_2024_src)), overwrite = TRUE)
+  log_msg("    -> usmca_product_shares_2024.csv")
+} else {
+  log_msg("    WARNING: usmca_product_shares_2024.csv not found in tracker")
+}
+
+# Monthly 2025 + available 2026 shares
+n_monthly <- 0L
+for (y in 2025:2026) {
+  months_to_try <- if (y == 2025) 1:12 else 1:12
+  for (m in months_to_try) {
+    src <- file.path(TRACKER_DIR, "resources",
+                     sprintf("usmca_product_shares_%d_%02d.csv", y, m))
+    if (file.exists(src)) {
+      file.copy(src, file.path(USMCA_DIR, basename(src)), overwrite = TRUE)
+      n_monthly <- n_monthly + 1L
+    }
+  }
+}
+log_msg(sprintf("    -> %d monthly USMCA share files copied", n_monthly))
+
+# Carry forward latest available share file to fill gaps in analysis window.
+# Currently: Feb 2026 not yet available from DataWeb; carry forward Jan 2026.
+jan_2026 <- file.path(USMCA_DIR, "usmca_product_shares_2026_01.csv")
+feb_2026 <- file.path(USMCA_DIR, "usmca_product_shares_2026_02.csv")
+if (file.exists(jan_2026) && !file.exists(feb_2026)) {
+  file.copy(jan_2026, feb_2026, overwrite = FALSE)
+  log_msg("    NOTE: Carried forward Jan 2026 shares -> Feb 2026 (DataWeb not yet available)")
+}
+
+
+# --- 3e. Counterfactual rate CSVs (USMCA scenarios) ---
+#
+# Reconstructs HS10 x country x month total_rate under two USMCA scenarios:
+#   1. usmca2024:   shares frozen at 2024 (pre-tariff baseline)
+#   2. usmca_monthly: shares vary month-to-month (actual utilization)
+#
+# Uses statutory_rate_* columns (pre-USMCA) from snapshot CSVs plus USMCA
+# share files. Day-weights across revisions within months.
+
+log_msg("  Building counterfactual rate CSVs...")
+
+# Load revision dates for day-weighting
+rev_dates <- read_csv(file.path(RAW_DIR, "revision_dates.csv"),
+                       col_types = cols(.default = col_character())) |>
+  mutate(effective_date = as.Date(effective_date)) |>
+  filter(!is.na(effective_date)) |>
+  arrange(effective_date) |>
+  mutate(next_eff = lead(effective_date, default = as.Date("2099-12-31")))
+
+# Analysis window (must match globals.do: $start_ym to $end_ym)
+CF_START <- as.Date("2025-01-01")
+CF_END   <- as.Date("2026-02-28")
+
+# Build month x revision day-weights
+month_starts <- seq.Date(CF_START, CF_END, by = "month")
+mrw <- lapply(month_starts, function(m1) {
+  m_end <- seq.Date(m1, by = "month", length.out = 2)[2] - 1L
+  dim   <- as.integer(m_end - m1) + 1L
+  ym    <- format(m1, "%Y-%m")
+
+  hits <- rev_dates |>
+    filter(effective_date <= m_end, next_eff > m1) |>
+    mutate(
+      o_start = pmax(effective_date, m1),
+      o_end   = pmin(next_eff - 1L, m_end),
+      days    = as.integer(o_end - o_start) + 1L,
+      weight  = days / dim
+    ) |>
+    filter(days > 0)
+
+  data.frame(year_month = ym, revision = hits$revision,
+             days = hits$days, weight = hits$weight,
+             stringsAsFactors = FALSE)
+})
+mrw <- bind_rows(mrw)
+log_msg(sprintf("    %d month-revision pairs for day-weighting", nrow(mrw)))
+
+# Load USMCA shares: 2024 annual
+shares_2024 <- read_csv(file.path(USMCA_DIR, "usmca_product_shares_2024.csv"),
+  col_types = cols(hts10 = col_character(), cty_code = col_character(),
+                   usmca_share = col_double())) |>
+  select(hts10, cty_code, usmca_share)
+
+# Load all monthly share files into a named list (key = "YYYY-MM")
+share_files <- list.files(USMCA_DIR,
+  pattern = "^usmca_product_shares_\\d{4}_\\d{2}\\.csv$", full.names = TRUE)
+shares_by_month <- list()
+for (f in share_files) {
+  ym_key <- gsub("_", "-", regmatches(basename(f), regexpr("\\d{4}_\\d{2}", basename(f))))
+  shares_by_month[[ym_key]] <- read_csv(f,
+    col_types = cols(hts10 = col_character(), cty_code = col_character(),
+                     usmca_share = col_double(), .default = col_guess()),
+    show_col_types = FALSE) |>
+    select(hts10, cty_code, usmca_share)
+}
+log_msg(sprintf("    USMCA shares: 2024 annual + %d monthly files", length(shares_by_month)))
+
+# Constants
+CA_MX <- c("1220", "2010")
+US_AUTO_CONTENT <- 0.40
+
+# Helper: reconstruct total_rate from statutory components at given USMCA shares
+reconstruct_rates <- function(snap, shares_df) {
+  # Ensure s232_usmca_eligible column exists
+  if (!"s232_usmca_eligible" %in% names(snap)) {
+    snap$s232_usmca_eligible <- FALSE
+  }
+
+  snap |>
+    left_join(shares_df, by = c("hts10", "country" = "cty_code")) |>
+    mutate(
+      s = if_else(country %in% CA_MX, coalesce(usmca_share, 0), 0),
+
+      # USMCA-adjusted components: base, ieepa_recip, ieepa_fent, s122
+      adj = (coalesce(statutory_base_rate, 0) +
+             coalesce(statutory_rate_ieepa_recip, 0) +
+             coalesce(statutory_rate_ieepa_fent, 0) +
+             coalesce(statutory_rate_s122, 0)) * (1 - s),
+
+      # 232: content-share adjustment for s232_usmca_eligible products
+      adj_232 = if_else(
+        coalesce(s232_usmca_eligible, FALSE) & country %in% CA_MX,
+        coalesce(statutory_rate_232, 0) * (1 - s * US_AUTO_CONTENT),
+        coalesce(statutory_rate_232, 0)
+      ),
+
+      # Non-USMCA components: 301, section_201, other
+      non_adj = coalesce(statutory_rate_301, 0) +
+                coalesce(statutory_rate_section_201, 0) +
+                coalesce(statutory_rate_other, 0),
+
+      total_rate = adj + adj_232 + non_adj
+    ) |>
+    select(hts10, country, total_rate)
+}
+
+# Pre-load needed snapshots
+needed_revs <- unique(mrw$revision)
+snapshots <- list()
+for (rev in needed_revs) {
+  f <- file.path(SNAP_DIR, paste0("snapshot_", rev, ".csv"))
+  if (file.exists(f)) {
+    snapshots[[rev]] <- read_csv(f,
+      col_types = cols(hts10 = col_character(), country = col_character(),
+                       s232_usmca_eligible = col_logical(), .default = col_guess()),
+      show_col_types = FALSE)
+  } else {
+    log_msg(sprintf("    WARNING: snapshot_%s.csv not found", rev))
+  }
+}
+log_msg(sprintf("    Loaded %d snapshots for reconstruction", length(snapshots)))
+
+# Process each (month, revision) pair under both scenarios
+results_2024    <- vector("list", nrow(mrw))
+results_monthly <- vector("list", nrow(mrw))
+
+for (i in seq_len(nrow(mrw))) {
+  ym  <- mrw$year_month[i]
+  rev <- mrw$revision[i]
+  wt  <- mrw$weight[i]
+
+  snap <- snapshots[[rev]]
+  if (is.null(snap)) next
+
+  # Scenario 1: USMCA frozen at 2024
+  results_2024[[i]] <- reconstruct_rates(snap, shares_2024) |>
+    mutate(year_month = ym, weight = wt)
+
+  # Scenario 2: USMCA at actual monthly shares
+  mo_shares <- shares_by_month[[ym]]
+  if (is.null(mo_shares)) {
+    # Carry forward: use latest available month
+    avail <- sort(names(shares_by_month))
+    prior <- avail[avail <= ym]
+    mo_shares <- if (length(prior) > 0) shares_by_month[[tail(prior, 1)]] else shares_2024
+  }
+
+  results_monthly[[i]] <- reconstruct_rates(snap, mo_shares) |>
+    mutate(year_month = ym, weight = wt)
+}
+
+# Day-weight across revisions within each month
+counterfactual_2024 <- bind_rows(results_2024) |>
+  mutate(wtd_rate = total_rate * weight) |>
+  summarise(total_rate = sum(wtd_rate), .by = c(hts10, country, year_month)) |>
+  rename(cty_code = country)
+
+counterfactual_monthly <- bind_rows(results_monthly) |>
+  mutate(wtd_rate = total_rate * weight) |>
+  summarise(total_rate = sum(wtd_rate), .by = c(hts10, country, year_month)) |>
+  rename(cty_code = country)
+
+write_csv(counterfactual_2024, file.path(RAW_DIR, "counterfactual_usmca2024.csv"))
+write_csv(counterfactual_monthly, file.path(RAW_DIR, "counterfactual_usmca_monthly.csv"))
+
+log_msg(sprintf("    -> counterfactual_usmca2024.csv: %d rows", nrow(counterfactual_2024)))
+log_msg(sprintf("    -> counterfactual_usmca_monthly.csv: %d rows", nrow(counterfactual_monthly)))
+
+rm(results_2024, results_monthly, snapshots, counterfactual_2024, counterfactual_monthly)
+gc(verbose = FALSE)
+
+} # end RUN_COUNTERFACTUAL
+
 
 # ======================================================================
 # 4. TARIFF-IMPACT-TRACKER: Treasury revenue
 # ======================================================================
+
+if (!RUN_IMPACTS) {
+  log_msg("--- 4. Tariff-Impact-Tracker: SKIPPED ---")
+} else {
 
 log_msg("--- 4. Tariff-Impact-Tracker (Revenue) ---")
 
@@ -542,6 +822,8 @@ if (file.exists(rev_src)) {
 } else {
   log_msg("  WARNING: tariff_revenue.csv not found")
 }
+
+} # end RUN_IMPACTS
 
 
 # ======================================================================
