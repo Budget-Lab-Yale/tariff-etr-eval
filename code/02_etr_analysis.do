@@ -24,8 +24,17 @@
 *   $working/decomp_monthly.dta     + $tables/decomp_monthly.csv
 *   $working/decomp_by_country.dta  + $tables/decomp_by_country.csv
 *   $figures/figure1_etr_comparison.png
-*   $figures/figure2_gap_bars.png
 *   $figures/figure2_gap_stacked.png
+*   $figures/figure3_usmca_decomp.png
+*
+*   Section E -- Census vs statutory-monthly-USMCA comparison:
+*     $figures/figure_A_overall.png
+*     $figures/figure_B_partner_facets.png
+*     $figures/figure_C_gap_by_partner.png
+*     $tables/cmp_overall_monthly.csv
+*     $tables/cmp_partner_monthly.csv
+*     $tables/cmp_hs2_ranking.csv
+*     $tables/cmp_top_hs10_anomalies.csv
 * ==============================================================================
 
 di as text _n "=========================================="
@@ -99,13 +108,20 @@ merge 1:1 ym using `tier2', nogenerate
 merge 1:1 ym using `tier3', nogenerate
 merge 1:1 ym using `tier4', keep(match master) nogenerate
 
-* Validate: all four tiers should have non-missing values
+* Validate: Tiers 1-3 are by construction non-missing; assert.
+* Tier 4 may be short if Treasury revenue lags — warn and flag.
 assert _N > 0
 foreach v in tier1 tier2 tier3 {
     qui count if missing(`v')
     if r(N) > 0 {
-        di as error "WARNING: `v' has " r(N) " missing values"
+        di as error "ERROR: `v' has " r(N) " missing values (should be 0)"
+        error 459
     }
+}
+qui count if missing(tier4)
+if r(N) > 0 {
+    di as error "WARNING: tier4 (Treasury) missing for " r(N) ///
+        " of `=_N' months — gap_total will be missing for those months"
 }
 di as text "      Combined `=_N' months, tiers 1-4"
 
@@ -222,6 +238,7 @@ di as text _n "  [C] Computing counterfactual tiers and generating figures..."
 ** Import counterfactual rates: USMCA frozen at 2024
 import delimited using "$raw/counterfactual_usmca2024.csv", ///
     clear stringcols(1 2 3)
+capture rename hts10 hs10
 gen year  = real(substr(year_month, 1, 4))
 gen month = real(substr(year_month, 6, 7))
 gen int ym = ym(year, month)
@@ -236,6 +253,7 @@ save `cf_2024'
 ** Import counterfactual rates: USMCA at monthly shares
 import delimited using "$raw/counterfactual_usmca_monthly.csv", ///
     clear stringcols(1 2 3)
+capture rename hts10 hs10
 gen year  = real(substr(year_month, 1, 4))
 gen month = real(substr(year_month, 6, 7))
 gen int ym = ym(year, month)
@@ -360,9 +378,6 @@ twoway ///
     xtitle("") ///
     title("Statutory vs. Actual Effective Tariff Rates") ///
     subtitle("Monthly, Jan 2025 - Feb 2026") ///
-    note("Source: U.S. Treasury/Census via Haver Analytics;" ///
-         "The Budget Lab Tariff Rate Tracker." ///
-         "USMCA utilization shares from USITC DataWeb (SPI S/S+).") ///
     xlabel(, format(%tmMon_CCYY) angle(45)) ///
     ylabel(, format(%9.0f)) ///
     yscale(range(0)) ///
@@ -393,7 +408,6 @@ graph bar (asis) gap_s1_treasury gap_diversion, ///
     ytitle("Gap (percentage points)") ///
     title("Statutory-Actual ETR Gap Decomposition") ///
     subtitle("Stacked components, Jan 2025 - Feb 2026") ///
-    note("Source: The Budget Lab analysis") ///
     graphregion(color(white))
 
 graph export "$figures/figure2_gap_stacked.png", replace width(2400)
@@ -420,161 +434,307 @@ graph bar (asis) gap_usmca gap_non_usmca, ///
     ytitle("Gap (percentage points)") ///
     title("Exemptions Gap: USMCA vs. Non-USMCA") ///
     subtitle("Decomposition of S1{&rarr}Treasury gap, Jan 2025 - Feb 2026") ///
-    note("USMCA surge = increase in CA/MX preference claiming" ///
-         "relative to 2024 baseline (DataWeb SPI S/S+ shares).") ///
     graphregion(color(white))
 
 graph export "$figures/figure3_usmca_decomp.png", replace width(2400)
 
 
 * ======================================================================
-* D. CENSUS ETR DIAGNOSTIC
+* E. CENSUS vs STATUTORY (MONTHLY USMCA) COMPARISON
 * ======================================================================
 *
-* Compare Census calculated ETR (cal_dut_mo / con_val_mo) at HS10 x country
-* with the statutory rate incorporating actual USMCA behavior (USMCA-monthly
-* shares from counterfactual_usmca_monthly.csv). This is the "S1 with
-* updated USMCA" rate — the best estimate of what duties should be if the
-* tracker rates and USMCA utilization are correct.
+* Clean comparison between:
+*   ETR_stat   = rate_usmca_monthly weighted by monthly con_val (statutory
+*                rate with USMCA applied at the month's actual utilization)
+*   ETR_census = cal_dut_mo / con_val_mo (duties Census reports as collected)
+*
+* Three aggregation levels:
+*   (i)  Overall monthly
+*   (ii) Partner group x month
+*   (iii) HS2 chapter x month (and HS2 x partner)
+*
+* Outputs:
+*   Fig A -- results/figures/figure_A_overall.png
+*   Fig B -- results/figures/figure_B_partner_facets.png
+*   Fig C -- results/figures/figure_C_gap_by_partner.png
+*   Tbl 1 -- results/tables/cmp_overall_monthly.csv
+*   Tbl 2 -- results/tables/cmp_partner_monthly.csv
+*   Tbl 3a -- results/tables/cmp_hs2_ranking.csv (HS2 contribution to gap)
+*   Tbl 3b -- results/tables/cmp_top_hs10_anomalies.csv
 
-di as text _n "  [D] Census ETR diagnostic..."
+di as text _n "  [E] Census vs. Statutory (monthly USMCA) comparison..."
 
 use "$working/merged_analysis.dta", clear
 keep if ym >= $start_ym & ym <= $end_ym
 
-** Merge USMCA-monthly counterfactual rate (statutory with actual USMCA behavior)
-merge 1:1 hs10 cty_code ym using `cf_monthly', ///
-    keepusing(rate_usmca_monthly) keep(match master) nogenerate
-replace rate_usmca_monthly = 0 if missing(rate_usmca_monthly)
-
-** Compute Census ETR if not already present
-capture confirm variable census_etr
+** Sanity: rate_usmca_monthly comes from 01 (merge with cf_usmca_monthly.dta).
+capture confirm variable rate_usmca_monthly
 if _rc != 0 {
-    safe_divide cal_dut_mo con_val_mo census_etr
+    di as error "ERROR: rate_usmca_monthly not found. Re-run 01_etr_clean.do."
+    error 111
 }
 
-** Classification variables (using USMCA-monthly rate as statutory benchmark)
-gen byte has_trade      = (con_val_mo > 0 & !missing(con_val_mo))
-gen byte has_duty       = (cal_dut_mo > 0 & !missing(cal_dut_mo))
-gen byte has_statutory   = (rate_usmca_monthly > 0 & !missing(rate_usmca_monthly))
-gen byte census_positive = (census_etr > 0 & !missing(census_etr))
+** Recompute census_etr at the row level to be safe
+safe_divide cal_dut_mo con_val_mo census_etr
 
-** Gap: Census ETR - statutory rate with actual USMCA (pp)
-gen double etr_gap_pp = (census_etr - rate_usmca_monthly) * 100
+** Numerators/denominators for collapsed ETRs
+gen double stat_rev_row = rate_usmca_monthly * con_val_mo
+gen double cens_rev_row = cal_dut_mo
 
-** Categories
-gen str20 category = ""
-replace category = "match"            if abs(etr_gap_pp) <= 2 & has_statutory
-replace category = "census_higher"    if etr_gap_pp > 2 & has_statutory
-replace category = "statutory_higher" if etr_gap_pp < -2 & has_statutory
-replace category = "census_zero"      if !census_positive & has_statutory & has_trade
-replace category = "no_statutory"     if !has_statutory & has_trade
 
-** Monthly summary
-di as text _n "  === Census vs. Statutory ETR by Month ==="
-di as text "  (HS10 x country observations, 2pp tolerance)"
+* ----------------------------------------------------------------------
+* E1. Overall monthly comparison (Tbl 1 + Fig A)
+* ----------------------------------------------------------------------
+
+di as text "      E1. Overall monthly..."
 
 preserve
-    keep if has_trade
-
-    gen byte is_match      = (category == "match")
-    gen byte is_cen_higher = (category == "census_higher")
-    gen byte is_stat_higher = (category == "statutory_higher")
-    gen byte is_cen_zero    = (category == "census_zero")
-
-    collapse ///
-        (count) n_obs = has_trade ///
-        (sum)   n_match = is_match ///
-                n_census_higher = is_cen_higher ///
-                n_statutory_higher = is_stat_higher ///
-                n_census_zero = is_cen_zero, ///
+    collapse (sum) stat_num=stat_rev_row cens_num=cens_rev_row ///
+                   total_val=con_val_mo, ///
         by(ym)
 
-    gen double pct_match       = n_match / n_obs * 100
-    gen double pct_cen_higher  = n_census_higher / n_obs * 100
-    gen double pct_stat_higher = n_statutory_higher / n_obs * 100
-    gen double pct_cen_zero    = n_census_zero / n_obs * 100
+    safe_divide stat_num total_val etr_stat
+    safe_divide cens_num total_val etr_census
 
-    format pct_* %9.1f
-    list ym n_obs pct_match pct_cen_higher pct_stat_higher pct_cen_zero, ///
-        clean noobs
+    ** Bring in Treasury actual for reference
+    merge 1:1 ym using "$working/revenue_monthly.dta", ///
+        keep(match master) keepusing(actual_rate) nogenerate
+    rename actual_rate etr_treasury
 
-    export delimited using "$tables/census_etr_diagnostic_monthly.csv", replace
-restore
-
-** Value-weighted summary: what share of import VALUE has each anomaly?
-di as text _n "  === Value-Weighted Census ETR Anomalies ==="
-
-preserve
-    keep if has_trade
-
-    gen double val_match       = con_val_mo * (abs(etr_gap_pp) <= 2 & has_statutory)
-    gen double val_cen_higher  = con_val_mo * (etr_gap_pp > 2 & has_statutory)
-    gen double val_stat_higher = con_val_mo * (etr_gap_pp < -2 & has_statutory)
-    gen double val_cen_zero    = con_val_mo * (!census_positive & has_statutory)
-
-    collapse ///
-        (sum) total_val = con_val_mo ///
-              val_match val_cen_higher val_stat_higher val_cen_zero, ///
-        by(ym)
-
-    foreach v in match cen_higher stat_higher cen_zero {
-        gen double pct_`v' = val_`v' / total_val * 100
+    foreach v in etr_stat etr_census etr_treasury {
+        replace `v' = `v' * 100
     }
 
-    format pct_* %9.1f
-    list ym pct_match pct_cen_higher pct_stat_higher pct_cen_zero, ///
-        clean noobs
+    gen double gap_stat_census       = etr_stat - etr_census
+    gen double gap_census_treasury   = etr_census - etr_treasury
+    gen double gap_stat_treasury     = etr_stat - etr_treasury
 
-    export delimited using "$tables/census_etr_diagnostic_value_weighted.csv", replace
+    label var etr_stat             "Statutory ETR, monthly USMCA (%)"
+    label var etr_census            "Census calculated ETR (%)"
+    label var etr_treasury          "Treasury actual ETR (%)"
+    label var gap_stat_census       "Statutory - Census (pp)"
+    label var gap_census_treasury   "Census - Treasury (pp)"
+    label var gap_stat_treasury     "Statutory - Treasury (pp)"
+
+    format etr_* gap_* %9.2f
+    di as text "  === Tbl 1: Overall monthly comparison ==="
+    list ym etr_stat etr_census etr_treasury ///
+         gap_stat_census gap_census_treasury, clean noobs
+
+    save "$working/cmp_overall_monthly.dta", replace
+    export delimited using "$tables/cmp_overall_monthly.csv", replace
+
+    ** --- Fig A: overall line chart ---
+    twoway ///
+        (connected etr_stat ym, ///
+            mcolor("$color_statutory") lcolor("$color_statutory") ///
+            msymbol(circle) msize(small) lwidth(medthick) lpattern(solid)) ///
+        (connected etr_census ym, ///
+            mcolor("$color_gap") lcolor("$color_gap") ///
+            msymbol(diamond) msize(small) lwidth(medium) lpattern(solid)) ///
+        (connected etr_treasury ym, ///
+            mcolor("$color_actual") lcolor("$color_actual") ///
+            msymbol(triangle) msize(small) lwidth(medium) lpattern(dash)) ///
+        , ///
+        legend(order( ///
+            1 "Statutory (tracker, monthly USMCA)" ///
+            2 "Census (cal. duty / cons. value)" ///
+            3 "Treasury actual") ///
+            rows(3) size(small) position(6)) ///
+        ytitle("Effective Tariff Rate (%)") ///
+        xtitle("") ///
+        title("Statutory vs. Census vs. Actual ETR") ///
+        subtitle("Monthly, Jan 2025 - Feb 2026") ///
+        xlabel(, format(%tmMon_CCYY) angle(45)) ///
+        ylabel(, format(%9.0f)) ///
+        yscale(range(0)) ///
+        graphregion(color(white)) plotregion(margin(small))
+
+    graph export "$figures/figure_A_overall.png", replace width(2400)
 restore
 
-** Zoom in on Census > statutory cases: what's driving them?
-di as text _n "  === Census > Statutory: Top Anomalies by Import Value ==="
+
+* ----------------------------------------------------------------------
+* E2. Partner group x month (Tbl 2 + Fig B + Fig C)
+* ----------------------------------------------------------------------
+
+di as text "      E2. Partner group x month..."
 
 preserve
-    keep if etr_gap_pp > 2 & has_statutory & has_trade
-
-    ** Aggregate to HS2 x partner_group x month for readability
-    gen str2 hs2_diag = substr(hs10, 1, 2)
-    collapse ///
-        (sum)   imports = con_val_mo ///
-                census_duty = cal_dut_mo ///
-                statutory_duty_impl = tariff_revenue_statutory ///
-        (count) n_products = con_val_mo, ///
-        by(ym hs2_diag partner_group)
-
-    safe_divide census_duty imports census_etr_agg
-    safe_divide statutory_duty_impl imports statutory_etr_agg
-    replace census_etr_agg = census_etr_agg * 100
-    replace statutory_etr_agg = statutory_etr_agg * 100
-
-    gsort -imports
-    di as text "  Top 20 HS2 x country x month (by import value, Census > Statutory + 2pp):"
-    format imports %15.0fc
-    format census_etr_agg statutory_etr_agg %9.2f
-    list ym hs2_diag partner_group n_products imports ///
-         census_etr_agg statutory_etr_agg in 1/20, clean noobs
-
-    export delimited using "$tables/census_etr_anomalies_detail.csv", replace
-restore
-
-** Census ETR = 0 when statutory > 0: how much trade is this?
-di as text _n "  === Census ETR = 0 with Positive Statutory Rate ==="
-
-preserve
-    keep if !census_positive & has_statutory & has_trade
-
-    collapse ///
-        (sum) imports = con_val_mo ///
-        (count) n_products = con_val_mo, ///
+    collapse (sum) stat_num=stat_rev_row cens_num=cens_rev_row ///
+                   total_val=con_val_mo, ///
         by(ym partner_group)
 
-    gsort ym -imports
-    format imports %15.0fc
-    list ym partner_group n_products imports, clean noobs sepby(ym)
+    safe_divide stat_num total_val etr_stat
+    safe_divide cens_num total_val etr_census
 
-    export delimited using "$tables/census_etr_zero_anomalies.csv", replace
+    foreach v in etr_stat etr_census {
+        replace `v' = `v' * 100
+    }
+    gen double gap_pp = etr_stat - etr_census
+
+    label var etr_stat  "Statutory ETR, monthly USMCA (%)"
+    label var etr_census "Census calculated ETR (%)"
+    label var gap_pp    "Gap: Statutory - Census (pp)"
+
+    save "$working/cmp_partner_monthly.dta", replace
+    export delimited using "$tables/cmp_partner_monthly.csv", replace
+
+    ** Clean short partner-group code (safe for variable names)
+    gen str2 pg_short = ""
+    replace pg_short = "CN" if partner_group == "China"
+    replace pg_short = "CA" if partner_group == "Canada"
+    replace pg_short = "MX" if partner_group == "Mexico"
+    replace pg_short = "EU" if partner_group == "EU"
+    replace pg_short = "JP" if partner_group == "Japan"
+    replace pg_short = "KR" if partner_group == "S. Korea"
+    replace pg_short = "UK" if partner_group == "UK"
+    replace pg_short = "RW" if partner_group == "ROW"
+
+    ** --- Fig B: 8-panel facet by partner group ---
+    encode partner_group, gen(pg_id)
+
+    twoway ///
+        (connected etr_stat ym, ///
+            mcolor("$color_statutory") lcolor("$color_statutory") ///
+            msymbol(circle) msize(vsmall) lwidth(medium) lpattern(solid)) ///
+        (connected etr_census ym, ///
+            mcolor("$color_gap") lcolor("$color_gap") ///
+            msymbol(diamond) msize(vsmall) lwidth(medium) lpattern(solid)) ///
+        , ///
+        by(pg_id, ///
+            cols(4) ///
+            title("Statutory (monthly USMCA) vs. Census ETR by Partner") ///
+            subtitle("Monthly, Jan 2025 - Feb 2026") ///
+            note("") ///
+            graphregion(color(white))) ///
+        legend(order( ///
+            1 "Statutory (monthly USMCA)" ///
+            2 "Census") rows(1) size(small) position(6)) ///
+        ytitle("ETR (%)") xtitle("") ///
+        xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+        ylabel(, labsize(vsmall))
+
+    graph export "$figures/figure_B_partner_facets.png", replace width(3000)
+
+    ** --- Fig C: overall gap decomposed by partner group contribution ---
+    ** Partner p's pp contribution to overall gap =
+    **   100 * (stat_num_p - cens_num_p) / total_val_all
+    bysort ym: egen double total_val_all = total(total_val)
+    gen double gap_contrib_pp = 100 * (stat_num - cens_num) / total_val_all
+
+    keep ym pg_short gap_contrib_pp
+    reshape wide gap_contrib_pp, i(ym) j(pg_short) string
+
+    ** All 8 partner columns are created by reshape (gap_contrib_ppCN, etc.).
+    ** Rename for convenience.
+    foreach pg in CN CA MX EU JP KR UK RW {
+        capture rename gap_contrib_pp`pg' pg_`pg'
+        capture confirm variable pg_`pg'
+        if _rc != 0 gen double pg_`pg' = 0
+    }
+
+    graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
+        over(ym, label(angle(45) labsize(vsmall))) ///
+        stack ///
+        bar(1, color("$color_china"))  ///
+        bar(2, color("$color_canada")) ///
+        bar(3, color("$color_mexico")) ///
+        bar(4, color("$color_eu"))     ///
+        bar(5, color("$color_japan"))  ///
+        bar(6, color("$color_skorea")) ///
+        bar(7, color("$color_uk"))     ///
+        bar(8, color("$color_row"))    ///
+        legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
+                     5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
+               rows(1) size(vsmall) position(6)) ///
+        ytitle("Gap contribution (pp of overall ETR)") ///
+        title("Statutory - Census gap, by partner group") ///
+        subtitle("Monthly contribution to overall-ETR gap, pp") ///
+        graphregion(color(white))
+
+    graph export "$figures/figure_C_gap_by_partner.png", replace width(2400)
+restore
+
+
+* ----------------------------------------------------------------------
+* E3. HS2 chapter ranking (Tbl 3a)
+* ----------------------------------------------------------------------
+
+di as text "      E3. HS2 chapter ranking..."
+
+preserve
+    ** Aggregate over the whole window for a single ranked table
+    gen double stat_num_row = rate_usmca_monthly * con_val_mo
+    collapse (sum) stat_num = stat_num_row ///
+                   cens_num = cal_dut_mo ///
+                   total_val = con_val_mo, ///
+        by(hs2)
+
+    destring hs2, gen(hs2_num) force
+    label values hs2_num hs2_lbl
+
+    safe_divide stat_num total_val etr_stat
+    safe_divide cens_num total_val etr_census
+    replace etr_stat = etr_stat * 100
+    replace etr_census = etr_census * 100
+
+    gen double gap_pp = etr_stat - etr_census
+    ** Dollar-weighted contribution to overall gap (in USD)
+    gen double gap_usd = stat_num - cens_num
+
+    label var etr_stat   "Statutory ETR, monthly USMCA (%)"
+    label var etr_census "Census ETR (%)"
+    label var gap_pp     "Chapter-level gap (pp)"
+    label var gap_usd    "Chapter-level gap in $ (stat - census)"
+    label var total_val  "Total imports, analysis window (USD)"
+
+    gsort -gap_usd
+    format total_val gap_usd %20.0fc
+    format etr_stat etr_census gap_pp %9.2f
+
+    di as text "  === Tbl 3a: HS2 chapter gap ranking (top 25 by $ gap) ==="
+    list hs2_num total_val etr_stat etr_census gap_pp gap_usd in 1/25, ///
+        clean noobs
+
+    export delimited using "$tables/cmp_hs2_ranking.csv", replace
+restore
+
+
+* ----------------------------------------------------------------------
+* E4. Top HS10 x country anomalies (Tbl 3b)
+* ----------------------------------------------------------------------
+
+di as text "      E4. Top HS10 x country anomalies..."
+
+preserve
+    ** Aggregate over the window at HS10 x country
+    collapse (sum) stat_num = stat_rev_row ///
+                   cens_num = cens_rev_row ///
+                   total_val = con_val_mo, ///
+        by(hs10 cty_code partner_group)
+
+    safe_divide stat_num total_val etr_stat
+    safe_divide cens_num total_val etr_census
+    replace etr_stat = etr_stat * 100
+    replace etr_census = etr_census * 100
+
+    gen double gap_pp  = etr_stat - etr_census
+    gen double gap_usd = stat_num - cens_num
+    gen double abs_usd = abs(gap_usd)
+
+    keep if total_val > 0
+
+    gsort -abs_usd
+    format total_val gap_usd %20.0fc
+    format etr_stat etr_census gap_pp %9.2f
+
+    di as text "  === Tbl 3b: Top 30 HS10 x country by |gap x value| ==="
+    list hs10 partner_group total_val etr_stat etr_census gap_pp gap_usd ///
+        in 1/30, clean noobs
+
+    keep in 1/500
+    export delimited using "$tables/cmp_top_hs10_anomalies.csv", replace
 restore
 
 

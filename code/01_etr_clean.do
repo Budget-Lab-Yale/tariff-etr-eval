@@ -283,6 +283,7 @@ capture label var s232_usmca_eligible "232 USMCA-eligible (auto/MHD)"
 
 order revision hs10 cty_code total_rate
 sort revision hs10 cty_code
+isid revision hs10 cty_code
 compress
 save "$working/tracker_snapshots.dta", replace
 di as text "       `=_N' snapshot obs (all revisions)"
@@ -308,9 +309,39 @@ label var w_2024        "2024 import weight share"
 
 order hs10 cty_code imports total_imports w_2024
 sort hs10 cty_code
+isid hs10 cty_code
 compress
 save "$working/weights_2024.dta", replace
 di as text "       `=_N' product-country pairs"
+
+
+* --- B6. Counterfactual rates (USMCA at monthly shares) ---
+*
+* Day-weighted monthly statutory rate at HS10 x country x month,
+* produced by R pull section 3e. Applies the month's actual product-level
+* USMCA utilization share to pre-USMCA statutory components. This is the
+* best estimate of the statutory rate embedding actual USMCA behavior.
+
+di as text "  [B6] Counterfactual rates (USMCA monthly)..."
+
+import delimited using "$raw/counterfactual_usmca_monthly.csv", ///
+    clear stringcols(1 2 3)
+capture rename hts10 hs10
+
+gen year  = real(substr(year_month, 1, 4))
+gen month = real(substr(year_month, 6, 7))
+gen int ym = ym(year, month)
+format ym %tm
+drop year month year_month
+
+rename total_rate rate_usmca_monthly
+
+keep hs10 cty_code ym rate_usmca_monthly
+sort hs10 cty_code ym
+isid hs10 cty_code ym
+compress
+save "$working/cf_usmca_monthly.dta", replace
+di as text "       `=_N' HS10 x country x month rows"
 
 
 * ======================================================================
@@ -389,7 +420,13 @@ local n_start = _N
 di as text "      Census obs in analysis period: `n_start'"
 
 ** Map each month to its active HTS revision
-merge m:1 ym using `month_rev_map', keep(match master) nogenerate
+merge m:1 ym using `month_rev_map', keep(match master) gen(_merge_rev)
+qui count if _merge_rev == 1
+if r(N) > 0 {
+    di as error "ERROR: `=r(N)' Census obs did not map to any revision"
+    error 459
+}
+drop _merge_rev
 assert _N > 0
 
 ** Merge tracker statutory rates on (hs10, country, revision)
@@ -401,11 +438,16 @@ qui count if _merge_snap == 1
 local n_unmatched = r(N)
 qui count if _merge_snap == 3
 local n_matched = r(N)
+gen byte has_snap_rate = (_merge_snap == 3)
+label var has_snap_rate "Product matched to tracker snapshot"
 replace total_rate = 0 if missing(total_rate)
 drop _merge_snap
+local match_rate = 100 * `n_matched' / _N
 di as text "      Snapshot matched: `n_matched', unmatched: `n_unmatched'"
-di as text "      Match rate: " ///
-    string(100 * `n_matched' / _N, "%4.1f") "%"
+di as text "      Match rate: " string(`match_rate', "%4.1f") "%"
+if `match_rate' < 90 {
+    di as error "WARNING: snapshot match rate below 90% — investigate"
+}
 
 
 * ======================================================================
@@ -422,14 +464,31 @@ gen double w_monthly = con_val_mo / total_imports_monthly
 merge m:1 hs10 cty_code using "$working/weights_2024.dta", ///
     keep(match master) keepusing(imports w_2024) gen(_merge_wt)
 qui count if _merge_wt == 3
-di as text "      2024 weight match: " r(N) " of " _N " obs"
+local n_wt_match = r(N)
+gen byte has_2024_wt = (_merge_wt == 3)
+label var has_2024_wt "Product has 2024 import weight"
 drop _merge_wt
+di as text "      2024 weight match: `n_wt_match' of " _N " obs"
 replace imports = 0 if missing(imports)
 replace w_2024  = 0 if missing(w_2024)
 
-** Implied tariff revenue
+** Merge counterfactual statutory rate with monthly USMCA shares
+merge 1:1 hs10 cty_code ym using "$working/cf_usmca_monthly.dta", ///
+    keep(match master) gen(_merge_cfm)
+qui count if _merge_cfm == 3
+local n_cfm_match = r(N)
+qui count if _merge_cfm == 1
+local n_cfm_miss  = r(N)
+replace rate_usmca_monthly = 0 if missing(rate_usmca_monthly)
+drop _merge_cfm
+local cfm_pct = 100 * `n_cfm_match' / _N
+di as text "      USMCA-monthly rate matched: `n_cfm_match' / " _N ///
+    " (" string(`cfm_pct', "%4.1f") "%)"
+
+** Implied tariff revenue (under alternative statutory rate definitions)
 gen double tariff_revenue_statutory = total_rate * con_val_mo
 gen double tariff_revenue_2024      = total_rate * imports
+gen double tariff_revenue_usmca_mo  = rate_usmca_monthly * con_val_mo
 
 ** Ensure HS2 and partner group exist
 capture confirm variable hs2
@@ -448,10 +507,13 @@ label var imports                   "2024 imports (USD)"
 label var w_2024                    "2024 annual weight share"
 label var tariff_revenue_statutory  "Implied statutory revenue (monthly wts)"
 label var tariff_revenue_2024       "Implied statutory revenue (2024 wts)"
+label var rate_usmca_monthly        "Statutory rate w/ monthly USMCA shares"
+label var tariff_revenue_usmca_mo   "Implied revenue (monthly-USMCA rate)"
 
 order ym year month hs2 hs10 cty_code partner_group ///
       con_val_mo cal_dut_mo census_etr ///
-      total_rate tariff_revenue_statutory tariff_revenue_2024 ///
+      total_rate rate_usmca_monthly ///
+      tariff_revenue_statutory tariff_revenue_2024 tariff_revenue_usmca_mo ///
       w_monthly w_2024 imports revision
 
 sort ym hs10 cty_code
