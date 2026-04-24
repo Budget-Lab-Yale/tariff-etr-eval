@@ -24,13 +24,16 @@
 #   imdb_detail.csv                     -- HS10 x country x district x pref x month
 #   imdb_hs10_country_monthly.csv       -- HS10 x country x month (aggregated)
 #   census_hs10_fallback.csv            -- HS10 x country x month (API, gap months)
-#   snapshot_rates/snapshot_{rev}.csv   -- statutory rates per revision
+#   snapshot_rates/snapshot_{rev}.csv   -- statutory rates per revision (production)
+#   snapshot_rates/<scenario>/snapshot_{rev}.csv -- per-USMCA-scenario rates
+#       (scenarios: usmca_none, usmca_2024, usmca_monthly, usmca_h2avg)
 #   import_weights_2024.csv             -- 2024 annual import weights
 #   daily_overall.csv                   -- daily statutory ETR
 #   daily_by_country.csv                -- daily ETR by country
 #   revision_dates.csv                  -- revision effective dates
 #   tariff_revenue.csv                  -- actual monthly ETR
-#   usmca_shares/usmca_product_shares_*.csv -- USMCA utilization shares
+#   usmca_shares/usmca_product_shares_*.csv -- USMCA utilization shares (diagnostic)
+#   counterfactual_usmca_none.csv       -- HS10 x country x month (0% USMCA)
 #   counterfactual_usmca2024.csv        -- HS10 x country x month (2024 USMCA)
 #   counterfactual_usmca_monthly.csv    -- HS10 x country x month (monthly USMCA)
 # ==============================================================================
@@ -511,11 +514,14 @@ if (!RUN_TRACKER) {
 
 log_msg("--- 3. Tariff-Rate-Tracker Exports ---")
 
-# --- 3a. Snapshot rate CSVs (RDS -> CSV) ---
+# --- 3a. Snapshot rate CSVs (RDS -> CSV): top-level + per-scenario ---
+#
+# Top-level snapshots are the production (h2_average) rates. Per-scenario
+# subdirs (usmca_none, usmca_2024, usmca_monthly, usmca_h2avg) contain the
+# same schema built with different USMCA utilization assumptions. Written
+# to data/raw/snapshot_rates/ (top-level) and data/raw/snapshot_rates/<scenario>/.
 
 ts_dir <- file.path(TRACKER_DIR, "data", "timeseries")
-snap_files <- list.files(ts_dir, pattern = "^snapshot_.*\\.rds$", full.names = TRUE)
-log_msg(sprintf("  Exporting %d snapshot RDS files...", length(snap_files)))
 
 # Columns to export from each snapshot
 SNAP_COLS <- c("hts10", "country", "total_rate",
@@ -527,20 +533,44 @@ SNAP_COLS <- c("hts10", "country", "total_rate",
                "copper_share", "usmca_eligible",
                "s232_usmca_eligible", "rate_232")
 
-for (f in snap_files) {
-  rev_name <- gsub("^snapshot_|\\.rds$", "", basename(f))
-  out_csv <- file.path(SNAP_DIR, paste0("snapshot_", rev_name, ".csv"))
-
-  snap <- tryCatch(readRDS(f), error = function(e) NULL)
-  if (is.null(snap) || nrow(snap) == 0) { rm(snap); next }
-
-  snap |>
-    select(all_of(intersect(SNAP_COLS, colnames(snap)))) |>
-    write_csv(out_csv)
-  rm(snap)
+export_snapshots <- function(src_dir, dst_dir, label) {
+  dir.create(dst_dir, showWarnings = FALSE, recursive = TRUE)
+  files <- list.files(src_dir, pattern = "^snapshot_.*\\.rds$", full.names = TRUE)
+  if (length(files) == 0) {
+    log_msg(sprintf("    %s: no snapshots found in %s", label, src_dir))
+    return(0L)
+  }
+  for (f in files) {
+    rev_name <- gsub("^snapshot_|\\.rds$", "", basename(f))
+    out_csv <- file.path(dst_dir, paste0("snapshot_", rev_name, ".csv"))
+    snap <- tryCatch(readRDS(f), error = function(e) NULL)
+    if (is.null(snap) || nrow(snap) == 0) { rm(snap); next }
+    snap |>
+      select(all_of(intersect(SNAP_COLS, colnames(snap)))) |>
+      write_csv(out_csv)
+    rm(snap)
+  }
+  gc(verbose = FALSE)
+  length(files)
 }
-gc(verbose = FALSE)
-log_msg(sprintf("    -> %d snapshot CSVs written", length(snap_files)))
+
+log_msg("  Exporting top-level snapshots (production, h2avg-equivalent)...")
+n_top <- export_snapshots(ts_dir, SNAP_DIR, "top-level")
+log_msg(sprintf("    -> %d top-level snapshot CSVs written", n_top))
+
+SCENARIOS <- c("usmca_none", "usmca_2024", "usmca_monthly", "usmca_h2avg")
+for (scn in SCENARIOS) {
+  scn_src <- file.path(ts_dir, scn)
+  if (!dir.exists(scn_src)) {
+    log_msg(sprintf("    WARNING: scenario dir '%s' not found -- skipping",
+                    scn))
+    next
+  }
+  scn_dst <- file.path(SNAP_DIR, scn)
+  log_msg(sprintf("  Exporting scenario: %s ...", scn))
+  n_scn <- export_snapshots(scn_src, scn_dst, scn)
+  log_msg(sprintf("    -> %d %s snapshot CSVs written", n_scn, scn))
+}
 
 # --- 3b. 2024 import weights (RDS -> CSV) ---
 
@@ -626,16 +656,24 @@ if (file.exists(jan_2026) && !file.exists(feb_2026)) {
 }
 
 
-# --- 3e. Counterfactual rate CSVs (USMCA scenarios) ---
+# --- 3e. Counterfactual month-level rate CSVs (day-weighted scenarios) ---
 #
-# Reconstructs HS10 x country x month total_rate under two USMCA scenarios:
-#   1. usmca2024:   shares frozen at 2024 (pre-tariff baseline)
-#   2. usmca_monthly: shares vary month-to-month (actual utilization)
+# Produces HS10 x country x month total_rate panels for USMCA counterfactuals,
+# for consumption by 05_counterfactual_ladder.do. Reads the tracker's per-
+# scenario snapshots directly (built via src/build_usmca_scenarios.R — see
+# data/timeseries/<scenario>/) and day-weights each scenario's per-revision
+# rates to monthly using the same mrw logic as before.
 #
-# Uses statutory_rate_* columns (pre-USMCA) from snapshot CSVs plus USMCA
-# share files. Day-weights across revisions within months.
+# Previously this section reconstructed post-USMCA rates from statutory_rate_*
+# components + share files; that logic now lives in the tracker and is
+# replaced by a direct read of the scenario snapshots.
+#
+# Scenarios written:
+#   counterfactual_usmca_none.csv      -- 0% utilization (upper bound)
+#   counterfactual_usmca2024.csv       -- 2024 annual shares (pre-tariff)
+#   counterfactual_usmca_monthly.csv   -- actual monthly 2025-2026 shares
 
-log_msg("  Building counterfactual rate CSVs...")
+log_msg("  Building counterfactual rate CSVs (from scenario snapshots)...")
 
 # Load revision dates for day-weighting
 rev_dates <- read_csv(file.path(RAW_DIR, "revision_dates.csv"),
@@ -673,129 +711,63 @@ mrw <- lapply(month_starts, function(m1) {
 mrw <- bind_rows(mrw)
 log_msg(sprintf("    %d month-revision pairs for day-weighting", nrow(mrw)))
 
-# Load USMCA shares: 2024 annual
-shares_2024 <- read_csv(file.path(USMCA_DIR, "usmca_product_shares_2024.csv"),
-  col_types = cols(hts10 = col_character(), cty_code = col_character(),
-                   usmca_share = col_double())) |>
-  select(hts10, cty_code, usmca_share)
+scenario_outputs <- list(
+  usmca_none    = "counterfactual_usmca_none.csv",
+  usmca_2024    = "counterfactual_usmca2024.csv",
+  usmca_monthly = "counterfactual_usmca_monthly.csv"
+)
 
-# Load all monthly share files into a named list (key = "YYYY-MM")
-share_files <- list.files(USMCA_DIR,
-  pattern = "^usmca_product_shares_\\d{4}_\\d{2}\\.csv$", full.names = TRUE)
-shares_by_month <- list()
-for (f in share_files) {
-  ym_key <- gsub("_", "-", regmatches(basename(f), regexpr("\\d{4}_\\d{2}", basename(f))))
-  shares_by_month[[ym_key]] <- read_csv(f,
-    col_types = cols(hts10 = col_character(), cty_code = col_character(),
-                     usmca_share = col_double(), .default = col_guess()),
-    show_col_types = FALSE) |>
-    select(hts10, cty_code, usmca_share)
-}
-log_msg(sprintf("    USMCA shares: 2024 annual + %d monthly files", length(shares_by_month)))
-
-# Constants
-CA_MX <- c("1220", "2010")
-US_AUTO_CONTENT <- 0.40
-
-# Helper: reconstruct total_rate from statutory components at given USMCA shares
-reconstruct_rates <- function(snap, shares_df) {
-  # Ensure s232_usmca_eligible column exists
-  if (!"s232_usmca_eligible" %in% names(snap)) {
-    snap$s232_usmca_eligible <- FALSE
+build_counterfactual <- function(scenario, out_file) {
+  scn_src <- file.path(TRACKER_DIR, "data", "timeseries", scenario)
+  if (!dir.exists(scn_src)) {
+    log_msg(sprintf("    WARNING: scenario dir %s not found -- skipping %s",
+                    scn_src, scenario))
+    return(invisible(NULL))
   }
 
-  snap |>
-    left_join(shares_df, by = c("hts10", "country" = "cty_code")) |>
-    mutate(
-      s = if_else(country %in% CA_MX, coalesce(usmca_share, 0), 0),
+  needed_revs <- unique(mrw$revision)
+  parts <- list()
 
-      # USMCA-adjusted components: base, ieepa_recip, ieepa_fent, s122
-      adj = (coalesce(statutory_base_rate, 0) +
-             coalesce(statutory_rate_ieepa_recip, 0) +
-             coalesce(statutory_rate_ieepa_fent, 0) +
-             coalesce(statutory_rate_s122, 0)) * (1 - s),
+  for (rev in needed_revs) {
+    f <- file.path(scn_src, paste0("snapshot_", rev, ".rds"))
+    if (!file.exists(f)) {
+      log_msg(sprintf("    WARNING: %s/snapshot_%s.rds missing", scenario, rev))
+      next
+    }
+    snap <- tryCatch(readRDS(f), error = function(e) NULL)
+    if (is.null(snap) || nrow(snap) == 0) next
 
-      # 232: content-share adjustment for s232_usmca_eligible products
-      adj_232 = if_else(
-        coalesce(s232_usmca_eligible, FALSE) & country %in% CA_MX,
-        coalesce(statutory_rate_232, 0) * (1 - s * US_AUTO_CONTENT),
-        coalesce(statutory_rate_232, 0)
-      ),
+    snap <- snap |> select(hts10, country, total_rate)
 
-      # Non-USMCA components: 301, section_201, other
-      non_adj = coalesce(statutory_rate_301, 0) +
-                coalesce(statutory_rate_section_201, 0) +
-                coalesce(statutory_rate_other, 0),
-
-      total_rate = adj + adj_232 + non_adj
-    ) |>
-    select(hts10, country, total_rate)
-}
-
-# Pre-load needed snapshots
-needed_revs <- unique(mrw$revision)
-snapshots <- list()
-for (rev in needed_revs) {
-  f <- file.path(SNAP_DIR, paste0("snapshot_", rev, ".csv"))
-  if (file.exists(f)) {
-    snapshots[[rev]] <- read_csv(f,
-      col_types = cols(hts10 = col_character(), country = col_character(),
-                       s232_usmca_eligible = col_logical(), .default = col_guess()),
-      show_col_types = FALSE)
-  } else {
-    log_msg(sprintf("    WARNING: snapshot_%s.csv not found", rev))
-  }
-}
-log_msg(sprintf("    Loaded %d snapshots for reconstruction", length(snapshots)))
-
-# Process each (month, revision) pair under both scenarios
-results_2024    <- vector("list", nrow(mrw))
-results_monthly <- vector("list", nrow(mrw))
-
-for (i in seq_len(nrow(mrw))) {
-  ym  <- mrw$year_month[i]
-  rev <- mrw$revision[i]
-  wt  <- mrw$weight[i]
-
-  snap <- snapshots[[rev]]
-  if (is.null(snap)) next
-
-  # Scenario 1: USMCA frozen at 2024
-  results_2024[[i]] <- reconstruct_rates(snap, shares_2024) |>
-    mutate(year_month = ym, weight = wt)
-
-  # Scenario 2: USMCA at actual monthly shares
-  mo_shares <- shares_by_month[[ym]]
-  if (is.null(mo_shares)) {
-    # Carry forward: use latest available month
-    avail <- sort(names(shares_by_month))
-    prior <- avail[avail <= ym]
-    mo_shares <- if (length(prior) > 0) shares_by_month[[tail(prior, 1)]] else shares_2024
+    rev_rows <- mrw[mrw$revision == rev, , drop = FALSE]
+    for (j in seq_len(nrow(rev_rows))) {
+      parts[[length(parts) + 1L]] <- snap |>
+        mutate(year_month = rev_rows$year_month[j],
+               wtd_rate   = total_rate * rev_rows$weight[j])
+    }
+    rm(snap); gc(verbose = FALSE)
   }
 
-  results_monthly[[i]] <- reconstruct_rates(snap, mo_shares) |>
-    mutate(year_month = ym, weight = wt)
+  if (length(parts) == 0) {
+    log_msg(sprintf("    WARNING: no snapshots loaded for %s -- skipping write",
+                    scenario))
+    return(invisible(NULL))
+  }
+
+  result <- bind_rows(parts) |>
+    summarise(total_rate = sum(wtd_rate),
+              .by = c(hts10, country, year_month)) |>
+    rename(cty_code = country)
+
+  write_csv(result, file.path(RAW_DIR, out_file))
+  log_msg(sprintf("    -> %s: %d rows", out_file, nrow(result)))
+  rm(parts, result); gc(verbose = FALSE)
+  invisible(NULL)
 }
 
-# Day-weight across revisions within each month
-counterfactual_2024 <- bind_rows(results_2024) |>
-  mutate(wtd_rate = total_rate * weight) |>
-  summarise(total_rate = sum(wtd_rate), .by = c(hts10, country, year_month)) |>
-  rename(cty_code = country)
-
-counterfactual_monthly <- bind_rows(results_monthly) |>
-  mutate(wtd_rate = total_rate * weight) |>
-  summarise(total_rate = sum(wtd_rate), .by = c(hts10, country, year_month)) |>
-  rename(cty_code = country)
-
-write_csv(counterfactual_2024, file.path(RAW_DIR, "counterfactual_usmca2024.csv"))
-write_csv(counterfactual_monthly, file.path(RAW_DIR, "counterfactual_usmca_monthly.csv"))
-
-log_msg(sprintf("    -> counterfactual_usmca2024.csv: %d rows", nrow(counterfactual_2024)))
-log_msg(sprintf("    -> counterfactual_usmca_monthly.csv: %d rows", nrow(counterfactual_monthly)))
-
-rm(results_2024, results_monthly, snapshots, counterfactual_2024, counterfactual_monthly)
-gc(verbose = FALSE)
+for (scn in names(scenario_outputs)) {
+  build_counterfactual(scn, scenario_outputs[[scn]])
+}
 
 } # end RUN_COUNTERFACTUAL
 

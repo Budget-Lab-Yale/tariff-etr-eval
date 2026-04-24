@@ -390,23 +390,8 @@ di as text _n "  [D] Building master analytical dataset..."
 
 di as text "      Month-revision crosswalk..."
 
-** Build a panel of months in the analysis window
-clear
-local n_months = $end_ym - $start_ym + 1
-set obs `n_months'
-gen int ym = $start_ym + _n - 1
-format ym %tm
-gen first_of_month = dofm(ym)
-format first_of_month %td
-
-** Cross with revision dates and keep latest revision per month
-cross using "$working/revision_dates.dta"
-keep if eff_date <= first_of_month
-bysort ym (eff_date): keep if _n == _N
-
-keep ym revision
 tempfile month_rev_map
-save `month_rev_map'
+build_month_rev_map, saving(`month_rev_map')
 list, clean noobs
 
 * --- D2. Merge Census with snapshot rates ---

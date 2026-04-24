@@ -53,6 +53,21 @@ global end_ym   = ym(2026, 2)
 * Partner groups (for decomposition loops)
 global partner_groups `" "China" "Canada" "Mexico" "EU" "Japan" "S. Korea" "UK" "ROW" "'
 
+* Individual partner country codes (Census)
+global cty_china  "5700"
+global cty_canada "1220"
+global cty_mexico "2010"
+global cty_japan  "5880"
+global cty_skorea "5800"
+global cty_uk     "4120"
+
+* EU27 member states (Census country codes). Stored as comma-quoted
+* batches of <=9 so they can be passed to inlist(). Used by
+* assign_partner_group and any script that needs to classify EU members.
+global eu_codes_1 `""4280", "4220", "4230", "4240", "4253", "4254", "4270", "4350", "4360""'
+global eu_codes_2 `""4380", "4390", "4550", "4560", "4570", "4590", "4610", "4690", "4700""'
+global eu_codes_3 `""4720", "4740", "4810", "4760", "4770", "4780", "4840", "4850", "4870""'
+
 * --- Policy event dates (for figure reference lines) ---
 global event_fentanyl     = td(04feb2025)
 global event_232_autos    = td(12mar2025)
@@ -78,6 +93,7 @@ global run_analysis   1     // Step 2: four-tier decomposition and figures
 global run_fta        1     // Step 3: FTA/preference decomposition (needs imdb_detail.csv)
 global run_crosscheck 1     // Step 4: max-district tracker validation (needs imdb_detail.csv)
 global run_ladder     1     // Step 5: counterfactual waterfall
+global run_baseline   1     // Step 6: baseline ETR diagnostic (2024 wts, tracker USMCA)
 
 * --- Confirmation ---
 di as text "  globals.do loaded: $dir"

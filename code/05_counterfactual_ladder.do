@@ -53,6 +53,8 @@ di as text "      Counterfactual rates (USMCA 2024)..."
 import delimited using "$raw/counterfactual_usmca2024.csv", ///
     clear stringcols(1 2 3)
 
+capture rename hts10 hs10
+
 gen year  = real(substr(year_month, 1, 4))
 gen month = real(substr(year_month, 6, 7))
 gen int ym = ym(year, month)
@@ -74,6 +76,8 @@ di as text "      Counterfactual rates (USMCA monthly)..."
 
 import delimited using "$raw/counterfactual_usmca_monthly.csv", ///
     clear stringcols(1 2 3)
+
+capture rename hts10 hs10
 
 gen year  = real(substr(year_month, 1, 4))
 gen month = real(substr(year_month, 6, 7))
@@ -134,61 +138,25 @@ save `treasury'
 
 di as text _n "  [B] Computing ladder tiers..."
 
-* --- S0: USMCA2024 rates x 2024 weights ---
-* Expand 2024 weights to a monthly panel, merge counterfactual rates.
+tempfile tier_s0 tier_s1 tier_s2
 
+* --- S0: USMCA-2024 rates x 2024 weights ---
 di as text "      S0: USMCA-2024 x 2024 weights"
+compute_tier, ratefile(`cf_2024') ratevar(rate_usmca2024) ///
+    weightsrc(2024) outfile(`tier_s0') outvar(s0) ///
+    label("S0 (agg) vs cf_2024")
 
-use `wt_2024', clear
-local n_months = $end_ym - $start_ym + 1
-expand `n_months'
-bysort hs10 cty_code: gen int ym = $start_ym + _n - 1
-format ym %tm
-
-merge 1:1 hs10 cty_code ym using `cf_2024', ///
-    keepusing(rate_usmca2024) keep(match master) nogenerate
-replace rate_usmca2024 = 0 if missing(rate_usmca2024)
-
-gen double wtd = rate_usmca2024 * imports
-collapse (sum) num=wtd den=imports, by(ym)
-safe_divide num den s0
-keep ym s0
-tempfile tier_s0
-save `tier_s0'
-
-
-* --- S1: USMCA2024 rates x actual monthly weights ---
-
+* --- S1: USMCA-2024 rates x actual monthly weights ---
 di as text "      S1: USMCA-2024 x monthly weights"
-
-use `monthly_data', clear
-merge 1:1 hs10 cty_code ym using `cf_2024', ///
-    keepusing(rate_usmca2024) keep(match master) nogenerate
-replace rate_usmca2024 = 0 if missing(rate_usmca2024)
-
-gen double wtd = rate_usmca2024 * con_val_mo
-collapse (sum) num=wtd den=con_val_mo, by(ym)
-safe_divide num den s1
-keep ym s1
-tempfile tier_s1
-save `tier_s1'
-
+compute_tier, ratefile(`cf_2024') ratevar(rate_usmca2024) ///
+    weightsrc(`monthly_data') outfile(`tier_s1') outvar(s1) ///
+    label("S1 (agg) vs cf_2024")
 
 * --- S2: USMCA-monthly rates x actual monthly weights ---
-
 di as text "      S2: USMCA-monthly x monthly weights"
-
-use `monthly_data', clear
-merge 1:1 hs10 cty_code ym using `cf_monthly', ///
-    keepusing(rate_usmca_monthly) keep(match master) nogenerate
-replace rate_usmca_monthly = 0 if missing(rate_usmca_monthly)
-
-gen double wtd = rate_usmca_monthly * con_val_mo
-collapse (sum) num=wtd den=con_val_mo, by(ym)
-safe_divide num den s2
-keep ym s2
-tempfile tier_s2
-save `tier_s2'
+compute_tier, ratefile(`cf_monthly') ratevar(rate_usmca_monthly) ///
+    weightsrc(`monthly_data') outfile(`tier_s2') outvar(s2) ///
+    label("S2 (agg) vs cf_monthly")
 
 
 * ======================================================================
@@ -252,57 +220,28 @@ export delimited using "$tables/counterfactual_ladder.csv", replace
 
 di as text _n "  [D] Country-level ladder..."
 
-* --- S0 by country: USMCA2024 x 2024 weights ---
+tempfile cty_s0 cty_s1 cty_s2
 
-use `wt_2024', clear
-local n_months = $end_ym - $start_ym + 1
-expand `n_months'
-bysort hs10 cty_code: gen int ym = $start_ym + _n - 1
-format ym %tm
+* --- S0 by country: USMCA-2024 x 2024 weights ---
+di as text "      S0 by country"
+compute_tier, ratefile(`cf_2024') ratevar(rate_usmca2024) ///
+    weightsrc(2024) outfile(`cty_s0') outvar(s0_etr) ///
+    byvar(partner_group) percent ///
+    label("S0 (country) vs cf_2024")
 
-merge 1:1 hs10 cty_code ym using `cf_2024', ///
-    keepusing(rate_usmca2024) keep(match master) nogenerate
-replace rate_usmca2024 = 0 if missing(rate_usmca2024)
-
-assign_partner_group cty_code
-
-gen double wtd = rate_usmca2024 * imports
-collapse (sum) wtd imports, by(ym partner_group)
-safe_divide wtd imports s0_etr
-replace s0_etr = s0_etr * 100
-
-tempfile cty_s0
-save `cty_s0'
-
-* --- S1 by country: USMCA2024 x monthly weights ---
-
-use `monthly_data', clear
-merge 1:1 hs10 cty_code ym using `cf_2024', ///
-    keepusing(rate_usmca2024) keep(match master) nogenerate
-replace rate_usmca2024 = 0 if missing(rate_usmca2024)
-
-gen double wtd = rate_usmca2024 * con_val_mo
-collapse (sum) wtd con_val_mo, by(ym partner_group)
-safe_divide wtd con_val_mo s1_etr
-replace s1_etr = s1_etr * 100
-
-tempfile cty_s1
-save `cty_s1'
+* --- S1 by country: USMCA-2024 x monthly weights ---
+di as text "      S1 by country"
+compute_tier, ratefile(`cf_2024') ratevar(rate_usmca2024) ///
+    weightsrc(`monthly_data') outfile(`cty_s1') outvar(s1_etr) ///
+    byvar(partner_group) percent ///
+    label("S1 (country) vs cf_2024")
 
 * --- S2 by country: USMCA-monthly x monthly weights ---
-
-use `monthly_data', clear
-merge 1:1 hs10 cty_code ym using `cf_monthly', ///
-    keepusing(rate_usmca_monthly) keep(match master) nogenerate
-replace rate_usmca_monthly = 0 if missing(rate_usmca_monthly)
-
-gen double wtd = rate_usmca_monthly * con_val_mo
-collapse (sum) wtd con_val_mo, by(ym partner_group)
-safe_divide wtd con_val_mo s2_etr
-replace s2_etr = s2_etr * 100
-
-tempfile cty_s2
-save `cty_s2'
+di as text "      S2 by country"
+compute_tier, ratefile(`cf_monthly') ratevar(rate_usmca_monthly) ///
+    weightsrc(`monthly_data') outfile(`cty_s2') outvar(s2_etr) ///
+    byvar(partner_group) percent ///
+    label("S2 (country) vs cf_monthly")
 
 * --- Combine country-level tiers ---
 

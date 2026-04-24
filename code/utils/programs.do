@@ -26,24 +26,19 @@ program define assign_partner_group
     capture drop partner_group
     gen str10 partner_group = ""
 
-    * Individual countries
-    replace partner_group = "China"    if `varlist' == "5700"
-    replace partner_group = "Canada"   if `varlist' == "1220"
-    replace partner_group = "Mexico"   if `varlist' == "2010"
-    replace partner_group = "Japan"    if `varlist' == "5880"
-    replace partner_group = "S. Korea" if `varlist' == "5800"
-    replace partner_group = "UK"       if `varlist' == "4120"
+    * Individual countries (codes from globals.do)
+    replace partner_group = "China"    if `varlist' == "$cty_china"
+    replace partner_group = "Canada"   if `varlist' == "$cty_canada"
+    replace partner_group = "Mexico"   if `varlist' == "$cty_mexico"
+    replace partner_group = "Japan"    if `varlist' == "$cty_japan"
+    replace partner_group = "S. Korea" if `varlist' == "$cty_skorea"
+    replace partner_group = "UK"       if `varlist' == "$cty_uk"
 
-    * EU27 member states -- max 9 values per string inlist()
-    replace partner_group = "EU" if inlist(`varlist', ///
-        "4280", "4220", "4230", "4240", "4253", "4254", "4270", ///
-        "4350", "4360")
-    replace partner_group = "EU" if inlist(`varlist', ///
-        "4380", "4390", "4550", "4560", "4570", "4590", "4610", ///
-        "4690", "4700")
-    replace partner_group = "EU" if inlist(`varlist', ///
-        "4720", "4740", "4810", "4760", "4770", "4780", "4840", ///
-        "4850", "4870")
+    * EU27 member states -- inlist() capped at 9 string args, so we split
+    * into three batches defined in globals.do.
+    replace partner_group = "EU" if inlist(`varlist', $eu_codes_1)
+    replace partner_group = "EU" if inlist(`varlist', $eu_codes_2)
+    replace partner_group = "EU" if inlist(`varlist', $eu_codes_3)
 
     * Rest of World
     replace partner_group = "ROW" if partner_group == ""
@@ -67,6 +62,164 @@ program define safe_divide
     capture drop `newvar'
     gen double `newvar' = `num' / `den' if `den' != 0 & !missing(`den')
     replace `newvar' = `default' if missing(`newvar')
+end
+
+
+* ==============================================================================
+* PROGRAM: report_merge
+*
+* Reports match / master / using counts from the _merge variable left by a
+* preceding `merge` command, using a caller-supplied label for context.
+* Assumes the standard _merge variable name (call before dropping it).
+*
+* Usage:
+*   merge 1:1 hs10 cty_code ym using `cf_2024', keepusing(r) keep(match master)
+*   report_merge "S0 vs cf_2024"
+*   drop _merge
+* ==============================================================================
+
+capture program drop report_merge
+program define report_merge
+    args label
+
+    capture confirm variable _merge
+    if _rc != 0 {
+        di as error "report_merge: _merge not found (did you use gen(_merge)?)"
+        exit 111
+    }
+
+    qui count if _merge == 3
+    local n_match = r(N)
+    qui count if _merge == 1
+    local n_master = r(N)
+    qui count if _merge == 2
+    local n_using = r(N)
+    local n_tot = `n_match' + `n_master' + `n_using'
+    local pct = cond(`n_tot' > 0, 100 * `n_match' / `n_tot', 0)
+
+    di as text "        [merge] `label': matched=`n_match'" ///
+        " master-only=`n_master' using-only=`n_using'" ///
+        " (" %4.1f `pct' "%)"
+end
+
+
+* ==============================================================================
+* PROGRAM: build_month_rev_map
+*
+* Builds a ym -> revision crosswalk for the analysis window. Maps each month
+* to the active HTS revision (latest revision with effective date on or
+* before the first of the month). Uses $start_ym and $end_ym from globals.do
+* and the revision_dates dta from $working (override via using()).
+*
+* Side effects: clears the in-memory dataset. Wrap the call in
+* preserve/restore if the caller's in-memory data must be retained.
+*
+* Usage:
+*   tempfile month_rev_map
+*   build_month_rev_map, saving(`month_rev_map')
+*   merge m:1 ym using `month_rev_map', keep(match master) nogenerate
+* ==============================================================================
+
+capture program drop build_month_rev_map
+program define build_month_rev_map
+    syntax , Saving(string) [USing(string)]
+
+    if "`using'" == "" local using "${working}/revision_dates.dta"
+
+    clear
+    local n_months = $end_ym - $start_ym + 1
+    set obs `n_months'
+    gen int ym = $start_ym + _n - 1
+    format ym %tm
+    gen first_of_month = dofm(ym)
+    format first_of_month %td
+
+    cross using "`using'"
+    keep if eff_date <= first_of_month
+    bysort ym (eff_date): keep if _n == _N
+    keep ym revision
+
+    save `"`saving'"', replace
+end
+
+
+* ==============================================================================
+* PROGRAM: compute_tier
+*
+* Computes a one-line-per-month (or month x by-var) aggregate ETR tier by
+* applying a rate column to a weight column over a panel, then collapsing.
+* Replaces the six near-identical S0/S1/S2 aggregate/country blocks in
+* 05_counterfactual_ladder.do.
+*
+* Side effects: clears the in-memory dataset.
+*
+* Options:
+*   ratefile()  Path/tempfile of HS10 x country x month rates (required)
+*   ratevar()   Rate variable name inside ratefile (required)
+*   weightsrc() "2024" (sentinel) for $working/weights_2024.dta expanded to
+*               the analysis window, or a path/tempfile of monthly
+*               HS10 x country x month trade data with con_val_mo (required)
+*   outfile()   Path/tempfile to save collapsed result (required)
+*   outvar()    Name for the collapsed ETR in the output (required)
+*   byvar()     Optional grouping variable for the collapse (e.g., partner_group)
+*   label()     Optional label passed to report_merge()
+*   percent     If set, multiply output ETR by 100 before saving
+*
+* Usage:
+*   compute_tier, ratefile(`cf_2024') ratevar(rate_usmca2024) ///
+*       weightsrc(2024) outfile(`tier_s0') outvar(s0) ///
+*       label("S0 (agg) vs cf_2024")
+* ==============================================================================
+
+capture program drop compute_tier
+program define compute_tier
+    syntax , RATEfile(string) RATEvar(name) WEIGHTsrc(string) ///
+             OUTfile(string) OUTvar(name) ///
+             [BYvar(name) LABel(string) PERCent]
+
+    if "`weightsrc'" == "2024" {
+        * Expand 2024-weight panel to monthly
+        use "${working}/weights_2024.dta", clear
+        keep hs10 cty_code imports
+        local n_months = $end_ym - $start_ym + 1
+        expand `n_months'
+        bysort hs10 cty_code: gen int ym = $start_ym + _n - 1
+        format ym %tm
+        local weightvar imports
+    }
+    else {
+        use `"`weightsrc'"', clear
+        local weightvar con_val_mo
+    }
+
+    merge 1:1 hs10 cty_code ym using `"`ratefile'"', ///
+        keepusing(`ratevar') keep(match master)
+    if "`label'" != "" report_merge "`label'"
+    drop _merge
+    replace `ratevar' = 0 if missing(`ratevar')
+
+    if "`byvar'" == "partner_group" {
+        capture confirm variable partner_group
+        if _rc != 0 assign_partner_group cty_code
+    }
+
+    gen double _wtd = `ratevar' * `weightvar'
+
+    if "`byvar'" == "" {
+        collapse (sum) num=_wtd den=`weightvar', by(ym)
+        safe_divide num den `outvar'
+        if "`percent'" != "" replace `outvar' = `outvar' * 100
+        keep ym `outvar'
+    }
+    else {
+        collapse (sum) num=_wtd den=`weightvar', by(ym `byvar')
+        safe_divide num den `outvar'
+        if "`percent'" != "" replace `outvar' = `outvar' * 100
+        keep ym `byvar' `outvar'
+    }
+
+    compress
+    save `"`outfile'"', replace
 end
 
 

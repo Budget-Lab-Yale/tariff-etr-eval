@@ -70,17 +70,23 @@ di as text "       `=_N' entries after filtering"
 
 di as text "  [B] Computing max-across-districts rates..."
 
+* Weighted mean computed manually so collapse can run unweighted
+* (Stata collapse doesn't accept a mid-list [aw=] and applying it globally
+*  would disturb the min/max/sum stats).
+gen double _wtd_rate = entry_rate * con_val_mo
+
 collapse ///
     (max)   max_rate = entry_rate ///
-    (mean)  mean_rate = entry_rate [aw = con_val_mo] ///
     (min)   min_rate = entry_rate ///
+    (sum)   _wtd_rate ///
     (sum)   total_imports = con_val_mo ///
             total_duties = cal_dut_mo ///
     (max)   has_preference ///
     (first) partner_group, ///
     by(ym hs10 cty_code)
 
-* Note: weighted mean uses con_val_mo as analytic weights
+gen double mean_rate = _wtd_rate / total_imports
+drop _wtd_rate
 
 di as text "       `=_N' HS10 x country x month cells"
 
@@ -91,21 +97,10 @@ di as text "       `=_N' HS10 x country x month cells"
 
 di as text "  [C] Merging tracker statutory rates..."
 
-** Build month -> revision mapping
+** Build month -> revision mapping (program from programs.do)
+tempfile month_rev_map
 preserve
-    clear
-    local n_months = $end_ym - $start_ym + 1
-    set obs `n_months'
-    gen int ym = $start_ym + _n - 1
-    format ym %tm
-    gen first_of_month = dofm(ym)
-    format first_of_month %td
-    cross using "$working/revision_dates.dta"
-    keep if eff_date <= first_of_month
-    bysort ym (eff_date): keep if _n == _N
-    keep ym revision
-    tempfile month_rev_map
-    save `month_rev_map'
+    build_month_rev_map, saving(`month_rev_map')
 restore
 
 ** Merge revision onto collapsed data via month
@@ -171,20 +166,25 @@ di as text "  [E] Computing monthly summary statistics..."
 preserve
     keep if !missing(tracker_rate)
 
-    * Unweighted match rates
+    * Weighted means computed manually (collapse can't mix weighted mean
+    * with unweighted count/sum in one command).
+    gen double _wtd_tracker   = tracker_rate * imports_2024
+    gen double _wtd_max       = max_rate     * imports_2024
+    gen double _wtd_collected = mean_rate    * imports_2024
+
     collapse ///
         (count) n_with_tracker = tracker_rate ///
-        (sum)   n_match_2pp = match_2pp ///
-                n_match_5pp = match_5pp ///
-        (sum)   n_tracker_higher = tracker_rate ///
-                n_observed_higher = tracker_rate ///
-        (mean)  agg_tracker_etr = tracker_rate [aw = imports_2024] ///
-        (mean)  agg_max_etr = max_rate [aw = imports_2024] ///
-        (mean)  agg_collected_etr = mean_rate [aw = imports_2024], ///
+        (sum)   n_match_2pp    = match_2pp ///
+                n_match_5pp    = match_5pp ///
+                _wtd_tracker _wtd_max _wtd_collected ///
+                total_wt       = imports_2024, ///
         by(ym)
 
-    * Fix: need proper counts for tracker_higher / observed_higher
-    drop n_tracker_higher n_observed_higher
+    gen double agg_tracker_etr   = _wtd_tracker   / total_wt
+    gen double agg_max_etr       = _wtd_max       / total_wt
+    gen double agg_collected_etr = _wtd_collected / total_wt
+    drop _wtd_tracker _wtd_max _wtd_collected total_wt
+
     tempfile summary_shell
     save `summary_shell'
 restore

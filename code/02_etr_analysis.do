@@ -27,7 +27,7 @@
 *   $figures/figure2_gap_stacked.png
 *   $figures/figure3_usmca_decomp.png
 *
-*   Section E -- Census vs statutory-monthly-USMCA comparison:
+*   Section D -- Census vs statutory-monthly-USMCA comparison:
 *     $figures/figure_A_overall.png
 *     $figures/figure_B_partner_facets.png
 *     $figures/figure_C_gap_by_partner.png
@@ -35,6 +35,10 @@
 *     $tables/cmp_partner_monthly.csv
 *     $tables/cmp_hs2_ranking.csv
 *     $tables/cmp_top_hs10_anomalies.csv
+*     $tables/cmp_2x2_monthly.csv           (D5: 2x2 zero-pattern, overall)
+*     $tables/cmp_2x2_partner_monthly.csv   (D5: 2x2 zero-pattern, by partner)
+*     $tables/cmp_2x2_hs2_monthly.csv       (D5: 2x2 zero-pattern, by HS2)
+*     $tables/cmp_gap_quantiles_monthly.csv (D6: value-weighted |gap| quantiles)
 * ==============================================================================
 
 di as text _n "=========================================="
@@ -440,7 +444,7 @@ graph export "$figures/figure3_usmca_decomp.png", replace width(2400)
 
 
 * ======================================================================
-* E. CENSUS vs STATUTORY (MONTHLY USMCA) COMPARISON
+* D. CENSUS vs STATUTORY (MONTHLY USMCA) COMPARISON
 * ======================================================================
 *
 * Clean comparison between:
@@ -462,7 +466,7 @@ graph export "$figures/figure3_usmca_decomp.png", replace width(2400)
 *   Tbl 3a -- results/tables/cmp_hs2_ranking.csv (HS2 contribution to gap)
 *   Tbl 3b -- results/tables/cmp_top_hs10_anomalies.csv
 
-di as text _n "  [E] Census vs. Statutory (monthly USMCA) comparison..."
+di as text _n "  [D] Census vs. Statutory (monthly USMCA) comparison..."
 
 use "$working/merged_analysis.dta", clear
 keep if ym >= $start_ym & ym <= $end_ym
@@ -483,10 +487,10 @@ gen double cens_rev_row = cal_dut_mo
 
 
 * ----------------------------------------------------------------------
-* E1. Overall monthly comparison (Tbl 1 + Fig A)
+* D1. Overall monthly comparison (Tbl 1 + Fig A)
 * ----------------------------------------------------------------------
 
-di as text "      E1. Overall monthly..."
+di as text "      D1. Overall monthly..."
 
 preserve
     collapse (sum) stat_num=stat_rev_row cens_num=cens_rev_row ///
@@ -555,10 +559,10 @@ restore
 
 
 * ----------------------------------------------------------------------
-* E2. Partner group x month (Tbl 2 + Fig B + Fig C)
+* D2. Partner group x month (Tbl 2 + Fig B + Fig C)
 * ----------------------------------------------------------------------
 
-di as text "      E2. Partner group x month..."
+di as text "      D2. Partner group x month..."
 
 preserve
     collapse (sum) stat_num=stat_rev_row cens_num=cens_rev_row ///
@@ -658,10 +662,10 @@ restore
 
 
 * ----------------------------------------------------------------------
-* E3. HS2 chapter ranking (Tbl 3a)
+* D3. HS2 chapter ranking (Tbl 3a)
 * ----------------------------------------------------------------------
 
-di as text "      E3. HS2 chapter ranking..."
+di as text "      D3. HS2 chapter ranking..."
 
 preserve
     ** Aggregate over the whole window for a single ranked table
@@ -702,10 +706,10 @@ restore
 
 
 * ----------------------------------------------------------------------
-* E4. Top HS10 x country anomalies (Tbl 3b)
+* D4. Top HS10 x country anomalies (Tbl 3b)
 * ----------------------------------------------------------------------
 
-di as text "      E4. Top HS10 x country anomalies..."
+di as text "      D4. Top HS10 x country anomalies..."
 
 preserve
     ** Aggregate over the window at HS10 x country
@@ -735,6 +739,222 @@ preserve
 
     keep in 1/500
     export delimited using "$tables/cmp_top_hs10_anomalies.csv", replace
+restore
+
+
+* ----------------------------------------------------------------------
+* D5. 2x2 cross-tab: {stat = 0 / > 0} x {cens = 0 / > 0}
+* ----------------------------------------------------------------------
+*
+* Restricted to active trade cells (con_val_mo > 0). Four mutually
+* exclusive buckets:
+*   bothzero     stat = 0, cens = 0    True MFN-free trade
+*   bothpos      stat > 0, cens > 0    Direct rate gap (preference / exemption)
+*   trackermiss  stat = 0, cens > 0    Unmodeled duties (AD/CVD, AVE errors,
+*                                      Section 201, etc.)
+*   impfriction  stat > 0, cens = 0    Implementation friction (timing,
+*                                      exemption, Ch 98, evasion)
+*
+* Outputs (count and value-weighted shares):
+*   $tables/cmp_2x2_monthly.csv           by ym
+*   $tables/cmp_2x2_partner_monthly.csv   by ym x partner_group
+*   $tables/cmp_2x2_hs2_monthly.csv       by ym x HS2
+
+di as text "      D5. 2x2 cross-tab (stat-zero x cens-zero)..."
+
+preserve
+    keep if con_val_mo > 0 & !missing(con_val_mo)
+
+    gen byte stat_pos = (rate_usmca_monthly > 0 & !missing(rate_usmca_monthly))
+    gen byte cens_pos = (cal_dut_mo > 0 & !missing(cal_dut_mo))
+
+    gen str12 bucket = ""
+    replace bucket = "bothzero"    if stat_pos == 0 & cens_pos == 0
+    replace bucket = "bothpos"     if stat_pos == 1 & cens_pos == 1
+    replace bucket = "trackermiss" if stat_pos == 0 & cens_pos == 1
+    replace bucket = "impfriction" if stat_pos == 1 & cens_pos == 0
+
+    gen byte  one   = 1
+    gen double w_val = con_val_mo
+
+    tempfile base
+    save `base', replace
+
+    * --- D5a. Overall, by ym ---
+    use `base', clear
+    collapse (sum) n = one val = w_val, by(ym bucket)
+    reshape wide n val, i(ym) j(bucket) string
+
+    foreach b in bothzero bothpos trackermiss impfriction {
+        foreach p in n val {
+            capture confirm variable `p'`b'
+            if _rc != 0 gen double `p'`b' = 0
+            replace `p'`b' = 0 if missing(`p'`b')
+        }
+    }
+    gen double n_total   = nbothzero + nbothpos + ntrackermiss + nimpfriction
+    gen double val_total = valbothzero + valbothpos + valtrackermiss + valimpfriction
+    foreach b in bothzero bothpos trackermiss impfriction {
+        gen double pct_n_`b'   = 100 * n`b'   / n_total
+        gen double pct_val_`b' = 100 * val`b' / val_total
+    }
+
+    order ym n_total val_total ///
+          nbothzero nbothpos ntrackermiss nimpfriction ///
+          valbothzero valbothpos valtrackermiss valimpfriction ///
+          pct_n_bothzero pct_n_bothpos pct_n_trackermiss pct_n_impfriction ///
+          pct_val_bothzero pct_val_bothpos pct_val_trackermiss pct_val_impfriction
+
+    format val* n_total %20.0fc
+    format pct_* %6.2f
+
+    di as text "  === Tbl D5a: 2x2 cross-tab, overall (% of $) ==="
+    list ym pct_val_bothzero pct_val_bothpos ///
+             pct_val_trackermiss pct_val_impfriction, clean noobs
+
+    export delimited using "$tables/cmp_2x2_monthly.csv", replace
+
+    * --- D5b. By partner_group x ym ---
+    use `base', clear
+    collapse (sum) n = one val = w_val, by(ym partner_group bucket)
+    reshape wide n val, i(ym partner_group) j(bucket) string
+
+    foreach b in bothzero bothpos trackermiss impfriction {
+        foreach p in n val {
+            capture confirm variable `p'`b'
+            if _rc != 0 gen double `p'`b' = 0
+            replace `p'`b' = 0 if missing(`p'`b')
+        }
+    }
+    gen double n_total   = nbothzero + nbothpos + ntrackermiss + nimpfriction
+    gen double val_total = valbothzero + valbothpos + valtrackermiss + valimpfriction
+    foreach b in bothzero bothpos trackermiss impfriction {
+        gen double pct_n_`b'   = 100 * n`b'   / n_total
+        gen double pct_val_`b' = 100 * val`b' / val_total
+    }
+
+    format val* n_total %20.0fc
+    format pct_* %6.2f
+
+    export delimited using "$tables/cmp_2x2_partner_monthly.csv", replace
+
+    * --- D5c. By HS2 x ym ---
+    use `base', clear
+    collapse (sum) n = one val = w_val, by(ym hs2 bucket)
+    reshape wide n val, i(ym hs2) j(bucket) string
+
+    foreach b in bothzero bothpos trackermiss impfriction {
+        foreach p in n val {
+            capture confirm variable `p'`b'
+            if _rc != 0 gen double `p'`b' = 0
+            replace `p'`b' = 0 if missing(`p'`b')
+        }
+    }
+    gen double n_total   = nbothzero + nbothpos + ntrackermiss + nimpfriction
+    gen double val_total = valbothzero + valbothpos + valtrackermiss + valimpfriction
+    foreach b in bothzero bothpos trackermiss impfriction {
+        gen double pct_n_`b'   = 100 * n`b'   / n_total
+        gen double pct_val_`b' = 100 * val`b' / val_total
+    }
+
+    format val* n_total %20.0fc
+    format pct_* %6.2f
+
+    export delimited using "$tables/cmp_2x2_hs2_monthly.csv", replace
+restore
+
+
+* ----------------------------------------------------------------------
+* D6. Value-weighted |gap| distribution by month
+* ----------------------------------------------------------------------
+*
+* At the HS10 x country x month cell,
+*     gap_pp = 100 * (rate_usmca_monthly - census_etr).
+* Restricted to cells with positive trade (con_val_mo > 0). Quantiles
+* and share-within-threshold are weighted by con_val_mo.
+*
+* "X% of import $ fall within Y pp of the statutory rate" is the
+* headline validity statistic for T3 as a cell-level rate proxy.
+*
+* Output:
+*   $tables/cmp_gap_quantiles_monthly.csv
+
+di as text "      D6. |gap| distribution by month (value-weighted)..."
+
+preserve
+    keep if con_val_mo > 0 & !missing(con_val_mo)
+    safe_divide cal_dut_mo con_val_mo census_etr
+    gen double gap_pp  = 100 * (rate_usmca_monthly - census_etr)
+    replace   gap_pp   = 0 if missing(gap_pp)
+    gen double abs_gap = abs(gap_pp)
+
+    tempname pf
+    tempfile qres
+    postfile `pf' ym total_val n_cells ///
+                  p10 p25 p50 p75 p90 p95 p99 ///
+                  sh_lt_0p5 sh_lt_1 sh_lt_2 sh_lt_5 sh_lt_10 ///
+                  using `qres', replace
+
+    levelsof ym, local(months)
+    foreach m of local months {
+        quietly {
+            summarize con_val_mo if ym == `m'
+            local tv = r(sum)
+            local nc = r(N)
+
+            _pctile abs_gap if ym == `m' [aw=con_val_mo], ///
+                percentiles(10 25 50 75 90 95 99)
+            local p10 = r(r1)
+            local p25 = r(r2)
+            local p50 = r(r3)
+            local p75 = r(r4)
+            local p90 = r(r5)
+            local p95 = r(r6)
+            local p99 = r(r7)
+
+            summarize con_val_mo if ym == `m' & abs_gap <= 0.5
+            local sh_0p5 = 100 * r(sum) / `tv'
+            summarize con_val_mo if ym == `m' & abs_gap <= 1
+            local sh_1   = 100 * r(sum) / `tv'
+            summarize con_val_mo if ym == `m' & abs_gap <= 2
+            local sh_2   = 100 * r(sum) / `tv'
+            summarize con_val_mo if ym == `m' & abs_gap <= 5
+            local sh_5   = 100 * r(sum) / `tv'
+            summarize con_val_mo if ym == `m' & abs_gap <= 10
+            local sh_10  = 100 * r(sum) / `tv'
+
+            post `pf' (`m') (`tv') (`nc') ///
+                      (`p10') (`p25') (`p50') (`p75') (`p90') (`p95') (`p99') ///
+                      (`sh_0p5') (`sh_1') (`sh_2') (`sh_5') (`sh_10')
+        }
+    }
+    postclose `pf'
+
+    use `qres', clear
+    format ym %tm
+    format total_val %20.0fc
+    format p* sh_* %7.2f
+
+    label var total_val  "Imports in active cells (USD)"
+    label var n_cells    "HS10 x country cells (active)"
+    label var p10        "p10 |gap| (pp)"
+    label var p25        "p25 |gap| (pp)"
+    label var p50        "Median |gap| (pp)"
+    label var p75        "p75 |gap| (pp)"
+    label var p90        "p90 |gap| (pp)"
+    label var p95        "p95 |gap| (pp)"
+    label var p99        "p99 |gap| (pp)"
+    label var sh_lt_0p5  "Share of $ with |gap| < 0.5 pp"
+    label var sh_lt_1    "Share of $ with |gap| < 1 pp"
+    label var sh_lt_2    "Share of $ with |gap| < 2 pp"
+    label var sh_lt_5    "Share of $ with |gap| < 5 pp"
+    label var sh_lt_10   "Share of $ with |gap| < 10 pp"
+
+    di as text "  === Tbl D6: |gap| quantiles by month (value-weighted) ==="
+    list ym p50 p90 sh_lt_1 sh_lt_5 sh_lt_10, clean noobs
+
+    save "$working/cmp_gap_quantiles_monthly.dta", replace
+    export delimited using "$tables/cmp_gap_quantiles_monthly.csv", replace
 restore
 
 

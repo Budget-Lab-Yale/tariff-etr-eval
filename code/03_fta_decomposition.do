@@ -103,21 +103,9 @@ di as text "       Classification complete"
 
 di as text "  [B] Merging with statutory rates..."
 
-** Build month -> revision mapping (same approach as 01_etr_clean.do)
-clear
-local n_months = $end_ym - $start_ym + 1
-set obs `n_months'
-gen int ym = $start_ym + _n - 1
-format ym %tm
-gen first_of_month = dofm(ym)
-format first_of_month %td
-
-cross using "$working/revision_dates.dta"
-keep if eff_date <= first_of_month
-bysort ym (eff_date): keep if _n == _N
-keep ym revision
+** Build month -> revision mapping (program from programs.do)
 tempfile month_rev_map
-save `month_rev_map'
+build_month_rev_map, saving(`month_rev_map')
 
 ** Merge revision onto IMDB data via month
 use `imdb_classified', clear
@@ -130,7 +118,7 @@ replace total_rate = 0 if missing(total_rate)
 
 * Compute statutory vs actual duty at entry level
 gen double statutory_duty = con_val_mo * total_rate
-gen double actual_duty    = coalesce(cal_dut_mo, 0)
+gen double actual_duty    = cond(missing(cal_dut_mo), 0, cal_dut_mo)
 gen double duty_savings   = statutory_duty - actual_duty
 
 label var statutory_duty "Implied statutory duty at tracker rate"
@@ -230,11 +218,8 @@ preserve
     keep if inlist(cty_code, "1220", "2010")
     gen byte is_usmca = inlist(cty_subco, "S", "S+", "CA", "MX")
 
-    collapse (sum) total_imports = con_val_mo ///
-                   usmca_imports = con_val_mo ///
+    collapse (sum) pref_imports = con_val_mo ///
              if is_usmca == 1, by(ym partner_group)
-    * Need total imports for denominator — reload
-    rename total_imports pref_imports
     tempfile usmca_pref
     save `usmca_pref'
 restore

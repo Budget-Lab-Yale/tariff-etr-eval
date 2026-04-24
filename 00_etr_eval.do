@@ -73,7 +73,7 @@ capture mkdir "${logs}"
 * ==============================================================================
 
 capture log close
-local today : di %tdCY-N-D date(c(current_date), "DMY")
+local today : di %tdCY-NN-DD date(c(current_date), "DMY")
 local today = trim("`today'")
 log using "${logs}etr_eval_`today'.log", replace text
 
@@ -153,6 +153,18 @@ if $run_ladder {
 }
 else {
     di as text "=== Step 5: SKIPPED (run_ladder = 0) ===" _n
+}
+
+* ==============================================================================
+* Step 6: Baseline ETR diagnostic (2024 wts, tracker USMCA baseline)
+* ==============================================================================
+
+if $run_baseline {
+    di as text "=== Step 6: Baseline ETR diagnostic ===" _n
+    do "${code}06_baseline_etr_diagnostic.do"
+}
+else {
+    di as text "=== Step 6: SKIPPED (run_baseline = 0) ===" _n
 }
 
 * ==============================================================================
