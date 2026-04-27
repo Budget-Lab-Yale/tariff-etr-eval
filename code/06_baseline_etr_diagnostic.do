@@ -17,7 +17,7 @@
 * Output:
 *   $working/baseline_etr_diagnostic.dta
 *   $tables/baseline_etr_diagnostic.csv
-*   $figures/figure6_baseline_etr_diagnostic.png
+*   $figures/figure7_baseline_etr_diagnostic.png
 * ==============================================================================
 
 di as text _n "=========================================="
@@ -220,7 +220,7 @@ twoway ///
     graphregion(color(white)) ///
     plotregion(margin(small))
 
-graph export "$figures/figure6_baseline_etr_diagnostic.png", replace width(2400)
+graph export "$figures/figure7_baseline_etr_diagnostic.png", replace width(2400)
 
 
 di as text _n "  06_baseline_etr_diagnostic complete." _n

@@ -84,12 +84,17 @@ di as text "  Project: ${dir}"
 di as text "==============================================" _n
 
 * ==============================================================================
-* Step 0: R data pulls (hours-long API operation; off by default)
+* Step 0: R data pulls (~30-60 min default; off by default)
+* Flags forwarded from globals: $pull_refresh_tracker, $pull_with_census
 * ==============================================================================
 
 if $run_pull {
     di as text "=== Step 0: R data pulls ===" _n
-    shell Rscript "${code}R/00_pull_raw_data.R"
+    local r_flags ""
+    if $pull_refresh_tracker local r_flags "`r_flags' --refresh-tracker"
+    if $pull_with_census     local r_flags "`r_flags' --with-census"
+    di as text "  Rscript flags: `r_flags'"
+    shell Rscript "${code}R/00_pull_raw_data.R" `r_flags'
 }
 else {
     di as text "=== Step 0: SKIPPED (run_pull = 0) ===" _n

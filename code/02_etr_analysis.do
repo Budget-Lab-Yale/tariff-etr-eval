@@ -28,9 +28,9 @@
 *   $figures/figure3_usmca_decomp.png
 *
 *   Section D -- Census vs statutory-monthly-USMCA comparison:
-*     $figures/figure_A_overall.png
-*     $figures/figure_B_partner_facets.png
-*     $figures/figure_C_gap_by_partner.png
+*     $figures/figure4_cmp_overall.png
+*     $figures/figure5_cmp_partner_facets.png
+*     $figures/figure6_cmp_gap_by_partner.png
 *     $tables/cmp_overall_monthly.csv
 *     $tables/cmp_partner_monthly.csv
 *     $tables/cmp_hs2_ranking.csv
@@ -168,8 +168,14 @@ di as text _n "  [B] Shapley decomposition by country..."
 use "$working/merged_analysis.dta", clear
 
 * Country-level under 2024 weights
+*   Symmetric inclusion: keep all rows present in merged_analysis (i.e. all
+*   HS10 x cty x ym cells with positive monthly trade), even when the 2024
+*   weight is zero/missing. Rows with imports == 0 contribute 0 to numerator
+*   and denominator and so do not affect the partner-group sums; the
+*   alignment matters mainly so the 2024 and monthly panels operate on the
+*   same product universe.
 preserve
-    keep if imports > 0
+    replace imports = 0 if missing(imports)
     gen double wtd_rev_c = total_rate * imports
     collapse (sum) wtd_rev_c imports, by(ym partner_group)
     safe_divide wtd_rev_c imports etr_c_2024
@@ -554,7 +560,7 @@ preserve
         yscale(range(0)) ///
         graphregion(color(white)) plotregion(margin(small))
 
-    graph export "$figures/figure_A_overall.png", replace width(2400)
+    graph export "$figures/figure4_cmp_overall.png", replace width(2400)
 restore
 
 
@@ -619,7 +625,7 @@ preserve
         xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
         ylabel(, labsize(vsmall))
 
-    graph export "$figures/figure_B_partner_facets.png", replace width(3000)
+    graph export "$figures/figure5_cmp_partner_facets.png", replace width(3000)
 
     ** --- Fig C: overall gap decomposed by partner group contribution ---
     ** Partner p's pp contribution to overall gap =
@@ -657,7 +663,7 @@ preserve
         subtitle("Monthly contribution to overall-ETR gap, pp") ///
         graphregion(color(white))
 
-    graph export "$figures/figure_C_gap_by_partner.png", replace width(2400)
+    graph export "$figures/figure6_cmp_gap_by_partner.png", replace width(2400)
 restore
 
 

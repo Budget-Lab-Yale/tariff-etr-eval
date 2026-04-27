@@ -87,13 +87,18 @@ global event_label_6 "Phase 2 Recip."
 global event_label_7 "SCOTUS / S.122"
 
 * --- Run-mode flags (toggle pipeline steps) ---
-global run_pull       0     // Step 0: R data pulls (hours-long, off by default)
+global run_pull       0     // Step 0: R data pulls (~30-60 min default, off)
 global run_clean      1     // Step 1: import, clean, merge
 global run_analysis   1     // Step 2: four-tier decomposition and figures
 global run_fta        1     // Step 3: FTA/preference decomposition (needs imdb_detail.csv)
 global run_crosscheck 1     // Step 4: max-district tracker validation (needs imdb_detail.csv)
 global run_ladder     1     // Step 5: counterfactual waterfall
 global run_baseline   1     // Step 6: baseline ETR diagnostic (2024 wts, tracker USMCA)
+
+* --- Step 0 R-flag passthrough (only relevant when run_pull = 1) ---
+* Each global maps to a CLI flag forwarded to code/R/00_pull_raw_data.R.
+global pull_refresh_tracker 0     // 1 = --refresh-tracker (rebuild tracker first; ~hours, requires DATAWEB_API_TOKEN in tracker .env)
+global pull_with_census     0     // 1 = --with-census (also pull Census HS2 API; hours, output unused by Stata)
 
 * --- Confirmation ---
 di as text "  globals.do loaded: $dir"
