@@ -6,14 +6,14 @@
 *          dataset (merged_analysis.dta).
 *
 * Sections:
-*   A. Census trade data (HS2 and HS10 x country x month)
+*   A. Census trade data (HS10 x country x month from IMDB; HS2 derived
+*      downstream via substr(hs10,1,2))
 *   B. Tracker data (daily ETRs, snapshot rates, revision dates, weights)
 *   C. Treasury revenue (actual ETR)
 *   D. Merge: Census x tracker snapshots at HS10 x country x month
 *   E. Compute trade weights (2024 fixed + monthly)
 *
 * Input (all from $raw, produced by R/00_pull_raw_data.R):
-*   census_hs2_country_monthly.csv
 *   imdb_hs10_country_monthly.csv
 *   daily_overall.csv, daily_by_country.csv
 *   revision_dates.csv
@@ -22,7 +22,6 @@
 *   tariff_revenue.csv
 *
 * Output (all to $working):
-*   census_hs2_clean.dta
 *   census_hs10_clean.dta
 *   tracker_daily.dta
 *   tracker_daily_by_country.dta
@@ -31,6 +30,11 @@
 *   weights_2024.dta
 *   revenue_monthly.dta
 *   merged_analysis.dta          <-- master analytical dataset
+*
+* Note: census_hs2_country_monthly.csv (Census HS2 API) is no longer imported
+* here. HS2-level analyses aggregate IMDB HS10 data instead. The R section
+* that pulls HS2 from the Census API is preserved for ad-hoc use but not
+* consumed by this pipeline.
 * ==============================================================================
 
 di as text _n "=========================================="
@@ -41,49 +45,15 @@ di as text "==========================================" _n
 * ======================================================================
 * A. CENSUS TRADE DATA
 * ======================================================================
+*
+* HS10 x country x month from the IMDB bulk parse. HS2 chapter is derived
+* via substr(hs10, 1, 2) and HS2-level rollups (e.g. chapter ranking in
+* 02_etr_analysis.do) collapse this dataset rather than importing from
+* the Census HS2 API.
 
-* --- A1. HS2 x country x month ---
+* --- A1. HS10 x country x month (IMDB source) ---
 
-di as text "  [A1] Census HS2 x country..."
-
-import delimited using "$raw/census_hs2_country_monthly.csv", ///
-    clear stringcols(1 2 5)
-
-** Generate date information 
-gen int ym = ym(year, month)
-format ym %tm
-drop year_month date 	
-	
-** Destring variables 	
-destring effective_rate, replace ignore("NA")	
-destring dut_val_mo, replace
-destring hs2, gen(hs2_num) force
-
-** Run assign partern code 
-assign_partner_group cty_code
-
-** Set up labels
-label values hs2_num hs2_lbl
-label var hs2           "HS2 chapter code"
-label var hs2_num		"HS2 chapter code (numeric)"
-label var cty_code      "Census country code"
-label var cal_dut_mo    "Calculated duties value (USD)"
-label var con_val_mo    "Consumption value (USD)"
-label var dut_val_mo    "Dutiable value (USD)"
-label var effective_rate "Calculated duty ETR (%)"
-label var ym            "Month (Stata date)"
-label var partner_group "Trading partner group"
-
-sort ym year month hs2* cty_code partner_group
-order ym year month hs2* cty_code partner_group
-
-compress
-save "$working/census_hs2_clean.dta", replace
-di as text "       `=_N' obs saved"
-
-* --- A2. HS10 x country x month (IMDB source) ---
-
-di as text "  [A2] Census HS10 x country (IMDB)..."
+di as text "  [A1] Census HS10 x country (IMDB)..."
 
 import delimited using "$raw/imdb_hs10_country_monthly.csv", ///
     clear stringcols(1 2 3)

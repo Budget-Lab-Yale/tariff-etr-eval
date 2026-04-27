@@ -13,11 +13,21 @@
 #   4. tariff-impact-tracker -- Treasury revenue (actual ETR)
 #
 # Usage:
-#   Rscript code/R/00_pull_raw_data.R                 # full run (hours)
-#   Rscript code/R/00_pull_raw_data.R --skip-census    # skip Census API
+#   Rscript code/R/00_pull_raw_data.R                 # IMDB + tracker + impacts
+#   Rscript code/R/00_pull_raw_data.R --with-census    # add Census HS2 API
+#                                                       # (hours-long; output is
+#                                                       # NOT consumed by Stata,
+#                                                       # only by 2b fallback)
 #   Rscript code/R/00_pull_raw_data.R --skip-imdb      # skip IMDB bulk
 #   Rscript code/R/00_pull_raw_data.R --only-tracker    # sections 3a-3e only
 #   Rscript code/R/00_pull_raw_data.R --only-counterfactual  # sections 3d-3e only
+#   Rscript code/R/00_pull_raw_data.R --refresh-tracker # rebuild tracker data
+#                                                       # (snapshots, daily ETR,
+#                                                       # USMCA shares, scenarios)
+#                                                       # before the export steps;
+#                                                       # ~60-90 min, requires
+#                                                       # DATAWEB_API_TOKEN env var.
+#                                                       # Composes with other flags.
 #
 # Output (all in data/raw/):
 #   census_hs2_country_monthly.csv      -- HS2 x country x month
@@ -80,21 +90,20 @@ log_msg <- function(...) {
 }
 
 # --- Run-mode flags ---
-# Control which sections run. By default all are TRUE.
-# Override from the command line:
-#   Rscript code/R/00_pull_raw_data.R --skip-census
-#   Rscript code/R/00_pull_raw_data.R --skip-imdb
-#   Rscript code/R/00_pull_raw_data.R --only-tracker
-#   Rscript code/R/00_pull_raw_data.R --only-counterfactual
+# Control which sections run. RUN_CENSUS is OFF by default (its output is no
+# longer consumed by the Stata pipeline; the Section 2b HS10 fallback uses
+# the cached CSV when present). All other sections are ON by default.
 cli_args <- commandArgs(trailingOnly = TRUE)
-RUN_CENSUS         <- TRUE
-RUN_IMDB           <- TRUE
-RUN_TRACKER        <- TRUE
-RUN_COUNTERFACTUAL <- TRUE
-RUN_IMPACTS        <- TRUE
+RUN_CENSUS          <- FALSE  # opt-in via --with-census; HS2 API output is
+                              # only consumed internally by Section 2b fallback
+RUN_IMDB            <- TRUE
+RUN_TRACKER         <- TRUE
+RUN_COUNTERFACTUAL  <- TRUE
+RUN_IMPACTS         <- TRUE
+RUN_REFRESH_TRACKER <- FALSE  # opt-in: rebuilds tracker outputs in-place
 
-if ("--skip-census" %in% cli_args) {
-  RUN_CENSUS <- FALSE
+if ("--with-census" %in% cli_args) {
+  RUN_CENSUS <- TRUE
 }
 if ("--skip-imdb" %in% cli_args) {
   RUN_IMDB <- FALSE
@@ -106,26 +115,102 @@ if ("--only-counterfactual" %in% cli_args) {
   RUN_CENSUS <- FALSE; RUN_IMDB <- FALSE; RUN_TRACKER <- FALSE; RUN_IMPACTS <- FALSE
   RUN_COUNTERFACTUAL <- TRUE
 }
+if ("--refresh-tracker" %in% cli_args) {
+  RUN_REFRESH_TRACKER <- TRUE
+}
 
 log_msg("=======================================================")
 log_msg("  Raw Data Assembly for tariff-etr-eval")
 log_msg("  Started: ", format(Sys.time()))
 log_msg("  Sections: census=", RUN_CENSUS, " imdb=", RUN_IMDB,
         " tracker=", RUN_TRACKER, " counterfactual=", RUN_COUNTERFACTUAL,
-        " impacts=", RUN_IMPACTS)
+        " impacts=", RUN_IMPACTS, " refresh-tracker=", RUN_REFRESH_TRACKER)
 log_msg("=======================================================")
+
+
+# ======================================================================
+# 0. REFRESH TRACKER (optional, opt-in via --refresh-tracker)
+# ======================================================================
+#
+# Shells out to the sibling tariff-rate-tracker repo and rebuilds:
+#   - config/revision_dates.csv (appends new USITC releases — manual review
+#     of policy_effective_date may still be required)
+#   - data/hts_archives/*.json  (downloads any missing HTS revisions)
+#   - resources/usmca_product_shares_{2025,2026}*.csv (DataWeb pulls)
+#   - data/timeseries/snapshot_*.rds (top-level production)
+#   - output/daily/daily_overall.csv, daily_by_country.csv
+#   - data/timeseries/{usmca_none,usmca_2024,usmca_monthly,usmca_h2avg}/
+#       snapshot_*.rds (per-scenario, depends on top-level)
+#
+# Runs first so the export steps in sections 3a-3e pick up fresh files.
+# Long-running (~60-90 min) and gated on DATAWEB_API_TOKEN. Aborts the
+# whole script on the first failed step.
+
+if (RUN_REFRESH_TRACKER) {
+  log_msg("--- 0. Refresh tariff-rate-tracker outputs ---")
+
+  if (!dir.exists(TRACKER_DIR)) {
+    stop("tariff-rate-tracker not found at: ", TRACKER_DIR,
+         "\n  Expected sibling directory alongside this repo.", call. = FALSE)
+  }
+
+  if (!nzchar(Sys.getenv("DATAWEB_API_TOKEN"))) {
+    log_msg("  WARNING: DATAWEB_API_TOKEN not set -- USMCA DataWeb pulls",
+            " will likely fail (free token from dataweb.usitc.gov)")
+  }
+
+  # Resolve the Rscript binary explicitly so we use the same R that's running
+  # this script (avoids picking up a different R from PATH).
+  rscript_bin <- file.path(R.home("bin"),
+                            if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+
+  # Ordered refresh sequence. Each step is (label, script-relative-to-tracker, args...).
+  # Order matters: revision dates and HTS JSON feed the build; DataWeb shares
+  # feed the build; build_usmca_scenarios.R reads top-level snapshots.
+  refresh_steps <- list(
+    list(label = "01 scrape revision dates",
+         args  = c("src/01_scrape_revision_dates.R")),
+    list(label = "02 download HTS JSON",
+         args  = c("src/02_download_hts.R")),
+    list(label = "USMCA DataWeb shares (2025, monthly)",
+         args  = c("src/download_usmca_dataweb.R", "--year", "2025", "--monthly")),
+    list(label = "USMCA DataWeb shares (2026, monthly)",
+         args  = c("src/download_usmca_dataweb.R", "--year", "2026", "--monthly")),
+    list(label = "00 build_timeseries --full (snapshots + daily ETR)",
+         args  = c("src/00_build_timeseries.R", "--full")),
+    list(label = "build_usmca_scenarios (per-scenario subdirs)",
+         args  = c("src/build_usmca_scenarios.R"))
+  )
+
+  old_wd <- getwd()
+  setwd(TRACKER_DIR)
+  on.exit(setwd(old_wd), add = TRUE)
+
+  for (step in refresh_steps) {
+    log_msg(sprintf("  >> %s", step$label))
+    t0 <- Sys.time()
+    status <- system2(rscript_bin, args = step$args)
+    dt_min <- as.numeric(difftime(Sys.time(), t0, units = "mins"))
+    if (!is.numeric(status) || status != 0) {
+      stop(sprintf("Tracker refresh step failed: %s (exit %s)",
+                   step$label, as.character(status)),
+           call. = FALSE)
+    }
+    log_msg(sprintf("     done (%.1f min)", dt_min))
+  }
+
+  setwd(old_wd)
+  log_msg("--- 0. Tracker refresh complete ---")
+}
 
 
 # ======================================================================
 # 1. CENSUS API: HS2 x country x month
 # ======================================================================
 
-if (!RUN_CENSUS) {
-  log_msg("--- 1. Census API: SKIPPED ---")
-} else {
-
-log_msg("--- 1. Census API (HS2 x country x month) ---")
-
+# Census API constants — hoisted out of the RUN_CENSUS conditional so that
+# Section 2b (HS10 fallback) can reference YEAR_MONTHS_CENSUS and
+# CENSUS_API_BASE even when Section 1 is skipped.
 CENSUS_API_BASE <- "https://api.census.gov/data/timeseries/intltrade/imports/hs"
 
 # Census releases data ~2 months after the reference month.
@@ -135,6 +220,13 @@ YEAR_MONTHS_CENSUS <- format(
   seq(as.Date("2024-01-01"), latest_census_month, by = "month"), "%Y-%m"
 )
 HS2_CHAPTERS <- sprintf("%02d", setdiff(1:99, 77))
+
+
+if (!RUN_CENSUS) {
+  log_msg("--- 1. Census API: SKIPPED ---")
+} else {
+
+log_msg("--- 1. Census API (HS2 x country x month) ---")
 
 # Pull all months. Caching disabled — R 4.5.2 segfaults on read.csv of
 # the cached file (likely an R/compiler bug; file is valid ASCII CSV).
@@ -413,14 +505,32 @@ if (length(imdb_gap_months) > 0) {
   log_msg(sprintf("--- 2b. Census API HS10 fallback (%d months) ---",
                   length(imdb_gap_months)))
 
-  # Countries with meaningful trade volume (from HS2 pull)
-  top_countries <- census_hs2 |>
-    filter(year >= 2025) |>
-    summarise(total = sum(con_val_mo, na.rm = TRUE), .by = cty_code) |>
-    filter(total > 1e8) |>
-    pull(cty_code)
-  log_msg(sprintf("  Querying %d countries x %d months at HS10",
-                  length(top_countries), length(imdb_gap_months)))
+  # Countries with meaningful trade volume — derive from the in-memory HS2
+  # data if Section 1 ran, otherwise from the cached CSV. If neither is
+  # available (default run with no prior --with-census), skip the fallback.
+  hs2_csv <- file.path(RAW_DIR, "census_hs2_country_monthly.csv")
+  hs2_for_top <- if (exists("census_hs2")) {
+    census_hs2
+  } else if (file.exists(hs2_csv)) {
+    log_msg("  (loading cached census_hs2_country_monthly.csv for top-country filter)")
+    read_csv(hs2_csv, show_col_types = FALSE)
+  } else {
+    NULL
+  }
+
+  if (is.null(hs2_for_top)) {
+    log_msg("  WARNING: no HS2 data available (run with --with-census to enable",
+            " the HS10 fallback). Skipping 2b.")
+    top_countries <- character(0)
+  } else {
+    top_countries <- hs2_for_top |>
+      filter(year >= 2025) |>
+      summarise(total = sum(con_val_mo, na.rm = TRUE), .by = cty_code) |>
+      filter(total > 1e8) |>
+      pull(cty_code)
+    log_msg(sprintf("  Querying %d countries x %d months at HS10",
+                    length(top_countries), length(imdb_gap_months)))
+  }
 
   pull_hs10_country_month <- function(cty, year_month, max_retries = 3) {
     key_param <- if (nzchar(Sys.getenv("CENSUS_API_KEY"))) {
@@ -469,28 +579,32 @@ if (length(imdb_gap_months) > 0) {
     NULL
   }
 
-  hs10_queries <- expand.grid(cty = top_countries, ym = imdb_gap_months,
-                               stringsAsFactors = FALSE)
-  n_queries <- nrow(hs10_queries)
-  hs10_chunks <- vector("list", n_queries)
-
-  for (i in seq_len(n_queries)) {
-    if (i %% 50 == 0 || i == 1)
-      log_msg(sprintf("  [%d/%d] %s cty=%s", i, n_queries,
-                      hs10_queries$ym[i], hs10_queries$cty[i]))
-    hs10_chunks[[i]] <- pull_hs10_country_month(
-      hs10_queries$cty[i], hs10_queries$ym[i])
-    Sys.sleep(0.15)
-  }
-
-  hs10_fallback <- bind_rows(hs10_chunks)
-  if (nrow(hs10_fallback) > 0) {
-    write_csv(hs10_fallback, file.path(RAW_DIR, "census_hs10_fallback.csv"))
-    log_msg(sprintf("  Saved fallback: %s rows, %d months",
-                    format(nrow(hs10_fallback), big.mark = ","),
-                    n_distinct(hs10_fallback$year_month)))
+  if (length(top_countries) == 0) {
+    log_msg("  Skipping HS10 fallback queries (no top-country list).")
   } else {
-    log_msg("  No fallback data needed (IMDB covers all months)")
+    hs10_queries <- expand.grid(cty = top_countries, ym = imdb_gap_months,
+                                 stringsAsFactors = FALSE)
+    n_queries <- nrow(hs10_queries)
+    hs10_chunks <- vector("list", n_queries)
+
+    for (i in seq_len(n_queries)) {
+      if (i %% 50 == 0 || i == 1)
+        log_msg(sprintf("  [%d/%d] %s cty=%s", i, n_queries,
+                        hs10_queries$ym[i], hs10_queries$cty[i]))
+      hs10_chunks[[i]] <- pull_hs10_country_month(
+        hs10_queries$cty[i], hs10_queries$ym[i])
+      Sys.sleep(0.15)
+    }
+
+    hs10_fallback <- bind_rows(hs10_chunks)
+    if (nrow(hs10_fallback) > 0) {
+      write_csv(hs10_fallback, file.path(RAW_DIR, "census_hs10_fallback.csv"))
+      log_msg(sprintf("  Saved fallback: %s rows, %d months",
+                      format(nrow(hs10_fallback), big.mark = ","),
+                      n_distinct(hs10_fallback$year_month)))
+    } else {
+      log_msg("  No fallback data needed (IMDB covers all months)")
+    }
   }
 } else {
   log_msg("--- 2b. Census API HS10 fallback: SKIPPED (IMDB complete) ---")

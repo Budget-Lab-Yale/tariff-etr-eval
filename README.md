@@ -12,7 +12,7 @@ The pipeline has two stages: R assembles raw data from external APIs and sibling
 
 | Step | Script | What |
 |------|--------|------|
-| 0 | `code/R/00_pull_raw_data.R` | Census API (HS2), IMDB bulk (HS10 detail), tracker snapshots, Treasury revenue |
+| 0 | `code/R/00_pull_raw_data.R` | IMDB bulk (HS10 detail), tracker snapshots, Treasury revenue (Census HS2 API opt-in via `--with-census`) |
 | 1 | `code/01_etr_clean.do` | Import CSVs, clean, merge Census x tracker at HS10 x country x month |
 | 2 | `code/02_etr_analysis.do` | Four-tier ETR decomposition, Shapley by country, figures |
 | 3 | `code/03_fta_decomposition.do` | Preference channel decomposition (USMCA, KORUS, GSP, duty-free, etc.) |
@@ -22,19 +22,19 @@ The pipeline has two stages: R assembles raw data from external APIs and sibling
 ### Usage
 
 ```
-Rscript code/R/00_pull_raw_data.R                    # Step 0 (run once, hours-long)
+Rscript code/R/00_pull_raw_data.R                    # Step 0 (~30-60 min default)
 cd "C:/Users/ji252/Documents/GitHub/tariff-etr-eval"  # Stata
 do 00_etr_eval.do                                     # Steps 1-5
 ```
 
-Toggle individual steps via `$run_*` flags in `code/utils/globals.do`.
+Step 0 flags: `--refresh-tracker` (rebuild sibling tracker first), `--with-census` (also pull Census HS2 API, hours-long, optional), `--only-tracker`, `--only-counterfactual`, `--skip-imdb`. Toggle Stata steps via `$run_*` flags in `code/utils/globals.do`.
 
 ## Data Sources
 
 | Source | Repo/API | What |
 |--------|----------|------|
-| Census Bureau API | `api.census.gov` | HS2 x country monthly trade (consumption value, duties) |
-| Census IMDB bulk | `census.gov/trade/downloads/` | HS10 x country x district x preference detail |
+| Census IMDB bulk | `census.gov/trade/downloads/` | HS10 x country x district x preference detail (primary monthly source; HS2 rollups derived from this) |
+| Census Bureau API | `api.census.gov` | HS2 x country monthly trade — opt-in via `--with-census`; not consumed by the Stata pipeline |
 | Tariff Rate Tracker | `tariff-rate-tracker` (sibling) | HTS10 x country statutory rates, daily ETR, import weights |
 | Tariff Impact Tracker | `tariff-impact-tracker` (sibling) | Monthly actual ETR (Treasury customs duties / imports) |
 

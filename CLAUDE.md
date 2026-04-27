@@ -19,7 +19,7 @@ do 00_etr_eval.do                      # Steps 1-5: clean, merge, decompose, fig
 
 Pulls from four sources and writes CSVs to `data/raw/`. Sections can be toggled via command-line flags (see "Running the pipeline").
 
-- **Section 1 — Census API** (HS2 x country x month): consumption value, calculated duty, dutiable value
+- **Section 1 — Census API** (HS2 x country x month, *opt-in via `--with-census`*): consumption value, calculated duty, dutiable value. Output is no longer consumed by the Stata pipeline — HS2-level rollups aggregate IMDB HS10 data instead. Section is retained for ad-hoc use and to seed the Section 2b HS10 fallback.
 - **Section 2 — Census IMDB bulk ZIPs** — two outputs:
   - `imdb_detail.csv`: HS10 x country x district x preference x rate_prov x month (for FTA decomposition, district crosscheck)
   - `imdb_hs10_country_monthly.csv`: aggregated to HS10 x country x month (for main pipeline)
@@ -61,14 +61,15 @@ Gopinath-Neiman-style waterfall using product-level USMCA utilization shares fro
 ### R data pull (Step 0)
 
 ```bash
-Rscript code/R/00_pull_raw_data.R                     # full run (hours — Census API)
-Rscript code/R/00_pull_raw_data.R --skip-census        # skip Census HS2 API pulls
-Rscript code/R/00_pull_raw_data.R --skip-imdb          # skip IMDB bulk downloads
-Rscript code/R/00_pull_raw_data.R --only-tracker       # sections 3-3e only (~15 min)
-Rscript code/R/00_pull_raw_data.R --only-counterfactual # sections 3d-3e only (~10 min)
+Rscript code/R/00_pull_raw_data.R                       # IMDB + tracker + impacts (~30-60 min)
+Rscript code/R/00_pull_raw_data.R --with-census          # also pull Census HS2 API (hours)
+Rscript code/R/00_pull_raw_data.R --skip-imdb            # skip IMDB bulk downloads
+Rscript code/R/00_pull_raw_data.R --only-tracker         # sections 3-3e only (~15 min)
+Rscript code/R/00_pull_raw_data.R --only-counterfactual  # sections 3d-3e only (~10 min)
+Rscript code/R/00_pull_raw_data.R --refresh-tracker      # rebuild tracker first (~hours)
 ```
 
-Use `--only-tracker` after updating the tracker repo to regenerate snapshot CSVs, USMCA shares, and counterfactual rate files without re-pulling Census data.
+Use `--only-tracker` after updating the tracker repo to regenerate snapshot CSVs, USMCA shares, and counterfactual rate files. Use `--refresh-tracker` to rebuild the tracker end-to-end (revision dates, HTS JSON, DataWeb USMCA shares, top-level + per-scenario snapshots, daily ETRs) before the export steps; requires `DATAWEB_API_TOKEN` in `tariff-rate-tracker/.env` and may halt at `01_scrape_revision_dates.R` if a new HTS revision needs manual policy-date curation. Composes with the other flags.
 
 ### Stata pipeline (Steps 1-5)
 
@@ -108,9 +109,9 @@ Both must be at the same directory level as this repo:
 
 ## Two-stage weighting (critical methodology)
 
-HTS10 rates are available only with 2024 annual weights. Monthly trade data from Census is at HS2 x country. The decomposition bridges these via two stages:
+HTS10 rates are available only with 2024 annual weights. Monthly trade data at HS2 x country is derived by aggregating IMDB HS10 detail (`substr(hs10,1,2)`). The decomposition bridges these via two stages:
 1. Collapse HTS10 rates to HS2 x country using HTS10 weights
-2. Aggregate HS2 x country to overall using Census monthly weights
+2. Aggregate HS2 x country to overall using IMDB-derived monthly weights
 
 Zero-tariff products **must be included** in the denominator. Dropping them inflates the ETR from ~3.4% to ~27%. See `docs/weighting_note.md`.
 

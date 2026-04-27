@@ -14,10 +14,10 @@ The analysis draws on four datasets at different levels of granularity:
 |---------|-------------|-----------|--------|
 | HTS10 import weights | HTS10 x country | 2024 annual | Tariff-ETRs cache |
 | Rate timeseries | HTS10 x country | By policy revision | Tariff-rate-tracker |
-| Census trade data | HS2 x country | Monthly | Census International Trade API |
+| Census trade data | HS10 x country | Monthly | Census IMDB bulk (parsed to HS10 detail; HS2 rollups derived via `substr(hs10,1,2)`) |
 | Daily statutory ETR | Aggregate | Daily | Tariff-rate-tracker |
 
-The key constraint: HTS10-level detail is available only at the annual level. Monthly data from Census is reported only at HS2 x country. The decomposition therefore requires a two-stage aggregation---HTS10 to HS2 x country, then HS2 x country to overall---to bridge these granularities.
+The key constraint: tracker rates are available at HTS10 x country only with 2024 annual weights. Monthly trade data is observed at HS10 x country (from the IMDB bulk parse) and rolled up to HS2 x country for this decomposition. The decomposition therefore requires a two-stage aggregation---HTS10 to HS2 x country, then HS2 x country to overall---to bridge tracker annual rates to monthly weights.
 
 ## Notation
 
@@ -25,8 +25,8 @@ Let $i$ index HTS10 products, $c$ countries, and $h$ HS2 chapters, with each pro
 
 - $r_{ic}(t)$: statutory tariff rate on product $i$ from country $c$ at date $t$
 - $w_{ic}$: 2024 annual imports at HTS10 x country (from Tariff-ETRs cache)
-- $W_{hc}$: 2024 annual imports at HS2 x country (from Census API)
-- $W_{hc}^m$: month-$m$ 2025 imports at HS2 x country (from Census API)
+- $W_{hc}$: 2024 annual imports at HS2 x country (HTS10 from Tariff-ETRs cache, aggregated to HS2)
+- $W_{hc}^m$: month-$m$ 2025+ imports at HS2 x country (IMDB bulk HS10 detail, aggregated to HS2)
 
 ## The Tracker's ETR (One-Stage)
 
@@ -44,7 +44,7 @@ Because the decomposition operates at HS2 x country, the report must first colla
 
 $$\bar{r}_{hc}(t) = \frac{\sum_{i \in h}\, r_{ic}(t)\, w_{ic}}{\sum_{i \in h}\, w_{ic}}$$
 
-**Stage 2.** Aggregate across cells. The original code weighted by Census HS2 x country imports:
+**Stage 2.** Aggregate across cells. The original code weighted by HS2 x country imports (IMDB-derived):
 
 $$\text{ETR}^{2024w}(t) = \frac{\sum_{h,c}\, \bar{r}_{hc}(t)\; W_{hc}}{\sum_{h,c}\, W_{hc}}$$
 
