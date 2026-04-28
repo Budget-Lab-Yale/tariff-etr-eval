@@ -73,8 +73,13 @@ capture mkdir "${logs}"
 * ==============================================================================
 
 capture log close
-local today : di %tdCY-NN-DD date(c(current_date), "DMY")
-local today = trim("`today'")
+* Build today's date string YYYY-MM-DD using explicit year/month/day functions.
+* (The earlier "%tdCY-NN-DD" picture format produced "2026-0404-2828"-style
+* doubled output on this Stata build; explicit string concatenation is safe.)
+local _d = date(c(current_date), "DMY")
+local today = string(year(`_d'), "%04.0f") + "-" + ///
+              string(month(`_d'), "%02.0f") + "-" + ///
+              string(day(`_d'), "%02.0f")
 log using "${logs}etr_eval_`today'.log", replace text
 
 di as text _n "=============================================="

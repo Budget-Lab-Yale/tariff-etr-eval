@@ -82,9 +82,11 @@ dir.create(SNAP_DIR, showWarnings = FALSE, recursive = TRUE)
 # Check progress with: tail -f logs/pull_raw_data.log
 LOG_DIR <- here("logs")
 dir.create(LOG_DIR, showWarnings = FALSE, recursive = TRUE)
-LOG_FILE <- file.path(LOG_DIR, "pull_raw_data.log")
+LOG_FILE <- file.path(LOG_DIR,
+                       paste0("pull_raw_data_",
+                              format(Sys.Date(), "%Y-%m-%d"), ".log"))
 
-# Truncate log at start of run
+# Truncate log at start of run (each day's log is its own file)
 writeLines("", LOG_FILE)
 
 log_msg <- function(...) {

@@ -126,6 +126,13 @@ program define build_month_rev_map
 
     if "`using'" == "" local using "${working}/revision_dates.dta"
 
+    * Validate the using file before crossing
+    capture confirm file "`using'"
+    if _rc != 0 {
+        di as error "build_month_rev_map: using file not found: `using'"
+        error 601
+    }
+
     clear
     local n_months = $end_ym - $start_ym + 1
     set obs `n_months'
@@ -135,9 +142,29 @@ program define build_month_rev_map
     format first_of_month %td
 
     cross using "`using'"
+
+    * Validate that cross produced expected columns
+    foreach v in revision eff_date {
+        capture confirm variable `v'
+        if _rc != 0 {
+            di as error "build_month_rev_map: column '`v'' missing after cross"
+            di as error "       (using file: `using')"
+            error 111
+        }
+    }
+
     keep if eff_date <= first_of_month
     bysort ym (eff_date): keep if _n == _N
     keep ym revision
+
+    * Final sanity: must have a revision per month in the window
+    if _N != `n_months' {
+        di as error "build_month_rev_map: expected `n_months' rows after filter," ///
+                   " got " _N
+        di as error "       (every month in the analysis window needs a revision;" ///
+                   " check revision_dates.dta covers \$start_ym to \$end_ym)"
+        error 459
+    }
 
     save `"`saving'"', replace
 end

@@ -392,6 +392,23 @@ if r(N) > 0 {
 drop _merge_rev
 assert _N > 0
 
+** Defensive check: build_month_rev_map should have added `revision`. If the
+** crosswalk was empty or malformed, `revision` is missing and the next merge
+** fails with a confusing "variable revision not found" error. Catch it here.
+capture confirm variable revision
+if _rc != 0 {
+    di as error "FATAL: 'revision' missing on master after month_rev_map merge."
+    di as error "       Likely build_month_rev_map produced an empty or"
+    di as error "       malformed crosswalk (check revision_dates.dta and the"
+    di as error "       \$start_ym/\$end_ym window globals)."
+    error 111
+}
+qui count if missing(revision)
+if r(N) == _N {
+    di as error "FATAL: revision is all-missing after month_rev_map merge."
+    error 459
+}
+
 ** Merge tracker statutory rates on (hs10, country, revision)
 merge m:1 hs10 cty_code revision using "$working/tracker_snapshots.dta", ///
     keep(match master) gen(_merge_snap)
