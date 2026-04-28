@@ -6,20 +6,34 @@ Single source of truth for the paper, the supporting code changes across this re
 
 ## 1. Overview and framing
 
-We measure the gap between the **statutory** effective tariff rate (ETR) — rates as scheduled in the HTS plus Chapter-99 authorities — and the **actual** ETR collected by U.S. Customs, for the 2025–26 tariff escalation. We decompose the gap into four tiers and three channels:
+We measure the gap between the **statutory** effective tariff rate (ETR) — rates as scheduled in the HTS plus Chapter-99 authorities — and the **actual** ETR collected by U.S. Customs, for the 2025–26 tariff escalation. We decompose the gap into a **six-tier ladder** with five sequential channels. Each rung holds one input fixed and varies one other input from the previous rung:
 
-- $T_1 = \tau^{s}_{t}$ — statutory rates at fixed 2024 import weights (paper eq. 2)
-- $T_2 = \tau^{s\prime}_{t}$ — statutory rates at actual monthly import weights (eq. 3)
-- $T_3 = \hat{\tau}^{a}_{t}$ — Census-calculated-duty proxy for actual rates at current weights
-- $T_4 = \tau^{a}_{t}$ — Treasury aggregate customs duties / imports value
+| Tier | Definition |
+| --- | --- |
+| $S_0$ | Statutory @ 2024 USMCA shares × 2024 import weights |
+| $S_1$ | Statutory @ 2024 USMCA shares × **monthly** import weights |
+| $S_2$ | Statutory @ **monthly** USMCA shares × monthly weights |
+| $S_3$ | $S_2$ minus the **non-USMCA preference** rate reduction (Annex II / ITA / Ch98 / KORUS / GSP / other_fta), at monthly IMDB-derived shares |
+| $S_4$ | Census collected ETR ($\sum_p$ cal_dut$_p$ / $\sum_p$ con_val$_p$ at HS10 × cty, summed) |
+| $T$ | Treasury aggregate customs duties / imports value |
 
-Channels by signed-sum identity $T_1 - T_4 = (T_1-T_2) + (T_2-T_3) + (T_3-T_4)$:
+Channels by signed-sum identity $S_0 - T = (S_0-S_1) + (S_1-S_2) + (S_2-S_3) + (S_3-S_4) + (S_4-T)$:
 
-- $T_1 - T_2$ = **weight composition** (trade diversion, product substitution)
-- $T_2 - T_3$ = **pair-level rate gap** (preference claiming, exemptions, entry-level effects) — a *proxy* equality conditional on Census calculated duties
-- $T_3 - T_4$ = **collections gap** (reporting, timing, denominator/coverage differences)
+- $S_0 - S_1$ = **trade diversion** (composition shift in monthly weights, USMCA held at 2024 baseline)
+- $S_1 - S_2$ = **USMCA surge** (claim-rate dynamics; ~38% → ~89% for CA, ~50% → ~89% for MX by late 2025)
+- $S_2 - S_3$ = **all-other preferences** (importer claims of Annex II / ITA / Ch98 / KORUS / GSP / other FTAs)
+- $S_3 - S_4$ = **residual** (specific-duty AVE failures, AD/CVD, tracker error not corrected, behavioral noise within HS10 × cty)
+- $S_4 - T$ = **collections gap** (timing / refunds / FTZ deferrals / cash-vs-accrual)
+
+The first two channels are **sign-bearing** (they can be negative — see `docs/six_tier_framework_plan.md` §5a for why). The all-others rung $S_2 - S_3$ is structurally non-negative by the delta math.
+
+Math derivation (per-authority applicability matrix $\alpha_q^A$, cell-level effective rate, tier definitions in terms of share inputs, S2→S3 implementation as authority-component subtraction, caveats): see `docs/six_tier_framework_plan.md` §6.
 
 Relation to existing work (pointer, not re-derived): Gopinath-Neiman (2026) decompose using product-country-level rates and actual imports; Fajgelbaum et al. (2020) estimate pass-through on Trump I tariffs; Tariff-ETRs publishes their own statutory series using similar dense-rate machinery. See `docs/etr-literature-review.md` — a §2.4 or §4.4 in the paper should place this decomposition against those.
+
+### Mapping to the older four-tier framework
+
+The four-tier framework ($T_1$ – $T_4$) used in earlier drafts and in section B of `02_etr_analysis.do` (Shapley) maps as follows: $T_1 \approx S_0$, $T_2 \approx S_1$, $T_3 = S_4$, $T_4 = T$. The six-tier framework refines $T_2 - T_3$ (the old "exemptions" channel) into $S_1 - S_2$ + $S_2 - S_3$ + $S_3 - S_4$ — separating USMCA dynamics, all-other preferences, and within-cell unmodeled effects. Older $T_1$/$T_2$ were computed at h2avg USMCA shares (production rates), while new $S_0$/$S_1$ use 2024-baseline USMCA shares; values differ by ~1pp at most.
 
 ---
 

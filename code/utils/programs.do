@@ -224,6 +224,77 @@ end
 
 
 * ==============================================================================
+* PROGRAM: classify_pref_channel
+*
+* Creates `pref_channel` from (cty_subco, rate_prov, cty_code). Bins each
+* row into one of nine channels:
+*
+*   usmca         -- CA/MX with S/S+ (or "CA"/"MX") preference codes
+*   korus         -- KR preference code (any country)
+*   other_fta     -- AU, IL, SG, CL, CO, PE, PA, JO, MA, OM, BH, P, P+, R, JP, NP
+*   gsp_agoa      -- A, A+, A*, D, E, E*, J, J+, J*, W, Z, N
+*   duty_free     -- rate_prov 10/18/19 (unclaimed duty-free)
+*   ch99_dutiable -- rate_prov 69/79
+*   mfn_dutiable  -- rate_prov 61/62/64/70
+*   ftz_bonded    -- rate_prov 00 (deferred duties)
+*   other         -- residual
+*
+* Order matters: preference codes (a-d) take precedence over rate-provision
+* codes (e-i). A row tagged usmca by cty_subco stays usmca even if its
+* rate_prov would otherwise classify it as duty_free.
+*
+* Inputs must all be string variables. Uses $cty_canada, $cty_mexico from
+* globals.do for the USMCA country filter.
+*
+* Usage: classify_pref_channel cty_subco rate_prov cty_code
+* ==============================================================================
+
+capture program drop classify_pref_channel
+program define classify_pref_channel
+    args subco rateprov cty
+
+    confirm string variable `subco'
+    confirm string variable `rateprov'
+    confirm string variable `cty'
+
+    capture drop pref_channel
+    gen str20 pref_channel = ""
+
+    * (a) USMCA: CA/MX with S/S+ preference codes
+    replace pref_channel = "usmca" if ///
+        inlist(`subco', "S", "S+", "CA", "MX") & ///
+        inlist(`cty', "$cty_canada", "$cty_mexico")
+
+    * (b) KORUS
+    replace pref_channel = "korus" if `subco' == "KR"
+
+    * (c) Other bilateral FTAs
+    replace pref_channel = "other_fta" if pref_channel == "" & ///
+        inlist(`subco', "AU", "IL", "SG", "CL", "CO", "PE", "PA", "JO")
+    replace pref_channel = "other_fta" if pref_channel == "" & ///
+        inlist(`subco', "MA", "OM", "BH", "P", "P+", "R", "JP", "NP")
+
+    * (d) GSP / AGOA
+    replace pref_channel = "gsp_agoa" if pref_channel == "" & ///
+        inlist(`subco', "A", "A+", "A*", "D", "E", "E*", "J", "J+", "J*")
+    replace pref_channel = "gsp_agoa" if pref_channel == "" & ///
+        inlist(`subco', "W", "Z", "N")
+
+    * (e-i) Rate provision based channels (only if no preference assigned)
+    replace pref_channel = "duty_free"     if pref_channel == "" & ///
+        inlist(`rateprov', "10", "18", "19")
+    replace pref_channel = "ch99_dutiable" if pref_channel == "" & ///
+        inlist(`rateprov', "69", "79")
+    replace pref_channel = "mfn_dutiable"  if pref_channel == "" & ///
+        inlist(`rateprov', "61", "62", "64", "70")
+    replace pref_channel = "ftz_bonded"    if pref_channel == "" & `rateprov' == "00"
+    replace pref_channel = "other"         if pref_channel == ""
+
+    label var pref_channel "Preference/rate channel"
+end
+
+
+* ==============================================================================
 * HS2 CHAPTER LABELS
 * ==============================================================================
 

@@ -57,39 +57,8 @@ di as text "       `=_N' detail rows in analysis period"
 assign_partner_group cty_code
 
 
-* --- Classify preference channels ---
-gen str20 pref_channel = ""
-
-* (a) USMCA: CA/MX with S/S+ preference codes
-replace pref_channel = "usmca" if ///
-    inlist(cty_subco, "S", "S+", "CA", "MX") & inlist(cty_code, "1220", "2010")
-
-* (b) KORUS
-replace pref_channel = "korus" if cty_subco == "KR"
-
-* (c) Other bilateral FTAs
-replace pref_channel = "other_fta" if pref_channel == "" & ///
-    inlist(cty_subco, "AU", "IL", "SG", "CL", "CO", "PE", "PA", "JO")
-replace pref_channel = "other_fta" if pref_channel == "" & ///
-    inlist(cty_subco, "MA", "OM", "BH", "P", "P+", "R", "JP", "NP")
-
-* (d) GSP / AGOA
-replace pref_channel = "gsp_agoa" if pref_channel == "" & ///
-    inlist(cty_subco, "A", "A+", "A*", "D", "E", "E*", "J", "J+", "J*")
-replace pref_channel = "gsp_agoa" if pref_channel == "" & ///
-    inlist(cty_subco, "W", "Z", "N")
-
-* (e-i) Rate provision based channels (only if no preference already assigned)
-replace pref_channel = "duty_free"     if pref_channel == "" & ///
-    inlist(rate_prov, "10", "18", "19")
-replace pref_channel = "ch99_dutiable" if pref_channel == "" & ///
-    inlist(rate_prov, "69", "79")
-replace pref_channel = "mfn_dutiable"  if pref_channel == "" & ///
-    inlist(rate_prov, "61", "62", "64", "70")
-replace pref_channel = "ftz_bonded"    if pref_channel == "" & rate_prov == "00"
-replace pref_channel = "other"         if pref_channel == ""
-
-label var pref_channel "Preference/rate channel"
+* --- Classify preference channels (program from programs.do) ---
+classify_pref_channel cty_subco rate_prov cty_code
 
 compress
 tempfile imdb_classified

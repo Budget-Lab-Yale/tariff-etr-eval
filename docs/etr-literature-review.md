@@ -32,6 +32,19 @@ PWBM has published a series of monthly updates tracking actual ETRs against coun
 
 The Yale Budget Lab has provided complementary tracking, documenting that the actual effective tariff rate was about 10 percent in June 2025, rising to approximately 11.5 percent in August, versus statutory rates of 15.7–18.2 percent in those months. Their work emphasizes the distinction between pre-substitution metrics (which capture the full cost consumers face before making adjustments) and post-substitution metrics (after import shifts), noting that the pre-substitution rate better captures the consumer welfare impact.
 
+### 2.5 Eck, Hoang, Mix, and Ray (2026): "Mind the Gap"
+
+This Federal Reserve Board FEDS Note (April 2026) provides the most rigorous within-episode comparison in the literature to date, decomposing the announced-versus-implied tariff gap and directly contrasting the 2025 experience with the 2018–2019 episode. By December 2025, the announced effective tariff rate (ETR) had reached 14.7 percent—a 12.4 percentage-point increase over 2024—while the realized effective tariff rate (RETR), computed from duties actually collected, fell 5.43 pp short, or roughly 44 percent of the announced ETR increase. The corresponding 2018–2019 gap was just 0.44 pp (22 percent of the announced increase by December 2018), despite that earlier episode being far more concentrated (Herfindahl–Hirschman Index of 0.29, primarily China-focused) than the 2025 regime (HHI 0.06, broadly distributed).
+
+The authors decompose the gap into two channels:
+
+- **Composition effects**: shifts in import sourcing toward lower-tariff products and countries, including anticipatory frontloading, tariff engineering (reclassifying into lower-rate categories), supplier diversification, and possible misclassification or under-invoicing. Crucially, in 2025 these shifts began *immediately* after tariff announcements, in contrast to the slow, gradual substitution observed in 2018–2019—which the authors interpret as evidence of "more agile supply chains" post-COVID.
+- **Rate discrepancies**: at the country-product level, actual duties diverge from announced rates due to shipment-timing lags, rising USMCA compliance, and free-trade-zone or bonded-warehouse usage.
+
+Methodologically, the announced ETR is computed as country-product tariff rates weighted by baseline import shares from a reference year (2017 for the 2018–2019 episode; 2024 for 2025), and the realized rate as customs duties collected divided by customs value of imports; the decomposition is then a Laspeyres-style separation of composition shifts from per-cell rate discrepancies. Anchoring to fixed baseline weights isolates behavioral responses cleanly.
+
+The authors conclude that the gap is likely transitory if tariffs persist—frontloaded inventories will deplete, shipment-timing effects will dissipate—but that permanent supply-chain restructuring may sustain a portion of it, given firms' experience diversifying suppliers after 2018–2019 and COVID. The implication is that the 44 percent gap represents an upper bound that should compress over time, but likely not back to the 22 percent baseline of 2018–2019.
+
 ---
 
 ## 3. Measurement Debates: How to Summarize the Tariff Regime
@@ -124,6 +137,7 @@ The gap between statutory and actual effective tariff rates has emerged as one o
 - **Cavallo, A., P. Llamas, and F. Vazquez (2025).** "Tracking the Short-Run Price Impact of U.S. Tariffs." NBER Working Paper No. 34496.
 - **Clausing, K. and M. Obstfeld (2025).** "Tariffs as Fiscal Policy." NBER Working Paper No. 34192.
 - **Cui, S., Z. Feng, L.X. Lu, and B. Tomlin (2025).** "Navigating Tariff Risks: Stockpiling, Sourcing Diversification, or Responsive Pricing?" Tuck School of Business Working Paper. SSRN No. 5110124.
+- **Eck, S., T. Hoang, C. Mix, and M. Ray (2026).** "Mind the Gap: Announced versus Implied Tariff Rates in Recent Trade Policy Episodes." FEDS Notes, Board of Governors of the Federal Reserve System, April 8, 2026.
 - **Fajgelbaum, P., P. Goldberg, P. Kennedy, and A. Khandelwal (2020).** "The Return to Protectionism." *Quarterly Journal of Economics* 135(1): 1–55.
 - **Flaaen, A., A. Hortaçsu, F. Tintelnot, N. Urdaneta, and D. Xu (2025).** "Tariff Pass-Through from the Border to the Store." BFI Working Paper No. 2025-137.
 - **Gopinath, G. and B. Neiman (2026).** "The Incidence of Tariffs: Rates and Reality." NBER Working Paper No. 34620.

@@ -4,7 +4,7 @@ Comparing actual vs. statutory effective tariff rates during the 2025-2026 US ta
 
 ## Overview
 
-This project evaluates the gap between **statutory** tariff rates (what the Harmonized Tariff Schedule says importers should pay) and **actual** collection rates (customs duties actually collected as a share of import value). The gap is decomposed into behavioral (trade diversion), exemptions (USMCA/FTA utilization), and timing/enforcement channels using a four-tier framework.
+This project evaluates the gap between **statutory** tariff rates (what the Harmonized Tariff Schedule says importers should pay) and **actual** collection rates (customs duties actually collected as a share of import value). The gap is decomposed into trade diversion, USMCA surge, all-other preferences, residual, and timing/enforcement channels using a **six-tier framework** (S0 → S1 → S2 → S3 → S4 → T). See `docs/six_tier_framework_plan.md` for the math (per-authority applicability matrix, sign-bearing channel discussion).
 
 ## Pipeline
 
@@ -12,12 +12,12 @@ The pipeline has two stages: R assembles raw data from external APIs and sibling
 
 | Step | Script | What |
 |------|--------|------|
-| 0 | `code/R/00_pull_raw_data.R` | IMDB bulk (HS10 detail), tracker snapshots, Treasury revenue (Census HS2 API opt-in via `--with-census`) |
-| 1 | `code/01_etr_clean.do` | Import CSVs, clean, merge Census x tracker at HS10 x country x month |
-| 2 | `code/02_etr_analysis.do` | Four-tier ETR decomposition, Shapley by country, figures |
+| 0 | `code/R/00_pull_raw_data.R` | IMDB bulk (HS10 detail), tracker snapshots, Treasury revenue, USMCA + non-USMCA preference share files (Census HS2 API opt-in via `--with-census`) |
+| 1 | `code/01_etr_clean.do` | Import CSVs, clean, merge Census × tracker at HS10 × country × month |
+| 2 | `code/02_etr_analysis.do` | Six-tier ETR decomposition, Shapley by country, figures |
 | 3 | `code/03_fta_decomposition.do` | Preference channel decomposition (USMCA, KORUS, GSP, duty-free, etc.) |
 | 4 | `code/04_max_district_crosscheck.do` | Validate tracker rates vs. max observed across customs districts |
-| 5 | `code/05_counterfactual_ladder.do` | Gopinath-Neiman waterfall (USMCA baseline/surge, behavioral, residual) |
+| 5 | `code/05_counterfactual_ladder.do` | Six-tier waterfall (S0→S1→S2→S3→T) |
 
 ### Usage
 
@@ -40,16 +40,25 @@ Step 0 flags: `--refresh-tracker` (rebuild sibling tracker first), `--with-censu
 
 Both sibling repos must be at the same directory level as this repo.
 
-## Four-Tier Decomposition
+## Six-Tier Decomposition
 
-| Tier | Definition | Weights |
-|------|------------|---------|
-| 1 | Statutory ETR (tracker rates) | 2024 annual |
-| 2 | Statutory ETR (tracker rates) | Actual monthly |
-| 3 | Census calculated ETR (duty / value) | Actual monthly |
-| 4 | Treasury actual ETR | Aggregate |
+| Tier | Definition |
+|------|------------|
+| S0 | Statutory @ 2024 USMCA shares × 2024 import weights |
+| S1 | Statutory @ 2024 USMCA shares × monthly import weights |
+| S2 | Statutory @ monthly USMCA shares × monthly weights |
+| S3 | + non-USMCA preferences (Annex II / ITA / Ch98 / KORUS / GSP / FTAs), monthly IMDB-derived shares |
+| S4 | Census collected ETR (cal_dut / con_val at HS10 × cty, summed) |
+| T | Treasury actual ETR |
 
-**Gap channels**: T1->T2 = behavioral (trade diversion + product substitution); T2->T3 = exemptions (USMCA, FTA, specific-rate effects); T3->T4 = timing, enforcement, evasion.
+**Gap channels**:
+- **S0 → S1**: trade diversion (composition shift in monthly weights)
+- **S1 → S2**: USMCA surge (CA/MX claim-rate dynamics)
+- **S2 → S3**: all-other preferences (Annex II / ITA / Ch98 / KORUS / GSP / other FTAs)
+- **S3 → S4**: residual (specific-duty AVE failures, AD/CVD, tracker error, behavioral noise)
+- **S4 → T**: timing / enforcement (Treasury vs Census aggregation)
+
+The first two channels are sign-bearing — they can flip negative for specific countries or months (e.g., "reverse diversion" for CA/MX whose imports concentrate in inelastic high-tariff categories). The all-other-preferences rung is structurally non-negative. See `docs/six_tier_framework_plan.md` §5a for the bidirectional channel discussion.
 
 ## Output
 
@@ -58,12 +67,13 @@ Both sibling repos must be at the same directory level as this repo.
 - Figure 2: Gap decomposition (grouped and stacked bar charts)
 
 **Tables** (`results/tables/`):
-- `decomp_monthly.csv` -- monthly four-tier decomposition
-- `decomp_by_country.csv` -- Shapley between/within by partner group
-- `fta_decomp_monthly.csv` -- preference channel breakdown
-- `fta_utilization_rates.csv` -- USMCA/KORUS utilization rates
-- `max_district_summary.csv` -- tracker validation statistics
-- `counterfactual_ladder.csv` -- waterfall decomposition
+- `decomp_monthly.csv` — monthly six-tier decomposition (S0–S4–T) + channel gaps
+- `decomp_by_country.csv` — Shapley between/within by partner group (legacy h2avg basis)
+- `fta_decomp_monthly.csv` — preference channel breakdown
+- `fta_utilization_rates.csv` — USMCA/KORUS utilization rates
+- `max_district_summary.csv` — tracker validation statistics
+- `counterfactual_ladder.csv` — six-tier waterfall (S0–S3–T) with country-level
+- `tracker_miss_*.csv` / `tracker_over_*.csv` — diagnostic deliverables for the tracker maintainer (false-negative and false-positive directions)
 
 ## Requirements
 
@@ -75,4 +85,8 @@ Set `CENSUS_API_KEY` in `~/.Renviron` for Census API access.
 
 ## Methodology
 
-See `docs/weighting_note.md` for the two-stage aggregation approach (HTS10 -> HS2 x country -> overall) and `docs/etr-literature-review.md` for context on the statutory-actual ETR gap literature.
+- `docs/six_tier_framework_plan.md` — six-tier framework derivation, per-authority applicability matrix, sign-bearing channels, implementation scope.
+- `docs/methodology_outline.md` — paper outline mapping framework to results sections.
+- `docs/weighting_note.md` — two-stage aggregation approach (HTS10 → HS2 × country → overall).
+- `docs/etr-literature-review.md` — context on the statutory-actual ETR gap literature.
+- `docs/tracker_miss_report.md` / `docs/tracker_over_report.md` — diagnostic handoffs to the `tariff-rate-tracker` maintainer (false-negative and false-positive rate-parsing errors).

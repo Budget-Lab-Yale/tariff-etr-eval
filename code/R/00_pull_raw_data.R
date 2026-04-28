@@ -45,7 +45,11 @@
 #   usmca_shares/usmca_product_shares_*.csv -- USMCA utilization shares (diagnostic)
 #   counterfactual_usmca_none.csv       -- HS10 x country x month (0% USMCA)
 #   counterfactual_usmca2024.csv        -- HS10 x country x month (2024 USMCA)
-#   counterfactual_usmca_monthly.csv    -- HS10 x country x month (monthly USMCA)
+#   counterfactual_usmca_monthly.csv    -- HS10 x country x month (monthly USMCA, S2)
+#   imdb_other_pref_shares_monthly.csv  -- HS10 x country x month preference shares
+#   counterfactual_other_pref_delta_monthly.csv -- HS10 x country x month
+#                                          rate-reduction delta from S2 to S3
+#                                          (delta_base, delta_recip)
 # ==============================================================================
 
 library(httr)
@@ -87,6 +91,65 @@ log_msg <- function(...) {
   msg <- paste0(...)
   cat(msg, "\n")
   write(msg, LOG_FILE, append = TRUE)
+}
+
+# --- Helpers ---
+
+# Classify IMDB entries into 9 preference / rate-provision channels. Mirrors
+# the Stata `classify_pref_channel` program in `code/utils/programs.do`. Used
+# by section 3f (non-USMCA preference share aggregation). Channels:
+#   usmca, korus, other_fta, gsp_agoa     -- preference codes (cty_subco)
+#   duty_free, ch99_dutiable, mfn_dutiable, ftz_bonded   -- rate-provision codes
+#   other                                                 -- residual
+# Order matters: preference codes take precedence over rate-provision codes.
+classify_pref_channel <- function(cty_subco, rate_prov, cty_code) {
+  CTY_CANADA <- "1220"
+  CTY_MEXICO <- "2010"
+
+  cty_subco <- ifelse(is.na(cty_subco), "", cty_subco)
+  rate_prov <- ifelse(is.na(rate_prov), "", rate_prov)
+
+  pref_channel <- character(length(cty_subco))
+
+  # (a) USMCA: CA/MX with S/S+ preference codes
+  pref_channel[cty_subco %in% c("S", "S+", "CA", "MX") &
+               cty_code %in% c(CTY_CANADA, CTY_MEXICO)] <- "usmca"
+
+  # (b) KORUS
+  idx <- pref_channel == "" & cty_subco == "KR"
+  pref_channel[idx] <- "korus"
+
+  # (c) Other bilateral FTAs
+  idx <- pref_channel == "" & cty_subco %in%
+    c("AU", "IL", "SG", "CL", "CO", "PE", "PA", "JO",
+      "MA", "OM", "BH", "P", "P+", "R", "JP", "NP")
+  pref_channel[idx] <- "other_fta"
+
+  # (d) GSP / AGOA
+  idx <- pref_channel == "" & cty_subco %in%
+    c("A", "A+", "A*", "D", "E", "E*", "J", "J+", "J*", "W", "Z", "N")
+  pref_channel[idx] <- "gsp_agoa"
+
+  # (e) Duty-free (rate_prov-based, only if no preference assigned)
+  idx <- pref_channel == "" & rate_prov %in% c("10", "18", "19")
+  pref_channel[idx] <- "duty_free"
+
+  # (f) Ch99 dutiable
+  idx <- pref_channel == "" & rate_prov %in% c("69", "79")
+  pref_channel[idx] <- "ch99_dutiable"
+
+  # (g) MFN dutiable
+  idx <- pref_channel == "" & rate_prov %in% c("61", "62", "64", "70")
+  pref_channel[idx] <- "mfn_dutiable"
+
+  # (h) FTZ / bonded
+  idx <- pref_channel == "" & rate_prov == "00"
+  pref_channel[idx] <- "ftz_bonded"
+
+  # (i) Residual
+  pref_channel[pref_channel == ""] <- "other"
+
+  pref_channel
 }
 
 # --- Run-mode flags ---
@@ -881,6 +944,241 @@ build_counterfactual <- function(scenario, out_file) {
 
 for (scn in names(scenario_outputs)) {
   build_counterfactual(scn, scenario_outputs[[scn]])
+}
+
+
+# --- 3f. Non-USMCA preference shares from IMDB ---
+#
+# Aggregates imdb_detail.csv to (hs10, cty_code, year_month) with per-channel
+# share of cell imports. Output feeds section 3g. Uses classify_pref_channel
+# (defined near top of file), mirroring Stata's classify_pref_channel.
+#
+# Output: imdb_other_pref_shares_monthly.csv with columns
+#   hs10, cty_code, year_month, total_imports, share_usmca,
+#   share_duty_free, share_korus, share_gsp_agoa, share_other_fta,
+#   non_usmca_pref_share, total_share
+
+log_msg("  Computing non-USMCA preference shares from IMDB detail...")
+
+imdb_detail_path <- file.path(RAW_DIR, "imdb_detail.csv")
+shares_built <- FALSE
+
+if (!file.exists(imdb_detail_path)) {
+  log_msg("    WARNING: imdb_detail.csv not found -- skipping 3f and 3g")
+  log_msg("    (Run section 2 first to produce imdb_detail.csv)")
+} else {
+  # Read only the columns we need (drops dist_entry, dut_val_mo, cal_dut_mo).
+  # Saves ~500 MB peak memory on the 19M-row file.
+  imdb_detail <- read_csv(imdb_detail_path,
+                           col_types = cols(.default = col_character(),
+                                            con_val_mo = col_double()),
+                           col_select = c("hs10", "cty_code", "cty_subco",
+                                          "rate_prov", "year_month",
+                                          "con_val_mo"),
+                           progress = FALSE)
+  log_msg(sprintf("    Loaded %d entry rows from imdb_detail.csv",
+                  nrow(imdb_detail)))
+
+  # Filter to analysis window FIRST (drops 2024 rows, freeing ~50% of memory),
+  # then classify pref_channel. The IMDB detail CSV already carries year_month
+  # as "YYYY-MM" and hs10 (not commodity).
+  imdb_detail <- imdb_detail |>
+    filter(year_month >= "2025-01" & year_month <= "2026-02")
+  gc(verbose = FALSE)
+  imdb_detail <- imdb_detail |>
+    mutate(pref_channel = classify_pref_channel(cty_subco, rate_prov,
+                                                cty_code))
+
+  log_msg(sprintf("    %d entries in analysis window", nrow(imdb_detail)))
+
+  # Cell totals (all channels, including non-preference)
+  cell_totals <- imdb_detail |>
+    summarise(total_imports = sum(con_val_mo, na.rm = TRUE),
+              .by = c(hs10, cty_code, year_month))
+
+  # Per-channel imports (one column per preference channel via repeated joins;
+  # avoids tidyr dependency).
+  pref_channels <- c("usmca", "duty_free", "korus", "gsp_agoa", "other_fta")
+  imdb_shares <- cell_totals
+  for (ch in pref_channels) {
+    ch_imports <- imdb_detail |>
+      filter(pref_channel == ch) |>
+      summarise("imports_{ch}" := sum(con_val_mo, na.rm = TRUE),
+                .by = c(hs10, cty_code, year_month))
+    imdb_shares <- left_join(imdb_shares, ch_imports,
+                              by = c("hs10", "cty_code", "year_month"))
+  }
+
+  # NA -> 0 for cells where a channel had no entries; compute shares
+  imdb_shares <- imdb_shares |>
+    mutate(across(starts_with("imports_"), ~ coalesce(., 0)),
+           share_usmca      = if_else(total_imports > 0,
+                                       imports_usmca / total_imports, 0),
+           share_duty_free  = if_else(total_imports > 0,
+                                       imports_duty_free / total_imports, 0),
+           share_korus      = if_else(total_imports > 0,
+                                       imports_korus / total_imports, 0),
+           share_gsp_agoa   = if_else(total_imports > 0,
+                                       imports_gsp_agoa / total_imports, 0),
+           share_other_fta  = if_else(total_imports > 0,
+                                       imports_other_fta / total_imports, 0),
+           non_usmca_pref_share = share_duty_free + share_korus +
+                                   share_gsp_agoa + share_other_fta,
+           total_share = share_usmca + non_usmca_pref_share) |>
+    select(hs10, cty_code, year_month, total_imports,
+           share_usmca, share_duty_free, share_korus,
+           share_gsp_agoa, share_other_fta,
+           non_usmca_pref_share, total_share)
+
+  # Sanity check: shares should sum to <= 1 by mutual exclusivity
+  n_violations <- sum(imdb_shares$total_share > 1.0001, na.rm = TRUE)
+  if (n_violations > 0) {
+    max_share <- max(imdb_shares$total_share, na.rm = TRUE)
+    log_msg(sprintf("    WARNING: %d cells have total preference share > 1 (max %.4f)",
+                    n_violations, max_share))
+  }
+
+  write_csv(imdb_shares,
+             file.path(RAW_DIR, "imdb_other_pref_shares_monthly.csv"))
+  log_msg(sprintf("    -> imdb_other_pref_shares_monthly.csv: %d rows",
+                  nrow(imdb_shares)))
+
+  rm(imdb_detail, cell_totals); gc(verbose = FALSE)
+  shares_built <- TRUE
+}
+
+
+# --- 3g. S2 -> S3 preference-delta file ---
+#
+# Writes the additional rate reduction from S2 (USMCA monthly) to S3 (USMCA +
+# all-other preferences). Per cell:
+#   delta_base  = (s_duty_free + s_korus + s_gsp + s_other_fta) * base_rate_pre
+#   delta_recip = s_duty_free * rate_ieepa_recip_pre
+#
+# Pre-preference base and recip components come from top-level snapshots
+# (statutory_base_rate, statutory_rate_ieepa_recip), day-weighted to monthly.
+#
+# Schema is a delta (not a full counterfactual rate): only cells with positive
+# non-USMCA preference share are written. Stata 05 merges this onto S2 and
+# computes S3 = rate_usmca_monthly - delta_base - delta_recip (S3 = S2 for
+# cells absent from this file). This avoids materializing a 66M-row full
+# counterfactual that would mostly duplicate S2.
+#
+# See docs/six_tier_framework_plan.md §6.6 for derivation.
+#
+# Output: counterfactual_other_pref_delta_monthly.csv with columns
+#   hs10, cty_code, year_month, delta_base, delta_recip
+
+log_msg("  Building S2 -> S3 preference-delta file...")
+
+shares_path <- file.path(RAW_DIR, "imdb_other_pref_shares_monthly.csv")
+
+if (!shares_built && !file.exists(shares_path)) {
+  log_msg("    SKIPPED: 3f did not produce shares file")
+} else {
+  shares <- read_csv(shares_path,
+                      col_types = cols(.default = col_character(),
+                                       total_imports = col_double(),
+                                       share_usmca = col_double(),
+                                       share_duty_free = col_double(),
+                                       share_korus = col_double(),
+                                       share_gsp_agoa = col_double(),
+                                       share_other_fta = col_double(),
+                                       non_usmca_pref_share = col_double(),
+                                       total_share = col_double()),
+                      progress = FALSE) |>
+    filter(non_usmca_pref_share > 0) |>
+    select(hs10, cty_code, year_month, share_duty_free, share_korus,
+           share_gsp_agoa, share_other_fta, non_usmca_pref_share)
+  log_msg(sprintf("    Share-cells with positive non-USMCA pref: %d rows",
+                  nrow(shares)))
+
+  # Components: per-ym, semi-join snapshot rows to share-cells before
+  # accumulating. Bounds memory at ~one snapshot's worth + the share-cell
+  # subset (~150K rows / ym).
+  log_msg("    Day-weighting pre-preference base + recip (per-ym streaming)...")
+
+  ym_strs <- sort(unique(shares$year_month))
+  delta_parts <- list()
+
+  for (ym in ym_strs) {
+    ym_share_keys <- shares |>
+      filter(year_month == ym) |>
+      select(hs10, cty_code) |>
+      distinct()
+
+    ym_revs <- mrw[mrw$year_month == ym, , drop = FALSE]
+    if (nrow(ym_revs) == 0L) {
+      log_msg(sprintf("    WARNING: %s has no contributing revisions", ym))
+      next
+    }
+
+    ym_contribs <- list()
+    for (j in seq_len(nrow(ym_revs))) {
+      rev    <- ym_revs$revision[j]
+      weight <- ym_revs$weight[j]
+      f <- file.path(SNAP_DIR, paste0("snapshot_", rev, ".csv"))
+      if (!file.exists(f)) {
+        log_msg(sprintf("    WARNING: %s not found", f))
+        next
+      }
+      snap <- read_csv(f,
+                        col_types = cols(.default = col_character(),
+                                         statutory_base_rate = col_double(),
+                                         statutory_rate_ieepa_recip = col_double()),
+                        col_select = c("hts10", "country",
+                                       "statutory_base_rate",
+                                       "statutory_rate_ieepa_recip"),
+                        progress = FALSE) |>
+        rename(hs10 = hts10, cty_code = country)
+
+      ym_contribs[[j]] <- snap |>
+        semi_join(ym_share_keys, by = c("hs10", "cty_code")) |>
+        transmute(hs10, cty_code,
+                  wtd_base  = statutory_base_rate * weight,
+                  wtd_recip = statutory_rate_ieepa_recip * weight)
+      rm(snap); gc(verbose = FALSE)
+    }
+
+    if (length(ym_contribs) > 0L) {
+      delta_parts[[ym]] <- bind_rows(ym_contribs) |>
+        summarise(base_rate  = sum(wtd_base, na.rm = TRUE),
+                  recip_rate = sum(wtd_recip, na.rm = TRUE),
+                  .by = c(hs10, cty_code)) |>
+        mutate(year_month = ym)
+    }
+    rm(ym_contribs); gc(verbose = FALSE)
+    log_msg(sprintf("    %s: %d component rows",
+                    ym, if (is.null(delta_parts[[ym]])) 0L else nrow(delta_parts[[ym]])))
+  }
+
+  components <- bind_rows(delta_parts)
+  rm(delta_parts); gc(verbose = FALSE)
+  log_msg(sprintf("    Total component rows: %d", nrow(components)))
+
+  # Join shares + components, compute deltas, write.
+  result <- shares |>
+    left_join(components,
+              by = c("hs10", "cty_code", "year_month")) |>
+    mutate(base_rate   = coalesce(base_rate, 0),
+           recip_rate  = coalesce(recip_rate, 0),
+           other_pref_total = share_duty_free + share_korus +
+                              share_gsp_agoa + share_other_fta,
+           delta_base  = other_pref_total * base_rate,
+           delta_recip = share_duty_free  * recip_rate) |>
+    filter(delta_base + delta_recip > 0) |>
+    select(hs10, cty_code, year_month, delta_base, delta_recip)
+
+  write_csv(result,
+             file.path(RAW_DIR, "counterfactual_other_pref_delta_monthly.csv"))
+  log_msg(sprintf("    -> counterfactual_other_pref_delta_monthly.csv: %d rows",
+                  nrow(result)))
+  log_msg(sprintf("       Total delta_base:  %.2f sum",
+                  sum(result$delta_base, na.rm = TRUE)))
+  log_msg(sprintf("       Total delta_recip: %.2f sum",
+                  sum(result$delta_recip, na.rm = TRUE)))
+
+  rm(shares, components, result); gc(verbose = FALSE)
 }
 
 } # end RUN_COUNTERFACTUAL

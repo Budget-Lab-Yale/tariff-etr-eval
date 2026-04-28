@@ -229,6 +229,12 @@ foreach f of local snap_files {
             drop s232_usmca_eligible
             rename s232_usmca s232_usmca_eligible
         }
+
+        ** Per-revision uniqueness check on small (~5M row) dataset.
+        ** Catches duplicate (hs10, cty_code) keys early, before append. With
+        ** different `rev' on every iteration, global (revision, hs10, cty_code)
+        ** uniqueness is then guaranteed by construction -- no global gisid needed.
+        gisid hs10 cty_code
     }
 
     if `first_snap' {
@@ -253,7 +259,9 @@ capture label var s232_usmca_eligible "232 USMCA-eligible (auto/MHD)"
 
 order revision hs10 cty_code total_rate
 sort revision hs10 cty_code
-isid revision hs10 cty_code
+* Global (revision, hs10, cty_code) uniqueness is guaranteed by construction:
+* per-revision gisid above + unique `rev' per iteration. Skip the global check
+* on the 200M+ row appended dataset (was the main step-1 bottleneck pre-gtools).
 compress
 save "$working/tracker_snapshots.dta", replace
 di as text "       `=_N' snapshot obs (all revisions)"
@@ -279,7 +287,7 @@ label var w_2024        "2024 import weight share"
 
 order hs10 cty_code imports total_imports w_2024
 sort hs10 cty_code
-isid hs10 cty_code
+gisid hs10 cty_code            // gtools (faster than isid)
 compress
 save "$working/weights_2024.dta", replace
 di as text "       `=_N' product-country pairs"
@@ -308,7 +316,7 @@ rename total_rate rate_usmca_monthly
 
 keep hs10 cty_code ym rate_usmca_monthly
 sort hs10 cty_code ym
-isid hs10 cty_code ym
+gisid hs10 cty_code ym         // gtools (faster than isid)
 compress
 save "$working/cf_usmca_monthly.dta", replace
 di as text "       `=_N' HS10 x country x month rows"
