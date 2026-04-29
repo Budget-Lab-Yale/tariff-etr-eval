@@ -2,17 +2,37 @@
 * 06_baseline_etr_diagnostic.do
 * Creator: John Iselin
 * Date: April 2026
-* Purpose: Diagnostic recomputation of the statutory ETR at 2024 trade weights,
-*          using the tracker's own `total_rate` (which already has the tracker's
-*          baseline USMCA assumption applied). Intended to isolate why the
-*          Tier 1 series in 02_etr_analysis looks too high by separately
-*          quantifying two suspects:
-*            (a) USMCA handling — our reconstruction vs tracker baseline
-*            (b) Zero-rate products dropped — universe restriction effects
+* Purpose: Diagnostic at 2024 trade weights, exposing four orthogonal gaps:
+*            (a) USMCA-reconstruction methodology
+*                  etr_full - s0_recon
+*                  (same panel + weights, only difference is which baseline
+*                  USMCA assumption is encoded in the rate column)
+*            (b) Zero-rate-dropping effect
+*                  etr_full - etr_nonzero
+*                  (same rate, restricted to products with nonzero tracker
+*                  total_rate -- tests how much zero-rate inclusion matters)
+*            (c) Unmatched-product effect
+*                  etr_full - etr_matched
+*                  (same rate, restricted to products that matched the
+*                  tracker snapshot -- tests universe-restriction effects)
+*            (d) 2024-weights vs actual-monthly-weights effect
+*                  etr_full - etr_tracker_daily
+*                  (full 2024 universe in static weights vs the tracker's
+*                  daily ETR collapsed to monthly via actual monthly weights)
 *
-*          Universe used here: the full 2024 import-weight universe
+*          By design this script does NOT assert on the gaps -- exposing them
+*          is the entire point. Suppressing rate gaps with asserts here would
+*          defeat the diagnostic purpose. Range-check warnings are still
+*          appropriate at the input stage.
+*
+*          Universe: the full 2024 import-weight panel
 *          ($working/weights_2024.dta, ~333k hs10 x cty_code pairs) crossed with
-*          the analysis window and merged to the active HTS revision snapshot.
+*          the analysis window. Different from merged_analysis.dta (which keeps
+*          monthly-trade cells), so 06 builds its own panel.
+*
+*          Note: rate_2024 (the S0 reconstruction column) is built upstream in
+*          01_etr_clean.do Section B7 and saved to $working/cf_usmca2024.dta;
+*          we just merge it in here.
 *
 * Output:
 *   $working/baseline_etr_diagnostic.dta
@@ -36,10 +56,16 @@ build_month_rev_map, saving(`month_rev_map')
 
 
 * ======================================================================
-* B. BUILD 2024-WEIGHT x MONTH PANEL, MERGE TRACKER BASELINE RATES
+* B. BUILD 2024-WEIGHT x MONTH PANEL, MERGE BOTH RATE COLUMNS
 * ======================================================================
+*
+* Two rate columns on the same panel:
+*   total_rate    tracker snapshot, baseline USMCA already applied
+*   rate_2024     our S0-baseline reconstruction (from cf_usmca2024.dta)
+* Both use 2024 baseline USMCA, so any difference between them is pure
+* reconstruction methodology.
 
-di as text "  [B] Building 2024 weights x months x tracker baseline rates..."
+di as text "  [B] Building 2024 weights x months panel..."
 
 use "$working/weights_2024.dta", clear
 keep hs10 cty_code imports
@@ -51,7 +77,7 @@ format ym %tm
 
 merge m:1 ym using `month_rev_map', keep(match master) nogenerate
 
-** Merge tracker snapshot total_rate (already has baseline USMCA applied)
+** B1. Tracker snapshot total_rate (already has baseline USMCA applied)
 merge m:1 hs10 cty_code revision using "$working/tracker_snapshots.dta", ///
     keep(match master) keepusing(total_rate usmca_eligible) ///
     gen(_merge_snap)
@@ -59,7 +85,7 @@ merge m:1 hs10 cty_code revision using "$working/tracker_snapshots.dta", ///
 qui count if _merge_snap == 3
 local n_match = r(N)
 local match_rate = 100 * `n_match' / _N
-di as text "      Snapshot match: `n_match' of `=_N' (" ///
+di as text "      Tracker snapshot match: `n_match' of `=_N' (" ///
     string(`match_rate', "%4.1f") "%)"
 if `match_rate' < 75 {
     di as error "WARNING: snapshot match rate below 75% — diagnostic suspect"
@@ -67,62 +93,72 @@ if `match_rate' < 75 {
 
 gen byte matched_snap = (_merge_snap == 3)
 drop _merge_snap
+replace total_rate = 0 if missing(total_rate)
 
-** Fill unmatched snapshots with zero (same treatment as tracker daily series)
-gen double rate = total_rate
-replace rate = 0 if missing(rate)
+** B2. cf_usmca2024 reconstruction rate (rate_2024) -- from 01 section B7
+merge 1:1 hs10 cty_code ym using "$working/cf_usmca2024.dta", ///
+    keep(match master) gen(_merge_recon)
 
-gen byte is_nonzero = (rate > 0 & !missing(rate))
+qui count if _merge_recon == 3
+local n_recon = r(N)
+local recon_pct = 100 * `n_recon' / _N
+di as text "      cf_usmca2024 match:     `n_recon' of `=_N' (" ///
+    string(`recon_pct', "%4.1f") "%)"
+
+drop _merge_recon
+replace rate_2024 = 0 if missing(rate_2024)
+
+gen byte is_nonzero = (total_rate > 0 & !missing(total_rate))
 
 qui count
 di as text "      Panel obs: " _N
 qui count if matched_snap
 di as text "      Matched to snapshot: " r(N)
 qui count if is_nonzero
-di as text "      Nonzero rate:        " r(N)
+di as text "      Nonzero tracker rate: " r(N)
 
 compress
 
 
 * ======================================================================
-* C. MONTHLY AGGREGATES (3 UNIVERSE DEFINITIONS)
+* C. MONTHLY AGGREGATES — 4 SLICES
 * ======================================================================
+*
+* All four use 2024 import weights. They differ in (universe, rate):
+*   etr_full       full universe, total_rate  (tracker baseline)
+*   etr_matched    matched-only,  total_rate
+*   etr_nonzero    nonzero-only,  total_rate
+*   s0_recon       full universe, rate_2024   (our S0 reconstruction)
+*
+* Diagnostic gaps:
+*   etr_full - s0_recon      pure USMCA-reconstruction methodology
+*   etr_full - etr_nonzero   zero-rate-dropping effect
+*   etr_full - etr_matched   unmatched-product effect
 
-di as text _n "  [C] Computing monthly ETR under 3 universe definitions..."
+di as text _n "  [C] Computing monthly ETR under 4 slice definitions..."
 
-** C1. Full 2024 universe (all pairs with imports > 0 in 2024)
+tempfile tier_full tier_matched tier_nonzero tier_recon
+
 preserve
-    gen double num = rate * imports
-    collapse (sum) num_full=num den_full=imports ///
-             (count) n_full=rate, by(ym)
-    safe_divide num_full den_full etr_full
-    replace etr_full = etr_full * 100
-    tempfile tier_full
-    save `tier_full'
+    compute_tier, ratevar(total_rate) weightvar(imports) ///
+        outfile(`tier_full') outvar(etr_full) percent
 restore
 
-** C2. Matched-only (drop products with no tracker snapshot match)
 preserve
     keep if matched_snap
-    gen double num = rate * imports
-    collapse (sum) num_m=num den_m=imports ///
-             (count) n_matched=rate, by(ym)
-    safe_divide num_m den_m etr_matched
-    replace etr_matched = etr_matched * 100
-    tempfile tier_matched
-    save `tier_matched'
+    compute_tier, ratevar(total_rate) weightvar(imports) ///
+        outfile(`tier_matched') outvar(etr_matched) percent
 restore
 
-** C3. Nonzero-only (isolate "zero products dropped" hypothesis)
 preserve
     keep if is_nonzero
-    gen double num = rate * imports
-    collapse (sum) num_n=num den_n=imports ///
-             (count) n_nonzero=rate, by(ym)
-    safe_divide num_n den_n etr_nonzero
-    replace etr_nonzero = etr_nonzero * 100
-    tempfile tier_nonzero
-    save `tier_nonzero'
+    compute_tier, ratevar(total_rate) weightvar(imports) ///
+        outfile(`tier_nonzero') outvar(etr_nonzero) percent
+restore
+
+preserve
+    compute_tier, ratevar(rate_2024) weightvar(imports) ///
+        outfile(`tier_recon') outvar(s0_recon) percent
 restore
 
 
@@ -133,8 +169,15 @@ restore
 di as text "  [D] Benchmarks..."
 
 ** Tracker's own daily ETR, collapsed to monthly (import-weighted, same
-** universe the tracker uses — actual monthly imports, not 2024 weights)
+** universe the tracker uses — actual monthly imports, not 2024 weights).
+** Flag any missing daily values that `collapse (mean)` would silently drop;
+** a hole in the daily series would produce a biased monthly mean.
 use "$working/tracker_daily.dta", clear
+qui count if missing(weighted_etr)
+if r(N) > 0 {
+    di as error "WARNING: `=r(N)' missing daily weighted_etr values" ///
+        " will be dropped from monthly mean (etr_tracker_daily)"
+}
 gen int ym = mofd(daily_date)
 format ym %tm
 collapse (mean) weighted_etr, by(ym)
@@ -154,34 +197,32 @@ di as text _n "  [E] Combining and saving..."
 use `tier_full', clear
 merge 1:1 ym using `tier_matched',  nogenerate
 merge 1:1 ym using `tier_nonzero',  nogenerate
+merge 1:1 ym using `tier_recon',    nogenerate
 merge 1:1 ym using `bench_tracker', nogenerate keep(match master)
 
 ** Channel decomposition (pp)
 gen double gap_zero_drop   = etr_nonzero - etr_full
 gen double gap_match_drop  = etr_matched - etr_full
-gen double gap_vs_tracker  = etr_full - etr_tracker_daily
+gen double gap_recon       = etr_full    - s0_recon
+gen double gap_vs_tracker  = etr_full    - etr_tracker_daily
 
-label var etr_full           "ETR, 2024 wts, full universe (%)"
-label var etr_matched        "ETR, 2024 wts, matched-only (%)"
-label var etr_nonzero        "ETR, 2024 wts, nonzero-only (%)"
+label var etr_full           "ETR, 2024 wts, full universe, total_rate (%)"
+label var etr_matched        "ETR, 2024 wts, matched-only, total_rate (%)"
+label var etr_nonzero        "ETR, 2024 wts, nonzero-only, total_rate (%)"
+label var s0_recon           "S0 reconstruction (rate_2024 x 2024 wts) (%)"
 label var etr_tracker_daily  "Tracker daily ETR, monthly avg (%)"
 label var gap_zero_drop      "Effect of dropping zero-rate products (pp)"
 label var gap_match_drop     "Effect of dropping unmatched products (pp)"
+label var gap_recon          "Tracker baseline - S0 reconstruction (pp)"
 label var gap_vs_tracker     "Full 2024-wt ETR - tracker daily (pp)"
-label var n_full             "N pairs, full universe"
-label var n_matched          "N pairs, matched to snapshot"
-label var n_nonzero          "N pairs, nonzero rate"
 
-format etr_* gap_* %9.2f
+format etr_* s0_recon gap_* %9.2f
 
 di as text _n "  === Baseline ETR at 2024 weights ==="
-list ym etr_full etr_matched etr_nonzero etr_tracker_daily, clean noobs
+list ym etr_full s0_recon etr_matched etr_nonzero etr_tracker_daily, clean noobs
 
 di as text _n "  === Diagnostic gaps (pp) ==="
-list ym gap_zero_drop gap_match_drop gap_vs_tracker, clean noobs
-
-di as text _n "  === Pair counts ==="
-list ym n_full n_matched n_nonzero, clean noobs
+list ym gap_recon gap_zero_drop gap_match_drop gap_vs_tracker, clean noobs
 
 sort ym
 compress
@@ -198,6 +239,9 @@ di as text _n "  [F] Figure..."
 twoway ///
     (connected etr_full          ym, mcolor("$color_statutory") ///
         lcolor("$color_statutory") msymbol(circle) lwidth(medthick)) ///
+    (connected s0_recon          ym, mcolor("$color_canada") ///
+        lcolor("$color_canada") msymbol(diamond) lwidth(medium) ///
+        lpattern(shortdash)) ///
     (connected etr_nonzero       ym, mcolor("$color_gap") ///
         lcolor("$color_gap") msymbol(square) lwidth(medthick) ///
         lpattern(dash)) ///
@@ -206,14 +250,15 @@ twoway ///
         lpattern(solid)) ///
     , ///
     legend(order( ///
-        1 "2024 wts, full universe (tracker baseline USMCA)" ///
-        2 "2024 wts, nonzero-rate products only" ///
-        3 "Tracker daily ETR (actual wts, monthly avg)") ///
-        rows(3) size(small) position(6)) ///
+        1 "2024 wts, full universe (tracker total_rate)" ///
+        2 "2024 wts, full universe (S0 reconstruction)" ///
+        3 "2024 wts, nonzero-rate products only" ///
+        4 "Tracker daily ETR (actual wts, monthly avg)") ///
+        rows(4) size(small) position(6)) ///
     ytitle("Effective Tariff Rate (%)") ///
     xtitle("") ///
     title("Baseline Statutory ETR Diagnostic") ///
-    subtitle("2024-weight reconstructions vs tracker daily, Jan 2025 - Feb 2026") ///
+    subtitle("Tracker baseline vs S0 reconstruction at 2024 wts; tracker daily benchmark") ///
     xlabel(, format(%tmMon_CCYY) angle(45)) ///
     ylabel(, format(%9.0f)) ///
     yscale(range(0)) ///

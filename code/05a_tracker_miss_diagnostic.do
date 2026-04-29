@@ -8,7 +8,7 @@
 *          collected. Produces five diagnostic CSVs intended for delivery
 *          to the tracker maintainer to help localize bugs and gaps.
 *
-* Trackermiss criterion (matches Section D5 of 02_etr_analysis.do):
+* Trackermiss criterion (matches Section D5 of 03_etr_analysis.do):
 *     rate_usmca_monthly == 0  &  cal_dut_mo > 0
 *
 * Likely root causes (signature in parentheses):
@@ -88,8 +88,19 @@ di as text "       trackermiss imports value total:    " ///
 
 di as text _n "  [B] Aggregating IMDB detail by rate_prov..."
 
+* Note: this script intentionally does NOT call classify_pref_channel.
+* The whole point is to surface raw rate_prov codes that the tracker missed,
+* including ones the classifier doesn't know about. Aggregating by raw
+* rate_prov is the operator-handoff signal we want.
+
 import delimited using "$raw/imdb_detail.csv", clear stringcols(1 2 3 4 5 6)
 destring con_val_mo dut_val_mo cal_dut_mo, replace force
+
+** Warn on coercion failures: `force` silently converts non-numeric to missing.
+qui count if missing(con_val_mo)
+if r(N) > 0 {
+    di as error "WARNING: `=r(N)' rows have missing con_val_mo after destring force"
+}
 
 gen year  = real(substr(year_month, 1, 4))
 gen month = real(substr(year_month, 6, 7))
@@ -152,7 +163,7 @@ save `rp_wide'
 
 
 * ======================================================================
-* D. LAYER 1+2 -- TOP CELLS WITH rate_prov ENRICHMENT
+* D. TOP CELLS WITH rate_prov ENRICHMENT
 * ======================================================================
 
 di as text _n "  [D] Building top-cells output..."
@@ -163,8 +174,9 @@ merge 1:1 hs10 cty_code ym using `rp_wide', keep(match master) nogenerate
 gsort -cal_dut_mo
 gen long rank_global = _n
 
-* Keep top 200 cells (or all > $1M, whichever is more) -- tunable threshold
-keep if rank_global <= 200 | cal_dut_mo > 1e6
+* Keep the top-N cells or all above the $-floor (whichever is more inclusive).
+* Thresholds in globals.do: $diagnostic_top_n_cells, $diagnostic_cell_floor.
+keep if rank_global <= $diagnostic_top_n_cells | cal_dut_mo > $diagnostic_cell_floor
 
 format con_val_mo cal_dut_mo %20.0fc
 format implied_rate rp_top1_pct rp_top2_pct rp_top3_pct %5.2f
@@ -189,16 +201,16 @@ order rank_global hs10 cty_code partner_group ym revision ///
       con_val_mo cal_dut_mo implied_rate ///
       rp_top1 rp_top1_pct rp_top2 rp_top2_pct rp_top3 rp_top3_pct
 
-di as text _n "  === Top 25 trackermiss cells by \$ duty ==="
+di as text _n "  === Top ${diagnostic_top_n_print} trackermiss cells by \$ duty ==="
 list rank_global hs10 cty_code ym cal_dut_mo implied_rate rp_top1 ///
-    if _n <= 25, clean noobs
+    if _n <= $diagnostic_top_n_print, clean noobs
 
 export delimited using "$tables/tracker_miss_top_cells.csv", replace
 di as text "       wrote `=_N' rows -> tracker_miss_top_cells.csv"
 
 
 * ======================================================================
-* E. LAYER 3a -- BY rate_prov  (the most actionable file)
+* E. BY rate_prov  (the most actionable file)
 * ======================================================================
 
 di as text _n "  [E] Aggregating by rate_prov..."
@@ -225,15 +237,15 @@ label var con_val_mo   "Trackermiss imports in this rate_prov (USD)"
 label var n_cell_rows  "(hs10 x cty x ym) cell-rows in this rate_prov"
 label var share_pct    "Share of total trackermiss \$ (%)"
 
-di as text _n "  === Top 25 rate_prov by trackermiss \$ ==="
-list rate_prov n_cell_rows cal_dut_mo share_pct if _n <= 25, clean noobs
+di as text _n "  === Top ${diagnostic_top_n_print} rate_prov by trackermiss \$ ==="
+list rate_prov n_cell_rows cal_dut_mo share_pct if _n <= $diagnostic_top_n_print, clean noobs
 
 export delimited using "$tables/tracker_miss_by_rate_prov.csv", replace
 di as text "       wrote `=_N' rate_prov rows -> tracker_miss_by_rate_prov.csv"
 
 
 * ======================================================================
-* F. LAYER 3b -- BY HS2 CHAPTER
+* F. BY HS2 CHAPTER
 * ======================================================================
 
 di as text _n "  [F] Aggregating by HS2 chapter..."
@@ -260,15 +272,15 @@ label var cal_dut_mo   "Trackermiss duty (USD)"
 label var con_val_mo   "Trackermiss imports value (USD)"
 label var share_pct    "Share of total trackermiss \$ (%)"
 
-di as text _n "  === Top 25 HS2 chapters by trackermiss \$ ==="
-list hs2_num n_cells cal_dut_mo share_pct if _n <= 25, clean noobs
+di as text _n "  === Top ${diagnostic_top_n_print} HS2 chapters by trackermiss \$ ==="
+list hs2_num n_cells cal_dut_mo share_pct if _n <= $diagnostic_top_n_print, clean noobs
 
 export delimited using "$tables/tracker_miss_by_hs2.csv", replace
 di as text "       wrote `=_N' chapters -> tracker_miss_by_hs2.csv"
 
 
 * ======================================================================
-* G. LAYER 3c -- BY PARTNER GROUP
+* G. BY PARTNER GROUP
 * ======================================================================
 
 di as text _n "  [G] Aggregating by partner group..."
@@ -301,7 +313,7 @@ di as text "       wrote `=_N' partner groups -> tracker_miss_by_country.csv"
 
 
 * ======================================================================
-* G2. LAYER 3d -- PER-COUNTRY DETAIL  (drills inside ROW)
+* G2. PER-COUNTRY DETAIL  (drills inside ROW)
 * ======================================================================
 *
 * Partner-group aggregation in G hides individual countries inside the ROW
@@ -316,20 +328,12 @@ di as text "       wrote `=_N' partner groups -> tracker_miss_by_country.csv"
 
 di as text _n "  [G2] Per-country detail (top 50 countries globally)..."
 
-* Build cty_code -> country_name lookup (from tracker_daily_by_country.dta)
-preserve
-    use "$working/tracker_daily_by_country.dta", clear
-    keep cty_code country_name
-    duplicates drop
-    bysort cty_code: keep if _n == 1   // belt-and-suspenders for unique cty_code
-    tempfile cty_lookup
-    save `cty_lookup'
-restore
-
 use `miss_panel', clear
 collapse (sum) cal_dut_mo con_val_mo (count) n_cells = cal_dut_mo, ///
     by(cty_code partner_group)
-merge m:1 cty_code using `cty_lookup', keep(match master) nogenerate
+
+* cty_lookup.dta is built once in 01_etr_clean.do Section B2b.
+merge m:1 cty_code using "$working/cty_lookup.dta", keep(match master) nogenerate
 
 egen double total_dut = total(cal_dut_mo)
 gen double share_pct = 100 * cal_dut_mo / total_dut
@@ -338,9 +342,10 @@ drop total_dut
 gsort -cal_dut_mo
 gen long rank_global = _n
 
-* Keep top 50 globally; this captures Brazil/India and the major ROW
+* Keep the global top-N; this captures Brazil/India and the major ROW
 * contributors while keeping the file small.
-keep if rank_global <= 50
+* Threshold: $diagnostic_top_n_countries in globals.do.
+keep if rank_global <= $diagnostic_top_n_countries
 
 format cal_dut_mo con_val_mo %20.0fc
 format share_pct %6.2f
@@ -358,16 +363,16 @@ label var rank_global   "Rank by trackermiss \$"
 order rank_global country_name cty_code partner_group n_cells ///
       cal_dut_mo con_val_mo share_pct
 
-di as text _n "  === Top 30 countries by trackermiss \$ ==="
+di as text _n "  === Top ${diagnostic_top_n_print} countries by trackermiss \$ ==="
 list rank_global country_name partner_group n_cells cal_dut_mo share_pct ///
-    if rank_global <= 30, clean noobs
+    if rank_global <= $diagnostic_top_n_print, clean noobs
 
 export delimited using "$tables/tracker_miss_by_country_detail.csv", replace
 di as text "       wrote `=_N' rows -> tracker_miss_by_country_detail.csv"
 
 
 * ======================================================================
-* H. LAYER 4 -- FIRST-MISS REVISION  (regression localization)
+* H. FIRST-MISS REVISION  (regression localization)
 * ======================================================================
 *
 * For each (HS10, cty), find the earliest month it became trackermiss and
@@ -401,11 +406,31 @@ preserve
     label var share_pct       "Share of total first-miss \$ (%)"
 
     di as text _n "  === First-miss revisions ==="
-    list revision n_first_miss first_miss_dut share_pct if _n <= 15, clean noobs
+    list revision n_first_miss first_miss_dut share_pct if _n <= $diagnostic_top_n_print, clean noobs
 
     export delimited using "$tables/tracker_miss_by_revision.csv", replace
     di as text "       wrote `=_N' revisions -> tracker_miss_by_revision.csv"
 restore
 
+
+* ======================================================================
+* I. RUN SUMMARY
+* ======================================================================
+
+di as text _n "  === Outputs written to ${tables} ==="
+foreach f in tracker_miss_top_cells.csv ///
+             tracker_miss_by_rate_prov.csv ///
+             tracker_miss_by_hs2.csv ///
+             tracker_miss_by_country.csv ///
+             tracker_miss_by_country_detail.csv ///
+             tracker_miss_by_revision.csv {
+    capture confirm file "${tables}`f'"
+    if _rc == 0 {
+        di as text "      OK    `f'"
+    }
+    else {
+        di as error "      MISSING  `f'"
+    }
+}
 
 di as text _n "  05a_tracker_miss_diagnostic complete." _n

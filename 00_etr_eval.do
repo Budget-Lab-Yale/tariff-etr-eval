@@ -31,7 +31,12 @@
 * ==============================================================================
 
 clear all
+version 17.0
 set more off
+* maxvar bumped above the default 5000 -- merged_analysis.dta carries ~30 cols
+* and downstream reshapes (e.g. 03 Section D2's pg_short reshape) push past
+* default in the working set. 10000 is comfortable; raise further only if
+* a future reshape adds many columns.
 set maxvar 10000
 set seed 8675309
 
@@ -73,9 +78,10 @@ capture mkdir "${logs}"
 * ==============================================================================
 
 capture log close
-* Build today's date string YYYY-MM-DD using explicit year/month/day functions.
-* (The earlier "%tdCY-NN-DD" picture format produced "2026-0404-2828"-style
-* doubled output on this Stata build; explicit string concatenation is safe.)
+* Build today's date string YYYY-MM-DD from c(current_date), which is always
+* "DD MMM YYYY" regardless of locale. Explicit year/month/day construction
+* avoids the "%tdCY-NN-DD" picture-format Stata bug that produced doubled
+* output on some builds.
 local _d = date(c(current_date), "DMY")
 local today = string(year(`_d'), "%04.0f") + "-" + ///
               string(month(`_d'), "%02.0f") + "-" + ///
@@ -118,55 +124,60 @@ else {
 }
 
 * ==============================================================================
-* Step 2: Decomposition and figures
-* ==============================================================================
-
-if $run_analysis {
-    di as text "=== Step 2: Analysis and figures ===" _n
-    do "${code}02_etr_analysis.do"
-}
-else {
-    di as text "=== Step 2: SKIPPED (run_analysis = 0) ===" _n
-}
-
-* ==============================================================================
-* Step 3: FTA / preference decomposition (requires IMDB detail)
-* ==============================================================================
-
-if $run_fta {
-    di as text "=== Step 3: FTA decomposition ===" _n
-    do "${code}03_fta_decomposition.do"
-}
-else {
-    di as text "=== Step 3: SKIPPED (run_fta = 0) ===" _n
-}
-
-* ==============================================================================
-* Step 4: Max-district cross-check (requires IMDB detail)
-* ==============================================================================
-
-if $run_crosscheck {
-    di as text "=== Step 4: Max-district crosscheck ===" _n
-    do "${code}04_max_district_crosscheck.do"
-}
-else {
-    di as text "=== Step 4: SKIPPED (run_crosscheck = 0) ===" _n
-}
-
-* ==============================================================================
-* Step 5: Counterfactual ladder (Gopinath-Neiman waterfall)
+* Step 2: Counterfactual ladder (canonical S0/S1/S2/S3 + T)
 * ==============================================================================
 
 if $run_ladder {
-    di as text "=== Step 5: Counterfactual ladder ===" _n
-    do "${code}05_counterfactual_ladder.do"
+    di as text "=== Step 2: Counterfactual ladder ===" _n
+    do "${code}02_counterfactual_ladder.do"
 }
 else {
-    di as text "=== Step 5: SKIPPED (run_ladder = 0) ===" _n
+    di as text "=== Step 2: SKIPPED (run_ladder = 0) ===" _n
 }
 
 * ==============================================================================
-* Step 6: Baseline ETR diagnostic (2024 wts, tracker USMCA baseline)
+* Step 3: Six-tier decomposition + figures (consumes ladder + adds S4)
+*         03   = framework decomposition + figs 1-6 + diagnostic tables
+*         03b  = paper §4.1 baseline figure + §4.5 daily overlay + supplementary
+*                monthly summary table (TBL judgment, separate methodology)
+* ==============================================================================
+
+if $run_analysis {
+    di as text "=== Step 3: Analysis and figures ===" _n
+    do "${code}03_etr_analysis.do"
+    di as text "=== Step 3b: Baseline figures (TBL judgment) ===" _n
+    do "${code}03b_baseline_figures.do"
+}
+else {
+    di as text "=== Step 3: SKIPPED (run_analysis = 0) ===" _n
+}
+
+* ==============================================================================
+* Step 4: FTA / preference decomposition (requires IMDB detail)
+* ==============================================================================
+
+if $run_fta {
+    di as text "=== Step 4: FTA decomposition ===" _n
+    do "${code}04_fta_decomposition.do"
+}
+else {
+    di as text "=== Step 4: SKIPPED (run_fta = 0) ===" _n
+}
+
+* ==============================================================================
+* Step 5: Max-district cross-check (requires IMDB detail)
+* ==============================================================================
+
+if $run_crosscheck {
+    di as text "=== Step 5: Max-district crosscheck ===" _n
+    do "${code}05_max_district_crosscheck.do"
+}
+else {
+    di as text "=== Step 5: SKIPPED (run_crosscheck = 0) ===" _n
+}
+
+* ==============================================================================
+* Step 6: Baseline ETR diagnostic (2024 wts, tracker vs reconstruction USMCA)
 * ==============================================================================
 
 if $run_baseline {

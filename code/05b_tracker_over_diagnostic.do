@@ -59,6 +59,12 @@ di as text "  [A] Loading IMDB detail and classifying pref_channel..."
 import delimited using "$raw/imdb_detail.csv", clear stringcols(1 2 3 4 5 6)
 destring con_val_mo dut_val_mo cal_dut_mo, replace force
 
+** Warn on coercion failures: `force` silently converts non-numeric to missing.
+qui count if missing(con_val_mo)
+if r(N) > 0 {
+    di as error "WARNING: `=r(N)' rows have missing con_val_mo after destring force"
+}
+
 gen year  = real(substr(year_month, 1, 4))
 gen month = real(substr(year_month, 6, 7))
 gen int ym = ym(year, month)
@@ -90,10 +96,13 @@ di as text _n "  [B] Merging tracker rate, computing over_dollars..."
 tempfile month_rev_map
 build_month_rev_map, saving(`month_rev_map')
 
-* Pull rate_usmca_monthly from merged_analysis (it is cell-level, not entry-level)
+* Pull rate_usmca_monthly from merged_analysis (it is cell-level, not entry-level).
+* merged_analysis is keyed unique on (hs10, cty_code, ym) by 01 Section F's
+* gisid check; assert here so any upstream regression surfaces loudly rather
+* than getting silently masked by `duplicates drop ..., force`.
 use "$working/merged_analysis.dta", clear
 keep hs10 cty_code ym rate_usmca_monthly
-duplicates drop hs10 cty_code ym, force
+gisid hs10 cty_code ym
 tempfile rates
 save `rates'
 
@@ -107,10 +116,10 @@ gen double statutory_duty = con_val_mo * rate_usmca_monthly
 gen double actual_duty    = cond(missing(cal_dut_mo), 0, cal_dut_mo)
 gen double over_dollars   = max(0, statutory_duty - actual_duty)
 
-* Diagnostic groups
-gen byte legit   = inlist(pref_channel, "usmca", "korus", "other_fta", "gsp_agoa")
-gen byte buglike = inlist(pref_channel, "duty_free", "mfn_dutiable", "ch99_dutiable")
-gen byte noise   = inlist(pref_channel, "ftz_bonded", "other")
+* Diagnostic groups (channel lists in globals.do).
+gen byte legit   = inlist(pref_channel, $over_legit_channels)
+gen byte buglike = inlist(pref_channel, $over_buglike_channels)
+gen byte noise   = inlist(pref_channel, $over_noise_channels)
 
 label var statutory_duty "Implied statutory duty at tracker rate"
 label var actual_duty    "Census actual duty"
@@ -151,8 +160,8 @@ gen double share_pct = 100 * over_dollars / total_over
 drop total_over
 
 gen str10 group = "noise"
-replace group = "legit"   if inlist(pref_channel, "usmca", "korus", "other_fta", "gsp_agoa")
-replace group = "buglike" if inlist(pref_channel, "duty_free", "mfn_dutiable", "ch99_dutiable")
+replace group = "legit"   if inlist(pref_channel, $over_legit_channels)
+replace group = "buglike" if inlist(pref_channel, $over_buglike_channels)
 
 gsort group -over_dollars
 
@@ -218,13 +227,14 @@ foreach v in rp_top1 rp_top2 rp_top3 rp_top1_chan rp_top2_chan rp_top3_chan {
 tempfile rp_wide
 save `rp_wide'
 
-* Combine with cell totals, rank, keep top 200 (or all > $1M, matches 05a)
+* Combine with cell totals, rank, apply diagnostic top-N + $-floor cutoffs.
+* Thresholds in globals.do: $diagnostic_top_n_cells, $diagnostic_cell_floor.
 use `cells', clear
 merge 1:1 hs10 cty_code ym using `rp_wide', keep(match master) nogenerate
 
 gsort -over_dollars
 gen long rank_global = _n
-keep if rank_global <= 200 | over_dollars > 1e6
+keep if rank_global <= $diagnostic_top_n_cells | over_dollars > $diagnostic_cell_floor
 
 format con_val_mo cal_dut_mo over_dollars statutory_duty %20.0fc
 format rate_usmca_monthly %5.4f
@@ -256,9 +266,9 @@ order rank_global hs10 cty_code partner_group ym revision ///
       rp_top1 rp_top1_chan rp_top1_pct rp_top2 rp_top2_chan rp_top2_pct ///
       rp_top3 rp_top3_chan rp_top3_pct
 
-di as text _n "  === Top 25 BUG-LIKELY cells by over-\$ ==="
+di as text _n "  === Top ${diagnostic_top_n_print} BUG-LIKELY cells by over-\$ ==="
 list rank_global hs10 cty_code ym over_dollars rate_usmca_monthly ///
-     rp_top1 rp_top1_chan if _n <= 25, clean noobs
+     rp_top1 rp_top1_chan if _n <= $diagnostic_top_n_print, clean noobs
 
 export delimited using "$tables/tracker_over_top_cells.csv", replace
 di as text "       wrote `=_N' rows -> tracker_over_top_cells.csv"
@@ -294,9 +304,9 @@ label var cal_dut_mo    "Census duty in this rate_prov (USD)"
 label var n_cell_rows   "Cell-rows in this rate_prov"
 label var share_pct     "Share of BUG-LIKELY over-\$ (%)"
 
-di as text _n "  === Top 25 rate_prov by BUG-LIKELY over-\$ ==="
+di as text _n "  === Top ${diagnostic_top_n_print} rate_prov by BUG-LIKELY over-\$ ==="
 list rate_prov pref_channel n_cell_rows over_dollars share_pct ///
-    if _n <= 25, clean noobs
+    if _n <= $diagnostic_top_n_print, clean noobs
 
 export delimited using "$tables/tracker_over_by_rate_prov.csv", replace
 di as text "       wrote `=_N' rate_prov rows -> tracker_over_by_rate_prov.csv"
@@ -334,8 +344,8 @@ label var con_val_mo   "Imports (USD)"
 label var cal_dut_mo   "Census duty (USD)"
 label var share_pct    "Share of BUG-LIKELY over-\$ (%)"
 
-di as text _n "  === Top 25 HS2 chapters by BUG-LIKELY over-\$ ==="
-list hs2_num n_cells over_dollars share_pct if _n <= 25, clean noobs
+di as text _n "  === Top ${diagnostic_top_n_print} HS2 chapters by BUG-LIKELY over-\$ ==="
+list hs2_num n_cells over_dollars share_pct if _n <= $diagnostic_top_n_print, clean noobs
 
 export delimited using "$tables/tracker_over_by_hs2.csv", replace
 di as text "       wrote `=_N' chapters -> tracker_over_by_hs2.csv"
@@ -379,21 +389,13 @@ di as text "       wrote `=_N' partner groups -> tracker_over_by_country.csv"
 
 di as text _n "  [G2] Per-country detail (BUG-LIKELY only)..."
 
-* cty_code -> country_name lookup (matches 05a)
-preserve
-    use "$working/tracker_daily_by_country.dta", clear
-    keep cty_code country_name
-    duplicates drop
-    bysort cty_code: keep if _n == 1
-    tempfile cty_lookup
-    save `cty_lookup'
-restore
-
 use `over_entries', clear
 keep if buglike == 1
 collapse (sum) over_dollars con_val_mo cal_dut_mo ///
          (count) n_cells = over_dollars, by(cty_code partner_group)
-merge m:1 cty_code using `cty_lookup', keep(match master) nogenerate
+
+* cty_lookup.dta is built once in 01_etr_clean.do Section B2b.
+merge m:1 cty_code using "$working/cty_lookup.dta", keep(match master) nogenerate
 
 egen double total_dut = total(over_dollars)
 gen double share_pct = 100 * over_dollars / total_dut
@@ -401,7 +403,8 @@ drop total_dut
 
 gsort -over_dollars
 gen long rank_global = _n
-keep if rank_global <= 50
+* Threshold: $diagnostic_top_n_countries in globals.do.
+keep if rank_global <= $diagnostic_top_n_countries
 
 format over_dollars con_val_mo cal_dut_mo %20.0fc
 format share_pct %6.2f
@@ -418,9 +421,9 @@ label var rank_global   "Rank by over-\$"
 order rank_global country_name cty_code partner_group n_cells ///
       over_dollars con_val_mo cal_dut_mo share_pct
 
-di as text _n "  === Top 30 countries by BUG-LIKELY over-\$ ==="
+di as text _n "  === Top ${diagnostic_top_n_print} countries by BUG-LIKELY over-\$ ==="
 list rank_global country_name partner_group n_cells over_dollars share_pct ///
-    if rank_global <= 30, clean noobs
+    if rank_global <= $diagnostic_top_n_print, clean noobs
 
 export delimited using "$tables/tracker_over_by_country_detail.csv", replace
 di as text "       wrote `=_N' rows -> tracker_over_by_country_detail.csv"
@@ -465,7 +468,7 @@ preserve
     label var share_pct       "Share of total first-over \$ (%)"
 
     di as text _n "  === First-over revisions ==="
-    list revision n_first_over first_over_dut share_pct if _n <= 15, clean noobs
+    list revision n_first_over first_over_dut share_pct if _n <= $diagnostic_top_n_print, clean noobs
 
     export delimited using "$tables/tracker_over_by_revision.csv", replace
     di as text "       wrote `=_N' revisions -> tracker_over_by_revision.csv"

@@ -838,7 +838,7 @@ if (file.exists(jan_2026) && !file.exists(feb_2026)) {
 # --- 3e. Counterfactual month-level rate CSVs (day-weighted scenarios) ---
 #
 # Produces HS10 x country x month total_rate panels for USMCA counterfactuals,
-# for consumption by 05_counterfactual_ladder.do. Reads the tracker's per-
+# for consumption by 02_counterfactual_ladder.do. Reads the tracker's per-
 # scenario snapshots directly (built via src/build_usmca_scenarios.R — see
 # data/timeseries/<scenario>/) and day-weights each scenario's per-revision
 # rates to monthly using the same mrw logic as before.

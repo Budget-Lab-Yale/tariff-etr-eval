@@ -1,5 +1,5 @@
 * ==============================================================================
-* 04_max_district_crosscheck.do
+* 05_max_district_crosscheck.do
 * Creator: John Iselin (ported from R_archive/R/02c_max_district_crosscheck.R)
 * Date: April 2026
 * Purpose: Cross-check tracker statutory rates against max observed ETR across
@@ -22,10 +22,19 @@
 * Output:
 *   $tables/max_district_summary.csv      -- monthly match statistics
 *   $tables/max_district_divergences.csv  -- flagged large discrepancies
+*   $working/max_district_comparisons.dta -- full HS10 x cty x ym panel
+*       (kept for downstream debugging; not re-exported as CSV by default)
+*
+* Tunable thresholds live in code/utils/globals.do:
+*   $rate_extreme_cutoff        (line-level extreme rate filter, default 2.0)
+*   $match_tol_pp               (strict match band, default 2pp)
+*   $match_tol_loose_pp         (loose match band, default 5pp)
+*   $divergence_pp_cutoff       (divergence flag in pp, default 5)
+*   $divergence_value_cutoff    (divergence flag in $, default 1e8)
 * ==============================================================================
 
 di as text _n "=========================================="
-di as text "  04_max_district_crosscheck: Tracker Rate Validation"
+di as text "  05_max_district_crosscheck: Tracker Rate Validation"
 di as text "==========================================" _n
 
 
@@ -37,6 +46,12 @@ di as text "  [A] Loading IMDB detail data..."
 
 import delimited using "$raw/imdb_detail.csv", clear stringcols(1 2 3 4 5 6)
 destring con_val_mo dut_val_mo cal_dut_mo, replace force
+
+** Warn on coercion failures: `force` silently converts non-numeric to missing.
+qui count if missing(con_val_mo)
+if r(N) > 0 {
+    di as error "WARNING: `=r(N)' rows have missing con_val_mo after destring force"
+}
 
 gen year  = real(substr(year_month, 1, 4))
 gen month = real(substr(year_month, 6, 7))
@@ -52,12 +67,15 @@ drop if con_val_mo <= 0 | missing(con_val_mo)
 * Entry-level effective rate
 gen double entry_rate = cal_dut_mo / con_val_mo
 
-* Filter extreme rates (following Gopinath-Neiman: drop rate >= 2.0
-* unless China or Russia where rates can legitimately exceed 100%)
-drop if entry_rate >= 2.0 & !inlist(cty_code, "5700", "4621")
+* Filter extreme rates per Gopinath-Neiman convention; China and Russia are
+* exempted because their entry rates can legitimately exceed the cutoff.
+* Threshold defined as $rate_extreme_cutoff in globals.do.
+drop if entry_rate >= $rate_extreme_cutoff & !inlist(cty_code, "$cty_china", "$cty_russia")
 
-* Flag whether any preference was claimed
-gen byte has_preference = (cty_subco != "0" & cty_subco != "" & cty_subco != "00")
+* Classify preference channels (program from programs.do); has_preference is
+* any non-residual classification.
+classify_pref_channel cty_subco rate_prov cty_code
+gen byte has_preference = (pref_channel != "other")
 
 assign_partner_group cty_code
 
@@ -97,7 +115,10 @@ di as text "       `=_N' HS10 x country x month cells"
 
 di as text "  [C] Merging tracker statutory rates..."
 
-** Build month -> revision mapping (program from programs.do)
+** Build month -> revision mapping (program from programs.do).
+** preserve/restore is needed here -- unlike in 01 where build_month_rev_map
+** runs before any analysis data is loaded, here we already have the collapsed
+** HS10 x cty x ym panel in memory and build_month_rev_map clears it.
 tempfile month_rev_map
 preserve
     build_month_rev_map, saving(`month_rev_map')
@@ -134,14 +155,14 @@ di as text "  [D] Classifying comparisons..."
 
 gen double diff_pp     = (tracker_rate - max_rate) * 100
 gen double abs_diff_pp = abs(diff_pp)
-gen byte   match_2pp   = (abs_diff_pp <= 2) if !missing(tracker_rate)
-gen byte   match_5pp   = (abs_diff_pp <= 5) if !missing(tracker_rate)
+gen byte   match_2pp   = (abs_diff_pp <= $match_tol_pp) if !missing(tracker_rate)
+gen byte   match_5pp   = (abs_diff_pp <= $match_tol_loose_pp) if !missing(tracker_rate)
 
 gen str20 category = ""
 replace category = "no_tracker_rate" if missing(tracker_rate)
-replace category = "match"           if !missing(tracker_rate) & abs_diff_pp <= 2
-replace category = "tracker_higher"  if !missing(tracker_rate) & diff_pp > 2
-replace category = "observed_higher" if !missing(tracker_rate) & diff_pp < -2
+replace category = "match"           if !missing(tracker_rate) & abs_diff_pp <= $match_tol_pp
+replace category = "tracker_higher"  if !missing(tracker_rate) & diff_pp >  $match_tol_pp
+replace category = "observed_higher" if !missing(tracker_rate) & diff_pp < -$match_tol_pp
 
 label var tracker_rate "Tracker statutory rate"
 label var max_rate     "Max observed rate across districts"
@@ -153,6 +174,9 @@ label var match_5pp    "Within 5pp"
 label var imports_2024 "2024 import value ($)"
 
 compress
+* Persist the full comparison panel (HS10 x cty x ym) for downstream debugging
+* and ad-hoc slicing -- not just the filtered divergence subset Section F saves.
+save "$working/max_district_comparisons.dta", replace
 tempfile comparisons
 save `comparisons'
 
@@ -250,13 +274,16 @@ di as text _n "  [F] Flagging large divergences..."
 
 use `comparisons', clear
 
-* Large divergences: >5pp gap, >$100M in 2024 imports, has tracker rate
-keep if abs_diff_pp > 5 & imports_2024 > 1e8 & !missing(tracker_rate)
+* Large divergences worth manual review: thresholds in globals.do.
+keep if abs_diff_pp > $divergence_pp_cutoff ///
+        & imports_2024 > $divergence_value_cutoff ///
+        & !missing(tracker_rate)
 gsort -imports_2024
 
 gen str2 hs2 = substr(hs10, 1, 2)
 
-di as text "       `=_N' large divergences (>5pp, >$100M)"
+di as text "       `=_N' large divergences (>${divergence_pp_cutoff}pp, " ///
+    ">$" string(${divergence_value_cutoff}/1e6, "%9.0f") "M)"
 
 if _N > 0 {
     compress
@@ -268,4 +295,4 @@ else {
 }
 
 
-di as text _n "  04_max_district_crosscheck complete." _n
+di as text _n "  05_max_district_crosscheck complete." _n

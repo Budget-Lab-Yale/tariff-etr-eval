@@ -3,7 +3,7 @@
 * Creator: John Iselin
 * Date: April 2026
 * Purpose: Sanity-check the new S3 (all-other preferences) tier in the six-tier
-*          framework. Run after 05_counterfactual_ladder.do has executed.
+*          framework. Run after 02_counterfactual_ladder.do has executed.
 *
 * Checks:
 *   1. Aggregate ETR identity: gap_total = sum of channel gaps to numerical precision
@@ -12,10 +12,10 @@
 *      S2 < S3 SHOULD be impossible (delta math is non-negative); flagged as bug
 *      if observed.
 *   3. Sign-reversal cells (country x month): same pattern, per partner_group.
-*   4. Cross-check vs 03 fta_decomp_monthly: S2-S3 magnitude vs sum of
+*   4. Cross-check vs 04 fta_decomp_monthly: S2-S3 magnitude vs sum of
 *      gap_contrib_pp for {duty_free, korus, gsp_agoa, other_fta}. Directional
 *      consistency expected; magnitudes differ (S2-S3 includes only base + recip
-*      per the applicability matrix; 03's gap_contrib_pp uses full pre-pref rate).
+*      per the applicability matrix; 04's gap_contrib_pp uses full pre-pref rate).
 *   5. Country-level expected pattern:
 *        gap_others ~ 0    for CA / MX (preference activity already in USMCA)
 *        gap_others > 0    for KR (KORUS), ROW, EU/JP (Annex II, GSP, FTAs)

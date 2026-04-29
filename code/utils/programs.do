@@ -19,6 +19,7 @@
 
 capture program drop assign_partner_group
 program define assign_partner_group
+    version 17.0
     syntax varname
 
     confirm variable `varlist'
@@ -55,6 +56,7 @@ end
 
 capture program drop safe_divide
 program define safe_divide
+    version 17.0
     args num den newvar default
 
     if "`default'" == "" local default = .
@@ -80,6 +82,7 @@ end
 
 capture program drop report_merge
 program define report_merge
+    version 17.0
     args label
 
     capture confirm variable _merge
@@ -122,6 +125,7 @@ end
 
 capture program drop build_month_rev_map
 program define build_month_rev_map
+    version 17.0
     syntax , Saving(string) [USing(string)]
 
     if "`using'" == "" local using "${working}/revision_dates.dta"
@@ -174,72 +178,56 @@ end
 * PROGRAM: compute_tier
 *
 * Computes a one-line-per-month (or month x by-var) aggregate ETR tier by
-* applying a rate column to a weight column over a panel, then collapsing.
-* Replaces the six near-identical S0/S1/S2 aggregate/country blocks in
-* 05_counterfactual_ladder.do.
+* multiplying a rate column by a weight column over the currently-loaded
+* panel, then collapsing. Operates on the in-memory dataset; caller is
+* responsible for `preserve` / `restore` around the call.
 *
-* Side effects: clears the in-memory dataset.
+* Expects the in-memory dataset to carry both the rate and weight columns
+* on the same row (typical: merged_analysis.dta, which has rate_2024,
+* rate_usmca_monthly, rate_all_pref, total_rate alongside imports and
+* con_val_mo). No file I/O on input — only the collapsed output is saved.
+*
+* Side effects: collapses the in-memory dataset.
 *
 * Options:
-*   ratefile()  Path/tempfile of HS10 x country x month rates (required)
-*   ratevar()   Rate variable name inside ratefile (required)
-*   weightsrc() "2024" (sentinel) for $working/weights_2024.dta expanded to
-*               the analysis window, or a path/tempfile of monthly
-*               HS10 x country x month trade data with con_val_mo (required)
+*   ratevar()   Rate variable name in the in-memory data (required)
+*   weightvar() Weight variable name in the in-memory data (required)
 *   outfile()   Path/tempfile to save collapsed result (required)
 *   outvar()    Name for the collapsed ETR in the output (required)
 *   byvar()     Optional grouping variable for the collapse (e.g., partner_group)
-*   label()     Optional label passed to report_merge()
 *   percent     If set, multiply output ETR by 100 before saving
 *
 * Usage:
-*   compute_tier, ratefile(`cf_2024') ratevar(rate_usmca2024) ///
-*       weightsrc(2024) outfile(`tier_s0') outvar(s0) ///
-*       label("S0 (agg) vs cf_2024")
+*   preserve
+*       compute_tier, ratevar(rate_2024) weightvar(imports) ///
+*           outfile(`tier_s0') outvar(s0) percent
+*   restore
 * ==============================================================================
 
 capture program drop compute_tier
 program define compute_tier
-    syntax , RATEfile(string) RATEvar(name) WEIGHTsrc(string) ///
+    version 17.0
+    syntax , RATEvar(name) WEIGHTvar(name) ///
              OUTfile(string) OUTvar(name) ///
-             [BYvar(name) LABel(string) PERCent]
+             [BYvar(name) PERCent]
 
-    if "`weightsrc'" == "2024" {
-        * Expand 2024-weight panel to monthly
-        use "${working}/weights_2024.dta", clear
-        keep hs10 cty_code imports
-        local n_months = $end_ym - $start_ym + 1
-        expand `n_months'
-        bysort hs10 cty_code: gen int ym = $start_ym + _n - 1
-        format ym %tm
-        local weightvar imports
-    }
-    else {
-        use `"`weightsrc'"', clear
-        local weightvar con_val_mo
-    }
+    * Validate up-front so a typo produces a clean error with caller context
+    * rather than a generic "variable not found" inside `gen ... = ratevar * weightvar`.
+    confirm variable `ratevar'
+    confirm variable `weightvar'
+    if "`byvar'" != "" confirm variable `byvar'
 
-    merge 1:1 hs10 cty_code ym using `"`ratefile'"', ///
-        keepusing(`ratevar') keep(match master)
-    if "`label'" != "" report_merge "`label'"
-    drop _merge
-    replace `ratevar' = 0 if missing(`ratevar')
-
-    if "`byvar'" == "partner_group" {
-        capture confirm variable partner_group
-        if _rc != 0 assign_partner_group cty_code
-    }
-
-    gen double _wtd = `ratevar' * `weightvar'
+    tempvar _wtd
+    gen double `_wtd' = `ratevar' * `weightvar'
 
     if "`byvar'" == "" {
-        collapse (sum) num=_wtd den=`weightvar', by(ym)
+        collapse (sum) num=`_wtd' den=`weightvar', by(ym)
         safe_divide num den `outvar'
         if "`percent'" != "" replace `outvar' = `outvar' * 100
         keep ym `outvar'
     }
     else {
-        collapse (sum) num=_wtd den=`weightvar', by(ym `byvar')
+        collapse (sum) num=`_wtd' den=`weightvar', by(ym `byvar')
         safe_divide num den `outvar'
         if "`percent'" != "" replace `outvar' = `outvar' * 100
         keep ym `byvar' `outvar'
@@ -278,11 +266,18 @@ end
 
 capture program drop classify_pref_channel
 program define classify_pref_channel
+    version 17.0
     args subco rateprov cty
 
     confirm string variable `subco'
     confirm string variable `rateprov'
     confirm string variable `cty'
+
+    * NOTE: Stata's string inlist() limit is 10 args (1 var + 9 strings).
+    * Several batches below sit at exactly 8 or 9 strings. If you add a code
+    * to a batch already at 9 (e.g., the GSP/AGOA list), Stata will error
+    * with "too many string values" -- split the batch into a new line
+    * rather than padding the existing one.
 
     capture drop pref_channel
     gen str20 pref_channel = ""

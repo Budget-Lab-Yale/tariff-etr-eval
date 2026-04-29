@@ -1,11 +1,14 @@
 * ==============================================================================
-* 03_fta_decomposition.do
+* 04_fta_decomposition.do
 * Creator: John Iselin (ported from R_archive/R/02b_fta_decomposition.R)
 * Date: April 2026
-* Purpose: Decompose the Tier 2 → Tier 3 exemptions gap into preference
-*          channels using IMDB detail data (cty_subco, rate_prov).
+* Purpose: Decompose the S2 -> S3 (all-other preferences) channel of the
+*          six-tier framework into preference / rate-provision categories
+*          using IMDB detail data (cty_subco, rate_prov). Per-channel
+*          duty savings show which preferences carry the gap and how
+*          utilization rates evolve.
 *
-* Channels:
+* Channels (mirrored in classify_pref_channel; see programs.do):
 *   (a) USMCA: CA/MX imports under S/S+ preference codes
 *   (b) KORUS: S. Korea under KR preference
 *   (c) Other FTA: AU, IL, SG, CL, CO, PE, PA, JO, MA, OM, BH, etc.
@@ -28,7 +31,7 @@
 * ==============================================================================
 
 di as text _n "=========================================="
-di as text "  03_fta_decomposition: FTA/Preference Channel Decomposition"
+di as text "  04_fta_decomposition: FTA/Preference Channel Decomposition"
 di as text "==========================================" _n
 
 
@@ -41,6 +44,12 @@ di as text "  [A] Loading IMDB detail data..."
 import delimited using "$raw/imdb_detail.csv", clear stringcols(1 2 3 4 5 6)
 
 destring con_val_mo dut_val_mo cal_dut_mo, replace force
+
+** Warn on coercion failures: `force` silently converts non-numeric to missing.
+qui count if missing(con_val_mo)
+if r(N) > 0 {
+    di as error "WARNING: `=r(N)' rows have missing con_val_mo after destring force"
+}
 
 * Parse year/month from year_month string
 gen year  = real(substr(year_month, 1, 4))
@@ -82,7 +91,21 @@ merge m:1 ym using `month_rev_map', keep(match master) nogenerate
 
 * Merge statutory rates
 merge m:1 hs10 cty_code revision using "$working/tracker_snapshots.dta", ///
-    keep(match master) keepusing(total_rate) nogenerate
+    keep(match master) keepusing(total_rate) gen(_merge_snap)
+
+qui count if _merge_snap == 3
+local n_matched = r(N)
+qui count if _merge_snap == 1
+local n_unmatched = r(N)
+local match_rate = 100 * `n_matched' / _N
+di as text "       Snapshot match: `n_matched' matched, `n_unmatched' unmatched (" ///
+    string(`match_rate', "%4.1f") "%)"
+if `match_rate' < 90 {
+    di as error "WARNING: snapshot match rate below 90% -- investigate"
+}
+drop _merge_snap
+
+* Unmatched products get zero statutory rate (consistent with 01_etr_clean.do).
 replace total_rate = 0 if missing(total_rate)
 
 * Compute statutory vs actual duty at entry level
@@ -108,18 +131,17 @@ di as text "  [C] Monthly channel decomposition..."
 
 use `imdb_with_rates', clear
 
-* Monthly total imports (for denominator)
-bysort ym: egen double total_imports_m = total(con_val_mo)
-
 * Channel aggregation
 collapse ///
     (count)  entries = con_val_mo ///
     (sum)    imports = con_val_mo ///
              actual_duties = actual_duty ///
              statutory_duties = statutory_duty ///
-             duty_savings = duty_savings ///
-    (first)  total_imports_m, ///
+             duty_savings = duty_savings, ///
     by(ym pref_channel)
+
+* Re-derive monthly total post-collapse (sum across channels per ym).
+bysort ym: egen double total_imports_m = total(imports)
 
 * Metrics
 gen double import_share    = imports / total_imports_m
@@ -156,17 +178,24 @@ di as text _n "  [D] Country x channel detail..."
 
 use `imdb_with_rates', clear
 
-bysort ym: egen double total_imports_m = total(con_val_mo)
-
 collapse ///
     (sum)   imports = con_val_mo ///
             actual_duties = actual_duty ///
             statutory_duties = statutory_duty ///
-            duty_savings = duty_savings ///
-    (first) total_imports_m, ///
+            duty_savings = duty_savings, ///
     by(ym partner_group pref_channel)
 
+* Re-derive monthly total post-collapse (sum across all partner x channel cells per ym).
+bysort ym: egen double total_imports_m = total(imports)
+
 gen double gap_contrib_pp = duty_savings / total_imports_m * 100
+
+label var imports          "Import value ($)"
+label var actual_duties    "Actual duties ($)"
+label var statutory_duties "Statutory duties ($)"
+label var duty_savings     "Duty savings ($)"
+label var total_imports_m  "Total monthly imports across all channels ($)"
+label var gap_contrib_pp   "Contribution to ETR gap (pp)"
 
 sort ym partner_group pref_channel
 compress
@@ -182,19 +211,22 @@ di as text "  [E] FTA utilization rates..."
 
 use `imdb_with_rates', clear
 
+* Utilization rates use the canonical pref_channel column from
+* classify_pref_channel (Section A) -- no inline cty_subco re-bucketing.
+* Numerator: imports with the program's pref_channel; denominator: all
+* imports from that program's eligible country/group.
+
 * USMCA utilization for CA and MX
 preserve
-    keep if inlist(cty_code, "1220", "2010")
-    gen byte is_usmca = inlist(cty_subco, "S", "S+", "CA", "MX")
-
+    keep if inlist(cty_code, "$cty_canada", "$cty_mexico")
     collapse (sum) pref_imports = con_val_mo ///
-             if is_usmca == 1, by(ym partner_group)
+             if pref_channel == "usmca", by(ym partner_group)
     tempfile usmca_pref
     save `usmca_pref'
 restore
 
 preserve
-    keep if inlist(cty_code, "1220", "2010")
+    keep if inlist(cty_code, "$cty_canada", "$cty_mexico")
     collapse (sum) total_imports = con_val_mo, by(ym partner_group)
     merge 1:1 ym partner_group using `usmca_pref', nogenerate
     replace pref_imports = 0 if missing(pref_imports)
@@ -207,22 +239,18 @@ restore
 
 * KORUS utilization
 preserve
-    keep if cty_code == "5800"
-    gen byte is_korus = (cty_subco == "KR")
-    collapse (sum) total_imports = con_val_mo ///
-                   pref_imports = con_val_mo ///
-             if is_korus == 1, by(ym partner_group)
-    rename pref_imports korus_imports
+    keep if cty_code == "$cty_skorea"
+    collapse (sum) pref_imports = con_val_mo ///
+             if pref_channel == "korus", by(ym partner_group)
     tempfile korus_pref
     save `korus_pref'
 restore
 
 preserve
-    keep if cty_code == "5800"
+    keep if cty_code == "$cty_skorea"
     collapse (sum) total_imports = con_val_mo, by(ym partner_group)
     merge 1:1 ym partner_group using `korus_pref', nogenerate
-    replace korus_imports = 0 if missing(korus_imports)
-    rename korus_imports pref_imports
+    replace pref_imports = 0 if missing(pref_imports)
     safe_divide pref_imports total_imports utilization_rate
     gen str10 program = "KORUS"
     tempfile util_korus
@@ -242,4 +270,4 @@ format utilization_rate %9.3f
 list ym partner_group program utilization_rate, clean noobs
 
 
-di as text _n "  03_fta_decomposition complete." _n
+di as text _n "  04_fta_decomposition complete." _n

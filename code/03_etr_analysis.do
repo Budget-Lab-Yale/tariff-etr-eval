@@ -1,11 +1,19 @@
 * ==============================================================================
-* 02_etr_analysis.do
+* 03_etr_analysis.do
 * Creator: John Iselin
 * Date: April 2026
-* Purpose: Six-tier decomposition of the statutory-actual ETR gap, Shapley
-*          decomposition by country (h2avg-based; legacy), and all figures.
+* Purpose: Six-tier decomposition of the statutory-actual ETR gap and the
+*          framework figures + diagnostic tables built from it. Legacy h2avg
+*          Shapley between/within decomposition kept in Section B (different
+*          conceptual question; not the new gap_diversion channel).
 *
-* Tiers (S0/S1/S2/S3 from 05_counterfactual_ladder.do; S4 + T computed here):
+*          The TBL-judgment paper figures (baseline statutory vs Treasury;
+*          daily overlay; supplementary monthly summary) live in the sibling
+*          script 03b_baseline_figures.do -- they use a separate aggregation
+*          methodology (tracker daily series, h2avg USMCA, 2024 weights) and
+*          are intended for ECONOMIC portrayal, not deconstruction.
+*
+* Tiers (S0/S1/S2/S3 from 02_counterfactual_ladder.do; S4 + T computed here):
 *   S0: Statutory @ 2024 USMCA shares x 2024 import weights
 *   S1: Statutory @ 2024 USMCA shares x actual monthly weights
 *   S2: Statutory @ monthly USMCA shares x actual monthly weights
@@ -21,12 +29,19 @@
 *   S4 -> T  = Timing/enforcement (Treasury vs Census aggregation)
 *
 * See docs/six_tier_framework_plan.md for derivation and applicability matrix.
-* Section B (Shapley) still uses total_rate (h2avg) -- legacy, not the new
-* gap_diversion channel; flagged in section header.
+*
+* Sections:
+*   A. Six-tier decomposition (consumes ladder, adds S4, computes channel gaps)
+*   B. Legacy Shapley between/within by country (h2avg total_rate; different Q)
+*   C. Figures 1-3 (six-tier ladder line + stacked bar charts)
+*   D. Figures 4-6 + diagnostic tables (S2 vs S4 vs T, partner / HS2 / HS10)
 *
 * Input:
-*   $working/counterfactual_ladder.dta   (from 05; provides S0 S1 S2 S3 + T)
-*   $working/merged_analysis.dta         (provides S4 = Census collected)
+*   $working/counterfactual_ladder.dta   (from 02; provides S0 S1 S2 S3 + T)
+*   $working/merged_analysis.dta         (provides S4 = Census collected;
+*                                         also rate_2024, rate_usmca_monthly,
+*                                         rate_all_pref panels for Section D
+*                                         compute_tier calls)
 *
 * Output:
 *   $working/decomp_monthly.dta     + $tables/decomp_monthly.csv
@@ -35,7 +50,7 @@
 *   $figures/figure2_gap_stacked.png
 *   $figures/figure3_usmca_decomp.png
 *
-*   Section D -- Census vs statutory-monthly-USMCA comparison:
+*   Section D -- S2 vs S4 vs T comparison (six-tier framework labels):
 *     $figures/figure4_cmp_overall.png
 *     $figures/figure5_cmp_partner_facets.png
 *     $figures/figure6_cmp_gap_by_partner.png
@@ -50,7 +65,7 @@
 * ==============================================================================
 
 di as text _n "=========================================="
-di as text "  02_etr_analysis: Decomposition & Figures"
+di as text "  03_etr_analysis: Decomposition & Figures"
 di as text "==========================================" _n
 
 
@@ -58,21 +73,21 @@ di as text "==========================================" _n
 * A. SIX-TIER DECOMPOSITION
 * ======================================================================
 *
-* Reads S0/S1/S2/S3 + treasury_actual from 05's counterfactual_ladder.dta
+* Reads S0/S1/S2/S3 + treasury_actual from 02_counterfactual_ladder.dta
 * and adds S4 (Census collected ETR), then computes the six-tier channel
-* decomposition. S0-S3 are computed in 05 against cf_2024 / cf_monthly /
-* cf_all_pref rate panels; we just consume them here to keep tier values
-* consistent across 02 and 05.
+* decomposition. S0-S3 are computed in 02 by applying compute_tier to the
+* rate_2024 / rate_usmca_monthly / rate_all_pref columns of merged_analysis;
+* this script consumes them so tier values are consistent across all figures.
 
 di as text "  [A] Six-tier decomposition..."
 
-* --- A1. Read S0, S1, S2, S3, T from 05's output ---
+* --- A1. Read S0, S1, S2, S3, T from 02's output ---
 
-di as text "      S0-S3 + T from 05's counterfactual_ladder..."
+di as text "      S0-S3 + T from 02_counterfactual_ladder..."
 
 capture confirm file "${working}/counterfactual_ladder.dta"
 if _rc != 0 {
-    di as error "ERROR: counterfactual_ladder.dta not found. Run 05 first."
+    di as error "ERROR: counterfactual_ladder.dta not found. Run 02 first."
     error 601
 }
 
@@ -156,8 +171,17 @@ export delimited using "$tables/decomp_monthly.csv", replace
 * ======================================================================
 * B. SHAPLEY DECOMPOSITION (between- vs. within-country)
 * ======================================================================
+*
+* LEGACY: This section uses the tracker's `total_rate` (h2avg USMCA) and
+* answers a different question than the six-tier framework above. It
+* decomposes the Shapley between-country composition shift vs within-country
+* rate change at h2avg USMCA shares -- NOT the same as the framework's
+* trade-diversion (S0->S1) channel, which holds USMCA at 2024 baseline.
+* Kept for backward compatibility with prior analyses; do not interpret
+* between_c / within_c as the framework's gap_diversion / gap_usmca channels.
 
 di as text _n "  [B] Shapley decomposition by country..."
+di as error "      NOTE: Section B uses legacy h2avg total_rate; not equivalent to S0->S1."
 
 use "$working/merged_analysis.dta", clear
 
@@ -356,110 +380,114 @@ graph export "$figures/figure3_usmca_decomp.png", replace width(2400)
 
 
 * ======================================================================
-* D. CENSUS vs STATUTORY (MONTHLY USMCA) COMPARISON
+* D. S2 vs S4 vs T COMPARISON  (six-tier framework labels)
 * ======================================================================
 *
 * Clean comparison between:
-*   ETR_stat   = rate_usmca_monthly weighted by monthly con_val (statutory
-*                rate with USMCA applied at the month's actual utilization)
-*   ETR_census = cal_dut_mo / con_val_mo (duties Census reports as collected)
+*   S2 = rate_usmca_monthly weighted by con_val_mo (statutory rate with
+*        USMCA at the month's actual utilization). Identical by construction
+*        to S2 in counterfactual_ladder.dta -- same panel, same row-level
+*        Sum(rate*val)/Sum(val) collapse.
+*   S4 = cal_dut_mo / con_val_mo (Census-collected duties)
+*   T  = Treasury actual ETR (revenue_monthly.dta)
 *
 * Three aggregation levels:
-*   (i)  Overall monthly
-*   (ii) Partner group x month
-*   (iii) HS2 chapter x month (and HS2 x partner)
+*   (i)  Overall monthly                  -> Fig 4
+*   (ii) Partner group x month            -> Fig 5, Fig 6
+*   (iii) HS2 chapter x month (rankings)  -> Tbl 3a
 *
 * Outputs:
-*   Fig A -- results/figures/figure_A_overall.png
-*   Fig B -- results/figures/figure_B_partner_facets.png
-*   Fig C -- results/figures/figure_C_gap_by_partner.png
-*   Tbl 1 -- results/tables/cmp_overall_monthly.csv
-*   Tbl 2 -- results/tables/cmp_partner_monthly.csv
-*   Tbl 3a -- results/tables/cmp_hs2_ranking.csv (HS2 contribution to gap)
+*   Fig 4  -- results/figures/figure4_cmp_overall.png
+*   Fig 5  -- results/figures/figure5_cmp_partner_facets.png
+*   Fig 6  -- results/figures/figure6_cmp_gap_by_partner.png
+*   Tbl 1  -- results/tables/cmp_overall_monthly.csv
+*   Tbl 2  -- results/tables/cmp_partner_monthly.csv
+*   Tbl 3a -- results/tables/cmp_hs2_ranking.csv
 *   Tbl 3b -- results/tables/cmp_top_hs10_anomalies.csv
 
-di as text _n "  [D] Census vs. Statutory (monthly USMCA) comparison..."
+di as text _n "  [D] S2 (statutory, USMCA monthly) vs S4 (Census) vs T (Treasury)..."
 
 use "$working/merged_analysis.dta", clear
 keep if ym >= $start_ym & ym <= $end_ym
 
-** Sanity: rate_usmca_monthly comes from 01 (merge with cf_usmca_monthly.dta).
+** Sanity: rate_usmca_monthly is the S2 panel rate, merged in 01.
 capture confirm variable rate_usmca_monthly
 if _rc != 0 {
     di as error "ERROR: rate_usmca_monthly not found. Re-run 01_etr_clean.do."
     error 111
 }
 
-** Recompute census_etr at the row level to be safe
-safe_divide cal_dut_mo con_val_mo census_etr
-
-** Numerators/denominators for collapsed ETRs
-gen double stat_rev_row = rate_usmca_monthly * con_val_mo
-gen double cens_rev_row = cal_dut_mo
-
 
 * ----------------------------------------------------------------------
-* D1. Overall monthly comparison (Tbl 1 + Fig A)
+* D1. Overall monthly comparison (Tbl 1 + Fig 4)
+*
+* Statutory = S2 (rate_usmca_monthly x con_val_mo, row-level value-weighted).
+* Identical by construction to S2 in counterfactual_ladder.dta, since both
+* use the same panel and the same row-level Sum(rate*val)/Sum(val) collapse.
 * ----------------------------------------------------------------------
 
 di as text "      D1. Overall monthly..."
 
 preserve
-    collapse (sum) stat_num=stat_rev_row cens_num=cens_rev_row ///
-                   total_val=con_val_mo, ///
-        by(ym)
+    compute_tier, ratevar(rate_usmca_monthly) weightvar(con_val_mo) ///
+        outfile("$working/cmp_overall_monthly.dta") outvar(s2) percent
+restore
 
-    safe_divide stat_num total_val etr_stat
-    safe_divide cens_num total_val etr_census
+preserve
+    collapse (sum) cal_dut_mo con_val_mo, by(ym)
+    safe_divide cal_dut_mo con_val_mo s4
+    replace s4 = s4 * 100
+    keep ym s4
+    tempfile s4_overall
+    save `s4_overall'
+restore
 
-    ** Bring in Treasury actual for reference
+preserve
+    use "$working/cmp_overall_monthly.dta", clear
+    merge 1:1 ym using `s4_overall', nogenerate
     merge 1:1 ym using "$working/revenue_monthly.dta", ///
         keep(match master) keepusing(actual_rate) nogenerate
-    rename actual_rate etr_treasury
+    rename actual_rate t
+    replace t = t * 100
 
-    foreach v in etr_stat etr_census etr_treasury {
-        replace `v' = `v' * 100
-    }
+    gen double gap_s2_s4 = s2 - s4
+    gen double gap_s4_t  = s4 - t
+    gen double gap_s2_t  = s2 - t
 
-    gen double gap_stat_census       = etr_stat - etr_census
-    gen double gap_census_treasury   = etr_census - etr_treasury
-    gen double gap_stat_treasury     = etr_stat - etr_treasury
+    label var s2        "S2: Statutory (USMCA monthly), monthly wts (%)"
+    label var s4        "S4: Census collected ETR (%)"
+    label var t         "T: Treasury actual ETR (%)"
+    label var gap_s2_s4 "S2 - S4 (pp)"
+    label var gap_s4_t  "S4 - T (pp)"
+    label var gap_s2_t  "S2 - T (pp)"
 
-    label var etr_stat             "Statutory ETR, monthly USMCA (%)"
-    label var etr_census            "Census calculated ETR (%)"
-    label var etr_treasury          "Treasury actual ETR (%)"
-    label var gap_stat_census       "Statutory - Census (pp)"
-    label var gap_census_treasury   "Census - Treasury (pp)"
-    label var gap_stat_treasury     "Statutory - Treasury (pp)"
-
-    format etr_* gap_* %9.2f
-    di as text "  === Tbl 1: Overall monthly comparison ==="
-    list ym etr_stat etr_census etr_treasury ///
-         gap_stat_census gap_census_treasury, clean noobs
+    format s2 s4 t gap_* %9.2f
+    di as text "  === Tbl 1: Overall monthly comparison (S2 / S4 / T) ==="
+    list ym s2 s4 t gap_s2_s4 gap_s4_t, clean noobs
 
     save "$working/cmp_overall_monthly.dta", replace
     export delimited using "$tables/cmp_overall_monthly.csv", replace
 
-    ** --- Fig A: overall line chart ---
+    ** --- Fig 4: overall line chart (S2 / S4 / T) ---
     twoway ///
-        (connected etr_stat ym, ///
+        (connected s2 ym, ///
             mcolor("$color_statutory") lcolor("$color_statutory") ///
             msymbol(circle) msize(small) lwidth(medthick) lpattern(solid)) ///
-        (connected etr_census ym, ///
+        (connected s4 ym, ///
             mcolor("$color_gap") lcolor("$color_gap") ///
             msymbol(diamond) msize(small) lwidth(medium) lpattern(solid)) ///
-        (connected etr_treasury ym, ///
+        (connected t ym, ///
             mcolor("$color_actual") lcolor("$color_actual") ///
             msymbol(triangle) msize(small) lwidth(medium) lpattern(dash)) ///
         , ///
         legend(order( ///
-            1 "Statutory (tracker, monthly USMCA)" ///
-            2 "Census (cal. duty / cons. value)" ///
-            3 "Treasury actual") ///
+            1 "S2: Statutory (USMCA monthly)" ///
+            2 "S4: Census (cal. duty / cons. value)" ///
+            3 "T: Treasury actual") ///
             rows(3) size(small) position(6)) ///
         ytitle("Effective Tariff Rate (%)") ///
         xtitle("") ///
-        title("Statutory vs. Census vs. Actual ETR") ///
+        title("S2 vs. S4 vs. T") ///
         subtitle("Monthly, Jan 2025 - Feb 2026") ///
         xlabel(, format(%tmMon_CCYY) angle(45)) ///
         ylabel(, format(%9.0f)) ///
@@ -468,6 +496,13 @@ preserve
 
     graph export "$figures/figure4_cmp_overall.png", replace width(2400)
 restore
+
+** Reload merged_analysis for the remaining D2-D6 sections.
+** census_etr is already on the dataset (computed in 01); no need to recompute.
+use "$working/merged_analysis.dta", clear
+keep if ym >= $start_ym & ym <= $end_ym
+gen double stat_rev_row = rate_usmca_monthly * con_val_mo
+gen double cens_rev_row = cal_dut_mo
 
 
 * ----------------------------------------------------------------------
@@ -481,17 +516,17 @@ preserve
                    total_val=con_val_mo, ///
         by(ym partner_group)
 
-    safe_divide stat_num total_val etr_stat
-    safe_divide cens_num total_val etr_census
+    safe_divide stat_num total_val s2
+    safe_divide cens_num total_val s4
 
-    foreach v in etr_stat etr_census {
+    foreach v in s2 s4 {
         replace `v' = `v' * 100
     }
-    gen double gap_pp = etr_stat - etr_census
+    gen double gap_pp = s2 - s4
 
-    label var etr_stat  "Statutory ETR, monthly USMCA (%)"
-    label var etr_census "Census calculated ETR (%)"
-    label var gap_pp    "Gap: Statutory - Census (pp)"
+    label var s2     "S2: Statutory (USMCA monthly), monthly wts (%)"
+    label var s4     "S4: Census collected ETR (%)"
+    label var gap_pp "S2 - S4 (pp)"
 
     save "$working/cmp_partner_monthly.dta", replace
     export delimited using "$tables/cmp_partner_monthly.csv", replace
@@ -507,26 +542,26 @@ preserve
     replace pg_short = "UK" if partner_group == "UK"
     replace pg_short = "RW" if partner_group == "ROW"
 
-    ** --- Fig B: 8-panel facet by partner group ---
+    ** --- Fig 5: 8-panel facet by partner group ---
     encode partner_group, gen(pg_id)
 
     twoway ///
-        (connected etr_stat ym, ///
+        (connected s2 ym, ///
             mcolor("$color_statutory") lcolor("$color_statutory") ///
             msymbol(circle) msize(vsmall) lwidth(medium) lpattern(solid)) ///
-        (connected etr_census ym, ///
+        (connected s4 ym, ///
             mcolor("$color_gap") lcolor("$color_gap") ///
             msymbol(diamond) msize(vsmall) lwidth(medium) lpattern(solid)) ///
         , ///
         by(pg_id, ///
             cols(4) ///
-            title("Statutory (monthly USMCA) vs. Census ETR by Partner") ///
+            title("S2 (Statutory, USMCA monthly) vs. S4 (Census) by Partner") ///
             subtitle("Monthly, Jan 2025 - Feb 2026") ///
             note("") ///
             graphregion(color(white))) ///
         legend(order( ///
-            1 "Statutory (monthly USMCA)" ///
-            2 "Census") rows(1) size(small) position(6)) ///
+            1 "S2: Statutory (USMCA monthly)" ///
+            2 "S4: Census") rows(1) size(small) position(6)) ///
         ytitle("ETR (%)") xtitle("") ///
         xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
         ylabel(, labsize(vsmall))
@@ -605,27 +640,27 @@ preserve
     destring hs2, gen(hs2_num) force
     label values hs2_num hs2_lbl
 
-    safe_divide stat_num total_val etr_stat
-    safe_divide cens_num total_val etr_census
-    replace etr_stat = etr_stat * 100
-    replace etr_census = etr_census * 100
+    safe_divide stat_num total_val s2
+    safe_divide cens_num total_val s4
+    replace s2 = s2 * 100
+    replace s4 = s4 * 100
 
-    gen double gap_pp = etr_stat - etr_census
+    gen double gap_pp = s2 - s4
     ** Dollar-weighted contribution to overall gap (in USD)
     gen double gap_usd = stat_num - cens_num
 
-    label var etr_stat   "Statutory ETR, monthly USMCA (%)"
-    label var etr_census "Census ETR (%)"
-    label var gap_pp     "Chapter-level gap (pp)"
-    label var gap_usd    "Chapter-level gap in $ (stat - census)"
+    label var s2         "S2: Statutory (USMCA monthly), monthly wts (%)"
+    label var s4         "S4: Census collected ETR (%)"
+    label var gap_pp     "Chapter-level gap S2-S4 (pp)"
+    label var gap_usd    "Chapter-level gap in $ (S2 - S4)"
     label var total_val  "Total imports, analysis window (USD)"
 
     gsort -gap_usd
     format total_val gap_usd %20.0fc
-    format etr_stat etr_census gap_pp %9.2f
+    format s2 s4 gap_pp %9.2f
 
     di as text "  === Tbl 3a: HS2 chapter gap ranking (top 25 by $ gap) ==="
-    list hs2_num total_val etr_stat etr_census gap_pp gap_usd in 1/25, ///
+    list hs2_num total_val s2 s4 gap_pp gap_usd in 1/25, ///
         clean noobs
 
     export delimited using "$tables/cmp_hs2_ranking.csv", replace
@@ -645,12 +680,12 @@ preserve
                    total_val = con_val_mo, ///
         by(hs10 cty_code partner_group)
 
-    safe_divide stat_num total_val etr_stat
-    safe_divide cens_num total_val etr_census
-    replace etr_stat = etr_stat * 100
-    replace etr_census = etr_census * 100
+    safe_divide stat_num total_val s2
+    safe_divide cens_num total_val s4
+    replace s2 = s2 * 100
+    replace s4 = s4 * 100
 
-    gen double gap_pp  = etr_stat - etr_census
+    gen double gap_pp  = s2 - s4
     gen double gap_usd = stat_num - cens_num
     gen double abs_usd = abs(gap_usd)
 
@@ -658,10 +693,10 @@ preserve
 
     gsort -abs_usd
     format total_val gap_usd %20.0fc
-    format etr_stat etr_census gap_pp %9.2f
+    format s2 s4 gap_pp %9.2f
 
     di as text "  === Tbl 3b: Top 30 HS10 x country by |gap x value| ==="
-    list hs10 partner_group total_val etr_stat etr_census gap_pp gap_usd ///
+    list hs10 partner_group total_val s2 s4 gap_pp gap_usd ///
         in 1/30, clean noobs
 
     keep in 1/500
@@ -810,7 +845,7 @@ di as text "      D6. |gap| distribution by month (value-weighted)..."
 
 preserve
     keep if con_val_mo > 0 & !missing(con_val_mo)
-    safe_divide cal_dut_mo con_val_mo census_etr
+    * census_etr already on merged_analysis.dta from 01 -- no recompute needed.
     gen double gap_pp  = 100 * (rate_usmca_monthly - census_etr)
     replace   gap_pp   = 0 if missing(gap_pp)
     gen double abs_gap = abs(gap_pp)
@@ -885,339 +920,4 @@ preserve
 restore
 
 
-* ======================================================================
-* E. BASELINE STATUTORY ETR vs TREASURY ACTUAL  (Paper §4.1, Fig. 1)
-* ======================================================================
-*
-* Headline figure for the paper. Two-line monthly time series:
-*   - Statutory ETR at 2024 import weights, with the tracker's production
-*     USMCA treatment (h2avg). Computed by aggregating the tracker's daily
-*     statutory ETR (which is exactly T_1^h2avg per day, since the tracker
-*     uses 2024 fixed weights and h2avg USMCA shares) to monthly means.
-*     Day-weighting is implicit: every day in the month enters with equal
-*     weight, and 2024 import denominators are static.
-*   - Treasury actual ETR (T_4) from `revenue_monthly.dta`.
-
-di as text _n "  [E] Baseline statutory vs Treasury actual (Paper §4.1)..."
-
-* --- Monthly T_1^h2avg from daily series ---
-use "$working/tracker_daily.dta", clear
-gen int ym = mofd(daily_date)
-format ym %tm
-keep if ym >= $start_ym & ym <= $end_ym
-
-collapse (mean) weighted_etr, by(ym)
-* tracker stores ratios; convert to percent
-replace weighted_etr = weighted_etr * 100
-rename weighted_etr t1_h2avg
-label var t1_h2avg "Statutory ETR, 2024 wts, h2avg USMCA (%)"
-
-* --- Join Treasury actual ---
-merge 1:1 ym using "$working/revenue_monthly.dta", ///
-    keep(match master) keepusing(effective_rate) nogenerate
-rename effective_rate t4
-label var t4 "Treasury actual ETR (%)"
-
-keep ym t1_h2avg t4
-order ym t1_h2avg t4
-sort ym
-
-* Derived gap
-gen double gap = t1_h2avg - t4 if !missing(t4)
-label var gap "Statutory - Actual (pp)"
-
-* Save table
-format t1_h2avg t4 gap %9.2f
-di as text _n "  === Baseline ETR table ==="
-list ym t1_h2avg t4 gap, clean noobs
-
-save "$working/baseline_etr.dta", replace
-export delimited using "$tables/baseline_etr.csv", replace
-
-* --- Figure ---
-di as text "      Figure 1: Baseline statutory vs Treasury actual"
-
-twoway ///
-    (connected t1_h2avg ym, ///
-        mcolor("$color_statutory") lcolor("$color_statutory") ///
-        msymbol(circle) msize(small) lwidth(medthick) ///
-        lpattern(solid)) ///
-    (connected t4 ym, ///
-        mcolor("$color_actual") lcolor("$color_actual") ///
-        msymbol(triangle) msize(small) lwidth(medthick) ///
-        lpattern(solid)) ///
-    , ///
-    legend(order( ///
-        1 "Statutory ETR (2024 wts, tracker production)" ///
-        2 "Actual ETR (Treasury)") ///
-        rows(2) size(small) position(6)) ///
-    ytitle("Effective Tariff Rate (%)") ///
-    xtitle("") ///
-    title("Statutory vs. Actual Effective Tariff Rates") ///
-    subtitle("Monthly, 2024 import weights, tracker production USMCA") ///
-    xlabel(`=ym(2025,1)' `=ym(2025,4)' `=ym(2025,7)' `=ym(2025,10)' ///
-           `=ym(2026,1)' `=ym(2026,2)', format(%tmMon_CCYY) angle(45)) ///
-    ylabel(, format(%9.0f)) ///
-    yscale(range(0)) ///
-    graphregion(color(white)) ///
-    plotregion(margin(small))
-
-graph export "$figures/figure_baseline_etr.png", replace width(2400)
-
-
-* ======================================================================
-* F. DAILY STATUTORY ETR OVERLAID ON MONTHLY  (Paper §4.5, Fig. 5)
-* ======================================================================
-*
-* Within-month variation: daily T_1^h2avg from the tracker overlaid on the
-* monthly aggregate (mean of daily within each month). Demonstrates that
-* the day-weighted monthly is well-defined despite within-month policy
-* changes (Liberation Day, Phase 2, Phase 3 / SCOTUS, S232 annex).
-* xline() markers flag the major policy events.
-
-di as text _n "  [F] Daily ETR overlaid on monthly (Paper §4.5)..."
-
-use "$working/tracker_daily.dta", clear
-keep daily_date weighted_etr
-keep if daily_date >= dofm($start_ym) & daily_date <= dofm($end_ym + 1) - 1
-
-* Convert to percent
-replace weighted_etr = weighted_etr * 100
-rename weighted_etr daily_etr
-label var daily_etr "Daily statutory ETR (%)"
-
-* Build monthly aggregate (constant within each month)
-gen int ym = mofd(daily_date)
-format ym %tm
-bysort ym (daily_date): egen double monthly_etr = mean(daily_etr)
-label var monthly_etr "Monthly mean statutory ETR (%)"
-
-* Mid-month marker for the monthly series (only on the 15th of each month)
-gen byte is_mid = (day(daily_date) == 15)
-gen double monthly_etr_mid = monthly_etr if is_mid
-
-sort daily_date
-
-* --- Figure ---
-di as text "      Figure 5: Daily ETR overlaid on monthly"
-
-twoway ///
-    (line daily_etr daily_date, ///
-        lcolor("$color_statutory") lwidth(thin) lpattern(solid)) ///
-    (scatter monthly_etr_mid daily_date if is_mid, ///
-        mcolor("$color_actual") msymbol(diamond) msize(medsmall)) ///
-    , ///
-    xline(`=$event_liberation', lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
-    xline(`=$event_phase2',     lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
-    xline(`=$event_phase2_recip', lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
-    xline(`=$event_scotus_s122', lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
-    legend(order( ///
-        1 "Daily statutory ETR" ///
-        2 "Monthly mean (mid-month marker)") ///
-        rows(2) size(small) position(6)) ///
-    ytitle("Effective Tariff Rate (%)") ///
-    xtitle("") ///
-    title("Within-Month Variation: Daily vs. Monthly Statutory ETR") ///
-    subtitle("Tracker production rates, 2024 import weights") ///
-    xlabel(, format(%tdMon_CCYY) angle(45)) ///
-    ylabel(, format(%9.0f)) ///
-    yscale(range(0)) ///
-    graphregion(color(white)) ///
-    plotregion(margin(small))
-
-graph export "$figures/figure_daily_overlay.png", replace width(2400)
-
-
-* ======================================================================
-* G. MONTHLY SUMMARY EXCEL  (Paper supplementary table)
-* ======================================================================
-*
-* One row per month, columns:
-*   ym, t4 (Treasury), t3 (Census-derived),
-*   six statutory ETRs = {USMCA-2024, USMCA-monthly, USMCA-baseline}
-*                       x {2024 weights, monthly weights},
-*   n_pairs_universe (total HS10xcty pairs in 2024 weight universe),
-*   n_pairs_active   (HS10xcty pairs with positive monthly trade),
-*   2x2 cell counts (statutory vs Census ETR, zero/positive).
-*
-* USMCA scenarios:
-*   - "USMCA-2024":     2024 annual claim shares (counterfactual_usmca2024.csv)
-*   - "USMCA-monthly":  realized monthly claim shares (counterfactual_usmca_monthly.csv)
-*   - "USMCA-baseline": tracker production / H2 2025 average shares (h2avg)
-*
-* Implementation note: 2024-weighted ETRs other than baseline are computed over
-* the merged_analysis universe (HS10 x cty pairs with positive monthly trade
-* for that month). This understates pairs that traded in 2024 but not in the
-* given month. The baseline x 2024-weights cell is overridden with the daily-
-* series-derived value from baseline_etr.dta, which uses the full 2024
-* universe -- treat that single cell as the gold-standard reference.
-*
-* The 2x2 grid uses USMCA-monthly statutory rates (matching Section D5):
-*   bothzero    : statutory == 0 & Census duty == 0
-*   bothpos     : statutory > 0  & Census duty > 0
-*   trackermiss : statutory == 0 & Census duty > 0
-*   impfriction : statutory > 0  & Census duty == 0
-
-di as text _n "  [G] Monthly summary Excel..."
-
-* --- G1. Build panel: merged_analysis + USMCA-2024 counterfactual rates ---
-use "$working/merged_analysis.dta", clear
-keep hs10 cty_code ym imports con_val_mo cal_dut_mo total_rate rate_usmca_monthly
-rename total_rate rate_h2avg
-
-* Merge in USMCA-2024 monthly day-weighted rates
-preserve
-    import delimited using "$raw/counterfactual_usmca2024.csv", ///
-        clear stringcols(1 2 3)
-    capture rename hts10 hs10
-    gen year  = real(substr(year_month, 1, 4))
-    gen month = real(substr(year_month, 6, 7))
-    gen int ym = ym(year, month)
-    format ym %tm
-    drop year month year_month
-    rename total_rate rate_usmca2024
-    keep hs10 cty_code ym rate_usmca2024
-    sort hs10 cty_code ym
-    gisid hs10 cty_code ym     // gtools (faster than isid)
-    tempfile cf2024
-    save `cf2024'
-restore
-
-merge 1:1 hs10 cty_code ym using `cf2024', keep(match master) nogenerate
-replace rate_usmca2024 = 0 if missing(rate_usmca2024)
-
-* --- G2. Compute 6 statutory ETRs + T3 + active pair count, by month ---
-gen double n24w_h2avg     = rate_h2avg          * imports
-gen double n24w_2024usmca = rate_usmca2024      * imports
-gen double n24w_moususmca = rate_usmca_monthly  * imports
-gen double nmw_h2avg      = rate_h2avg          * con_val_mo
-gen double nmw_2024usmca  = rate_usmca2024      * con_val_mo
-gen double nmw_moususmca  = rate_usmca_monthly  * con_val_mo
-
-collapse (sum) sum_imports = imports ///
-               sum_cvm     = con_val_mo ///
-               sum_caldut  = cal_dut_mo ///
-               n24w_h2avg n24w_2024usmca n24w_moususmca ///
-               nmw_h2avg  nmw_2024usmca  nmw_moususmca ///
-        (count) n_pairs_active = imports ///
-        , by(ym)
-
-* T3 (Census-derived ETR), in pp
-gen double t3 = 100 * sum_caldut / sum_cvm
-
-* Six statutory ETRs in pp
-* Naming: t_<weights>_<usmca-scenario>
-*   24w  = 2024 weights;  mw  = monthly weights
-*   base = baseline (h2avg);  m24 = USMCA-2024;  mm = USMCA-monthly
-gen double t_24w_base = 100 * n24w_h2avg     / sum_imports
-gen double t_24w_m24  = 100 * n24w_2024usmca / sum_imports
-gen double t_24w_mm   = 100 * n24w_moususmca / sum_imports
-gen double t_mw_base  = 100 * nmw_h2avg      / sum_cvm
-gen double t_mw_m24   = 100 * nmw_2024usmca  / sum_cvm
-gen double t_mw_mm    = 100 * nmw_moususmca  / sum_cvm
-
-keep ym t3 t_24w_base t_24w_m24 t_24w_mm t_mw_base t_mw_m24 t_mw_mm n_pairs_active
-
-* --- G3. Override t_24w_base with full-universe value from baseline_etr.dta ---
-* baseline_etr.dta carries t1_h2avg derived from the daily series, which uses
-* the full 2024 weight universe (not just merged_analysis's positive-trade
-* subset). Replace the merged_analysis-derived value for accuracy.
-preserve
-    use "$working/baseline_etr.dta", clear
-    keep ym t1_h2avg
-    rename t1_h2avg t_24w_base_full
-    tempfile bl
-    save `bl'
-restore
-merge 1:1 ym using `bl', keep(match master) nogenerate
-replace t_24w_base = t_24w_base_full if !missing(t_24w_base_full)
-drop t_24w_base_full
-
-* --- G4. Merge T4 (Treasury) ---
-merge 1:1 ym using "$working/revenue_monthly.dta", ///
-    keep(match master) keepusing(effective_rate) nogenerate
-rename effective_rate t4
-
-* --- G4b. Merge S3 (all-preferences statutory @ monthly weights) ---
-* From decomp_monthly.dta -- the new six-tier framework's S3 tier.
-preserve
-    use "$working/decomp_monthly.dta", clear
-    keep ym s3
-    rename s3 t_mw_allpref
-    tempfile s3_panel
-    save `s3_panel'
-restore
-merge 1:1 ym using `s3_panel', keep(match master) nogenerate
-
-* --- G5. Universe pair count (constant, ~333k) ---
-qui describe using "$working/weights_2024.dta", short
-gen long n_pairs_universe = r(N)
-
-* --- G6. 2x2 cell counts from D5 output ---
-* D5's CSV stores ym as a string ("2025m1"); convert to numeric monthly before merge.
-preserve
-    import delimited using "$tables/cmp_2x2_monthly.csv", clear stringcols(1)
-    gen int ym_num = monthly(ym, "YM")
-    format ym_num %tm
-    drop ym
-    rename ym_num ym
-    keep ym nbothzero nbothpos ntrackermiss nimpfriction
-    tempfile twox2
-    save `twox2'
-restore
-merge 1:1 ym using `twox2', keep(match master) nogenerate
-
-* --- G7. Final formatting + restrict to analysis window ---
-keep if ym >= $start_ym & ym <= $end_ym
-sort ym
-order ym t4 t3 ///
-      t_24w_base t_mw_base ///
-      t_24w_m24  t_mw_m24 ///
-      t_24w_mm   t_mw_mm ///
-      t_mw_allpref ///
-      n_pairs_universe n_pairs_active ///
-      nbothzero nbothpos ntrackermiss nimpfriction
-
-format t* %9.2f
-format n_pairs* nbothzero nbothpos ntrackermiss nimpfriction %12.0fc
-
-label var ym               "Month"
-label var t4               "Treasury actual ETR (%)"
-label var t3               "Census-derived ETR (%)"
-label var t_24w_base       "Statutory: baseline USMCA x 2024 wts (%)"
-label var t_mw_base        "Statutory: baseline USMCA x monthly wts (%)"
-label var t_24w_m24        "Statutory: 2024 USMCA x 2024 wts (%)"
-label var t_mw_m24         "Statutory: 2024 USMCA x monthly wts (%)"
-label var t_24w_mm         "Statutory: monthly USMCA x 2024 wts (%)"
-label var t_mw_mm          "Statutory: monthly USMCA x monthly wts (%)"
-label var t_mw_allpref     "Statutory: monthly USMCA + all-other prefs x monthly wts (S3, %)"
-label var n_pairs_universe "HS10 x cty pairs (2024 universe)"
-label var n_pairs_active   "HS10 x cty pairs (positive monthly trade)"
-label var nbothzero        "2x2: stat=0 & cens=0 (count)"
-label var nbothpos         "2x2: stat>0 & cens>0 (count)"
-label var ntrackermiss     "2x2: stat=0 & cens>0 (count)"
-label var nimpfriction     "2x2: stat>0 & cens=0 (count)"
-
-di as text _n "  === Monthly summary table ==="
-list ym t4 t3 t_24w_base t_mw_base, clean noobs
-
-* --- G8. Save Excel + .dta + .csv ---
-* Excel: overwrite only the "Summary" sheet, preserve any other tabs (notes,
-* charts, custom analysis) the user has added manually. Falls back to a
-* file-level replace on the first run when the workbook doesn't yet exist.
-save "$working/monthly_summary.dta", replace
-export delimited using "$tables/monthly_summary.csv", replace
-
-capture confirm file "$tables/monthly_summary.xlsx"
-if _rc {
-    export excel using "$tables/monthly_summary.xlsx", ///
-        firstrow(varlabels) sheet("Summary") replace
-}
-else {
-    export excel using "$tables/monthly_summary.xlsx", ///
-        firstrow(varlabels) sheet("Summary", replace)
-}
-di as text "      Saved $tables/monthly_summary.xlsx (`=_N' months, Summary sheet)"
-
-
-di as text _n "  02_etr_analysis complete." _n
+di as text _n "  03_etr_analysis complete." _n

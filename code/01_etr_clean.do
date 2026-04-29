@@ -8,10 +8,13 @@
 * Sections:
 *   A. Census trade data (HS10 x country x month from IMDB; HS2 derived
 *      downstream via substr(hs10,1,2))
-*   B. Tracker data (daily ETRs, snapshot rates, revision dates, weights)
+*   B. Tracker data (daily ETRs, snapshot rates, revision dates, weights,
+*      and three counterfactual rate panels: cf_usmca_monthly [S2],
+*      cf_usmca2024 [S0/S1], cf_pref_delta [S3 input])
 *   C. Treasury revenue (actual ETR)
 *   D. Merge: Census x tracker snapshots at HS10 x country x month
-*   E. Compute trade weights (2024 fixed + monthly)
+*   E. Compute trade weights + merge rate panels onto master
+*   F. Integrity checks (key uniqueness, non-negative rates, S3 <= S2)
 *
 * Input (all from $raw, produced by R/00_pull_raw_data.R):
 *   imdb_hs10_country_monthly.csv
@@ -19,17 +22,23 @@
 *   revision_dates.csv
 *   snapshot_rates/snapshot_*.csv
 *   import_weights_2024.csv
+*   counterfactual_usmca_monthly.csv
+*   counterfactual_usmca2024.csv
+*   counterfactual_other_pref_delta_monthly.csv
 *   tariff_revenue.csv
 *
-* Output (all to $working):
+* Output (all to $working unless noted):
 *   census_hs10_clean.dta
 *   tracker_daily.dta
 *   tracker_daily_by_country.dta
+*   cty_lookup.dta               (cty_code -> country_name; consumed by 05a/05b)
 *   revision_dates.dta
 *   tracker_snapshots.dta
 *   weights_2024.dta
+*   cf_usmca_monthly.dta, cf_usmca2024.dta, cf_pref_delta.dta
 *   revenue_monthly.dta
 *   merged_analysis.dta          <-- master analytical dataset
+*   $logs/merged_analysis_codebook.log  (data dictionary)
 *
 * Note: census_hs2_country_monthly.csv (Census HS2 API) is no longer imported
 * here. HS2-level analyses aggregate IMDB HS10 data instead. The R section
@@ -48,7 +57,7 @@ di as text "==========================================" _n
 *
 * HS10 x country x month from the IMDB bulk parse. HS2 chapter is derived
 * via substr(hs10, 1, 2) and HS2-level rollups (e.g. chapter ranking in
-* 02_etr_analysis.do) collapse this dataset rather than importing from
+* 03_etr_analysis.do) collapse this dataset rather than importing from
 * the Census HS2 API.
 
 * --- A1. HS10 x country x month (IMDB source) ---
@@ -65,7 +74,7 @@ gen int ym = ym(year, month)
 format ym %tm
 drop year_month 
 
-** Run assign partern code 
+** Run assign_partner_group on the Census country code column
 assign_partner_group cty_code
 
 ** Calculate census ETR 
@@ -154,6 +163,22 @@ compress
 save "$working/tracker_daily_by_country.dta", replace
 di as text "       `=_N' country-day obs"
 
+** B2b. cty_code -> country_name lookup (consumed by 05a/05b diagnostics).
+** Built once here so the diagnostic scripts don't have to re-derive it from
+** tracker_daily_by_country.dta themselves.
+preserve
+    keep cty_code country_name
+    duplicates drop
+    bysort cty_code: keep if _n == 1   // belt-and-suspenders for unique cty_code
+    label var cty_code     "Census country code"
+    label var country_name "Country name"
+    sort cty_code
+    gisid cty_code
+    compress
+    save "$working/cty_lookup.dta", replace
+    di as text "       cty_lookup: `=_N' unique countries"
+restore
+
 
 * --- B3. Revision dates ---
 
@@ -235,6 +260,14 @@ foreach f of local snap_files {
         ** different `rev' on every iteration, global (revision, hs10, cty_code)
         ** uniqueness is then guaranteed by construction -- no global gisid needed.
         gisid hs10 cty_code
+
+        ** Row-count sanity: a healthy snapshot has millions of rows. A truncated
+        ** or malformed CSV would silently shrink the appended panel; flag here
+        ** so the failure isn't deferred to downstream merges.
+        qui count
+        if r(N) < 1000000 {
+            di as error "WARNING: snapshot `rev' has only `=r(N)' rows -- expected millions"
+        }
     }
 
     if `first_snap' {
@@ -299,8 +332,9 @@ di as text "       `=_N' product-country pairs"
 * produced by R pull section 3e. Applies the month's actual product-level
 * USMCA utilization share to pre-USMCA statutory components. This is the
 * best estimate of the statutory rate embedding actual USMCA behavior.
+* Used directly for tier S2.
 
-di as text "  [B6] Counterfactual rates (USMCA monthly)..."
+di as text "  [B6] Counterfactual rates (USMCA monthly, S2 panel)..."
 
 import delimited using "$raw/counterfactual_usmca_monthly.csv", ///
     clear stringcols(1 2 3)
@@ -322,6 +356,61 @@ save "$working/cf_usmca_monthly.dta", replace
 di as text "       `=_N' HS10 x country x month rows"
 
 
+* --- B7. Counterfactual rates (USMCA frozen at 2024 baseline) ---
+*
+* Day-weighted monthly statutory rate at HS10 x country x month with USMCA
+* held at 2024 product-level utilization shares. Used for tiers S0
+* (× 2024 weights) and S1 (× monthly weights).
+
+di as text "  [B7] Counterfactual rates (USMCA 2024 baseline, S0/S1 panel)..."
+
+import delimited using "$raw/counterfactual_usmca2024.csv", ///
+    clear stringcols(1 2 3)
+capture rename hts10 hs10
+
+gen year  = real(substr(year_month, 1, 4))
+gen month = real(substr(year_month, 6, 7))
+gen int ym = ym(year, month)
+format ym %tm
+drop year month year_month
+
+rename total_rate rate_2024
+
+keep hs10 cty_code ym rate_2024
+sort hs10 cty_code ym
+gisid hs10 cty_code ym
+compress
+save "$working/cf_usmca2024.dta", replace
+di as text "       `=_N' HS10 x country x month rows"
+
+
+* --- B8. Non-USMCA preference delta (S2 → S3) ---
+*
+* Sparse delta panel from R pull section 3g: per (HS10 × cty × ym) cell,
+* the rate reduction implied by non-USMCA preference shares (Annex II /
+* ITA / Ch98 / KORUS / GSP / other_fta) applied to pre-preference component
+* rates. Subtracted from rate_usmca_monthly downstream to build rate_all_pref.
+
+di as text "  [B8] Non-USMCA preference delta (S3 panel)..."
+
+import delimited using "$raw/counterfactual_other_pref_delta_monthly.csv", ///
+    clear stringcols(1 2 3)
+capture rename hts10 hs10
+
+gen year  = real(substr(year_month, 1, 4))
+gen month = real(substr(year_month, 6, 7))
+gen int ym = ym(year, month)
+format ym %tm
+drop year month year_month
+
+keep hs10 cty_code ym delta_base delta_recip
+sort hs10 cty_code ym
+gisid hs10 cty_code ym
+compress
+save "$working/cf_pref_delta.dta", replace
+di as text "       `=_N' delta rows"
+
+
 * ======================================================================
 * C. TREASURY REVENUE
 * ======================================================================
@@ -339,6 +428,10 @@ format daily_date %td
 gen int ym = mofd(daily_date)
 format ym %tm
 drop date
+
+** Sanity-check effective_rate is in percent units (not already a ratio).
+** Catches upstream unit-confusion bugs before they propagate to downstream tiers.
+assert effective_rate >= 0 & effective_rate < 100 if !missing(effective_rate)
 
 ** Compute actual ETR as ratio
 gen double actual_rate = effective_rate / 100
@@ -452,25 +545,53 @@ di as text "      2024 weight match: `n_wt_match' of " _N " obs"
 replace imports = 0 if missing(imports)
 replace w_2024  = 0 if missing(w_2024)
 
-** Merge counterfactual statutory rate with monthly USMCA shares
+** Merge S2 rate panel: USMCA at monthly shares
 merge 1:1 hs10 cty_code ym using "$working/cf_usmca_monthly.dta", ///
     keep(match master) gen(_merge_cfm)
 qui count if _merge_cfm == 3
 local n_cfm_match = r(N)
-qui count if _merge_cfm == 1
-local n_cfm_miss  = r(N)
 replace rate_usmca_monthly = 0 if missing(rate_usmca_monthly)
 drop _merge_cfm
 local cfm_pct = 100 * `n_cfm_match' / _N
 di as text "      USMCA-monthly rate matched: `n_cfm_match' / " _N ///
     " (" string(`cfm_pct', "%4.1f") "%)"
 
+** Merge S0/S1 rate panel: USMCA frozen at 2024 baseline
+merge 1:1 hs10 cty_code ym using "$working/cf_usmca2024.dta", ///
+    keep(match master) gen(_merge_cf24)
+qui count if _merge_cf24 == 3
+local n_cf24_match = r(N)
+replace rate_2024 = 0 if missing(rate_2024)
+drop _merge_cf24
+local cf24_pct = 100 * `n_cf24_match' / _N
+di as text "      USMCA-2024 rate matched: `n_cf24_match' / " _N ///
+    " (" string(`cf24_pct', "%4.1f") "%)"
+** cf_usmca2024 is built from the same R pipeline universe as cf_usmca_monthly,
+** so its match rate should approach 100%. A drop signals an upstream regression.
+if `cf24_pct' < 95 {
+    di as error "WARNING: cf_usmca2024 match rate below 95% -- investigate"
+    di as error "         (expected to match cf_usmca_monthly universe)"
+}
+
+** Merge S3 preference delta and build rate_all_pref.
+** cf_pref_delta is sparse by design: only cells with positive non-USMCA
+** preference share appear. A low match rate here is expected -- no floor check.
+merge 1:1 hs10 cty_code ym using "$working/cf_pref_delta.dta", ///
+    keep(match master) gen(_merge_delta)
+replace delta_base  = 0 if missing(delta_base)
+replace delta_recip = 0 if missing(delta_recip)
+gen double rate_all_pref = max(0, rate_usmca_monthly - delta_base - delta_recip)
+drop delta_base delta_recip _merge_delta
+
 ** Implied tariff revenue (under alternative statutory rate definitions)
 gen double tariff_revenue_statutory = total_rate * con_val_mo
 gen double tariff_revenue_2024      = total_rate * imports
 gen double tariff_revenue_usmca_mo  = rate_usmca_monthly * con_val_mo
 
-** Ensure HS2 and partner group exist
+** Defensive: hs2 and partner_group are set in Section A (lines 69, 75) and
+** survive the merges, so the `capture confirm` checks should never fire.
+** Kept as belt-and-suspenders in case Section A is ever refactored to drop
+** these columns before the merge sequence; can be removed if confirmed safe.
 capture confirm variable hs2
 if _rc != 0 {
     gen str2 hs2 = substr(hs10, 1, 2)
@@ -487,18 +608,75 @@ label var imports                   "2024 imports (USD)"
 label var w_2024                    "2024 annual weight share"
 label var tariff_revenue_statutory  "Implied statutory revenue (monthly wts)"
 label var tariff_revenue_2024       "Implied statutory revenue (2024 wts)"
-label var rate_usmca_monthly        "Statutory rate w/ monthly USMCA shares"
+label var rate_usmca_monthly        "Statutory rate, USMCA monthly shares (S2 panel)"
+label var rate_2024                 "Statutory rate, USMCA 2024 baseline (S0/S1 panel)"
+label var rate_all_pref             "Statutory rate, USMCA monthly + non-USMCA prefs (S3 panel)"
 label var tariff_revenue_usmca_mo   "Implied revenue (monthly-USMCA rate)"
 
 order ym year month hs2 hs10 cty_code partner_group ///
       con_val_mo cal_dut_mo census_etr ///
-      total_rate rate_usmca_monthly ///
+      total_rate rate_2024 rate_usmca_monthly rate_all_pref ///
       tariff_revenue_statutory tariff_revenue_2024 tariff_revenue_usmca_mo ///
       w_monthly w_2024 imports revision
 
 sort ym hs10 cty_code
 compress
+
+
+* ======================================================================
+* F. INTEGRITY CHECKS ON merged_analysis.dta
+* ======================================================================
+*
+* Final invariants on the master analytical dataset. Each downstream script
+* consumes merged_analysis.dta and assumes these hold; failing fast here is
+* cheaper than chasing weird tier values later.
+
+di as text _n "  [F] Integrity checks..."
+
+** Key uniqueness (the 1:1 merges in E claim this; verify it).
+gisid hs10 cty_code ym
+
+** HS10 format: every code should be exactly 10 numeric characters. A
+** truncation or padding bug upstream would silently corrupt the merge keys
+** AND the substr(hs10,1,2) HS2 derivation. Flag (don't fail) so we still
+** save the dataset for inspection if anything looks off.
+qui count if length(hs10) != 10 | !regexm(hs10, "^[0-9]{10}$")
+if r(N) > 0 {
+    di as error "WARNING: `=r(N)' rows have malformed hs10 (not 10 digits)"
+    di as error "         Inspect with: list hs10 in 1/20 if length(hs10) != 10"
+}
+
+** Non-negative invariants on rates and value columns.
+assert total_rate          >= 0 if !missing(total_rate)
+assert rate_2024           >= 0 if !missing(rate_2024)
+assert rate_usmca_monthly  >= 0 if !missing(rate_usmca_monthly)
+assert rate_all_pref       >= 0 if !missing(rate_all_pref)
+assert con_val_mo          >= 0 if !missing(con_val_mo)
+assert cal_dut_mo          >= 0 if !missing(cal_dut_mo)
+assert imports             >= 0 if !missing(imports)
+
+** S3 <= S2 by construction (rate_all_pref = max(0, rate_usmca_monthly - delta)).
+** A violation would mean the R pipeline emitted negative deltas; the max(0,...)
+** guards the floor but cannot catch upper-bound violations.
+gen double _s3_excess = rate_all_pref - rate_usmca_monthly
+qui sum _s3_excess
+if r(max) > 1e-9 {
+    qui count if _s3_excess > 1e-9
+    di as error "ERROR: rate_all_pref > rate_usmca_monthly in `=r(N)' rows"
+    di as error "       Max excess: `=string(r(max), "%9.6f")' -- check delta panel"
+    error 459
+}
+drop _s3_excess
+
+di as text "      All integrity checks passed."
+
 save "$working/merged_analysis.dta", replace
+
+** Codebook for downstream consumers (skill recommendation: data dictionary
+** alongside the cleaned dataset).
+log using "$logs/merged_analysis_codebook.log", replace text name(_codebook)
+codebook, compact
+log close _codebook
 
 di as text _n "  Master analytical dataset: `=_N' observations"
 di as text "  01_etr_clean complete." _n
