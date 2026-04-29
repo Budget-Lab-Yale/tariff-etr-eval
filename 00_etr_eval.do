@@ -25,6 +25,9 @@
 * ssc install estout, replace
 * ssc install coefplot, replace
 * ssc install plotplainblind, replace
+* ssc install heatplot, replace        // for 03 Section D7 product x partner heatmap
+* ssc install palettes, replace        // heatplot dep
+* ssc install colrspace, replace       // heatplot dep
 
 * ==============================================================================
 * Preliminaries

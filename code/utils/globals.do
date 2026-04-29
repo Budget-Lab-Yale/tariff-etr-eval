@@ -54,6 +54,20 @@ global color_skorea    "230 126 34"
 global color_uk        "26 188 156"
 global color_row       "149 165 166"
 
+* Product group colors (9 groups; consistent across decomp + gap figures).
+* Choices echo the policy-salience rationale: warm reds for the directly
+* tariffed S232 metals/autos; cool blues for the heavily-exempted electronics
+* and pharma; muted/earthy tones for the residual categories.
+global color_steel     "200 16 46"     // Steel & Aluminum (red, S232)
+global color_autos     "230 126 34"    // Autos & Auto Parts (orange, S232 autos)
+global color_elec      "0 85 164"      // Electronics & Machinery (blue, exempted)
+global color_pharma    "26 188 156"    // Pharmaceuticals (teal, exempted)
+global color_energy    "108 117 125"   // Energy & Minerals (gray)
+global color_chem      "155 89 182"    // Chemicals & Plastics (purple)
+global color_apparel   "255 193 7"     // Apparel & Textiles (yellow, high MFN)
+global color_food      "40 167 69"     // Food & Agriculture (green)
+global color_other     "189 195 199"   // Other Manufactured (light gray)
+
 * --- Analysis parameters ---
 * Analysis window (Stata monthly dates)
 global start_ym = ym(2025, 1)

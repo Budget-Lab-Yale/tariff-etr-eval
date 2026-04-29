@@ -239,6 +239,102 @@ end
 
 
 * ==============================================================================
+* PROGRAM: compute_diversion_decomp
+*
+* Shapley two-way decomposition of the S0 -> S1 (trade-diversion) gap.
+* S0 and S1 share a single rate panel (rate_2024) and differ only in weights:
+* S0 uses 2024 annual weights (`imports`), S1 uses actual monthly weights
+* (`con_val_mo`). The gap is therefore entirely composition-driven, and
+* Shapley splits it cleanly into a between-group and within-group component:
+*
+*    gap_diversion = sum_g [0.5*(R_g_24 + R_g_mw)*(s_g_24 - s_g_mw)]   <-- between
+*                  + sum_g [0.5*(s_g_24 + s_g_mw)*(R_g_24 - R_g_mw)]   <-- within
+*
+* where g indexes the partition (partner_group or product_group), R_g is
+* group g's value-weighted rate, s_g is group g's share of total imports.
+* Sign convention: positive contribution = positive contribution to
+* gap_diversion = (S0 - S1).
+*
+* Operates on the in-memory dataset; caller is responsible for `preserve` /
+* `restore`. The dataset must carry rate_2024, imports (2024 weight),
+* con_val_mo (monthly weight), ym, and the byvar column.
+*
+* Side effects: collapses the in-memory dataset.
+*
+* Options:
+*   BYvar()         Grouping variable (partner_group, product_group, ...) [required]
+*   OUTfile()       Path/tempfile to save the (ym x byvar) panel        [required]
+*   OUTvar_prefix() Prefix for between/within/total columns (e.g. "c", "p") [required]
+*
+* Output columns (all in pp): <prefix>_between, <prefix>_within, <prefix>_total.
+* sum across groups per ym = (S0 - S1) at month ym, in pp.
+*
+* Usage:
+*   preserve
+*       compute_diversion_decomp, byvar(partner_group) ///
+*           outfile("$working/diversion_by_country.dta") outvar_prefix(c)
+*   restore
+* ==============================================================================
+
+capture program drop compute_diversion_decomp
+program define compute_diversion_decomp
+    version 17.0
+    syntax , BYvar(name) OUTfile(string) OUTvar_prefix(name)
+
+    confirm variable rate_2024
+    confirm variable imports
+    confirm variable con_val_mo
+    confirm variable ym
+    confirm variable `byvar'
+
+    * Build group-level numerators (rate * weight) and weights.
+    tempvar num_24 num_mw
+    gen double `num_24' = rate_2024 * imports
+    gen double `num_mw' = rate_2024 * con_val_mo
+
+    collapse (sum) num_24=`num_24' num_mw=`num_mw' ///
+                   imports con_val_mo, ///
+        by(ym `byvar')
+
+    * Total monthly weights for share computation (computed post-collapse).
+    bysort ym: egen double tot_24 = total(imports)
+    bysort ym: egen double tot_mw = total(con_val_mo)
+
+    * Group-level rates and shares. Zero-fill missing rates (a group with
+    * zero weight in one period has an undefined rate; convention: use 0
+    * so it contributes nothing to that period's S, which is correct).
+    safe_divide num_24    imports     R_24
+    safe_divide num_mw    con_val_mo  R_mw
+    safe_divide imports    tot_24      s_24
+    safe_divide con_val_mo tot_mw      s_mw
+
+    foreach v in R_24 R_mw s_24 s_mw {
+        replace `v' = 0 if missing(`v')
+    }
+
+    * Shapley two-way decomposition. Sign: positive => positive contribution
+    * to gap_diversion = (S0 - S1).
+    gen double `outvar_prefix'_between = 0.5 * (R_24 + R_mw) * (s_24 - s_mw)
+    gen double `outvar_prefix'_within  = 0.5 * (s_24 + s_mw) * (R_24 - R_mw)
+    gen double `outvar_prefix'_total   = `outvar_prefix'_between + `outvar_prefix'_within
+
+    * Convert to percentage points.
+    foreach v in between within total {
+        replace `outvar_prefix'_`v' = `outvar_prefix'_`v' * 100
+    }
+
+    label var `outvar_prefix'_between "Between-`byvar' contribution to S0-S1 (pp)"
+    label var `outvar_prefix'_within  "Within-`byvar' contribution to S0-S1 (pp)"
+    label var `outvar_prefix'_total   "Total `byvar' contribution to S0-S1 (pp)"
+
+    keep ym `byvar' `outvar_prefix'_between `outvar_prefix'_within `outvar_prefix'_total
+    sort ym `byvar'
+    compress
+    save `"`outfile'"', replace
+end
+
+
+* ==============================================================================
 * PROGRAM: classify_pref_channel
 *
 * Creates `pref_channel` from (cty_subco, rate_prov, cty_code). Bins each

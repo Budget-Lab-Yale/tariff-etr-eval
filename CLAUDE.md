@@ -57,7 +57,11 @@ Step 3 runs two scripts back-to-back. **03** is the framework decomposition; **0
 - **S4**: Census collected ETR (cal_dut / con_val at HS10 × country, summed)
 - **T**: Treasury actual ETR
 
-Gap channels: S0→S1 = trade diversion, S1→S2 = USMCA surge, S2→S3 = all-other preferences, S3→S4 = residual, S4→T = timing/enforcement. **`gap_diversion` and `gap_usmca` are bidirectional** (negative country-period averages for CA/MX = "reverse diversion"; negative early-period months for USMCA = pre-ramp claim-rate dip). `gap_others` is structurally non-negative by the delta math. See `docs/six_tier_framework_plan.md` §5a. Section B (Shapley between/within) still uses h2avg `total_rate` — legacy, conceptually a different question. Section D (figs 4–6) uses `compute_tier` on `rate_usmca_monthly` so its statutory line is identical-by-construction to S2.
+Gap channels: S0→S1 = trade diversion, S1→S2 = USMCA surge, S2→S3 = all-other preferences, S3→S4 = residual, S4→T = timing/enforcement. **`gap_diversion` and `gap_usmca` are bidirectional** (negative country-period averages for CA/MX = "reverse diversion"; negative early-period months for USMCA = pre-ramp claim-rate dip). `gap_others` is structurally non-negative by the delta math. See `docs/six_tier_framework_plan.md` §5a.
+
+Section B does the Shapley two-way decomposition of S0→S1 into between-group + within-group, twice — once partitioning by partner_group (country lens), once by product_group (product lens). Both lenses sum to the same `gap_diversion` and each gives a complementary view (country: who shifted; product: what shifted). Outputs `diversion_by_country.dta`, `diversion_by_product.dta`, and the corresponding `_avg.csv` summaries; figs D1 (aggregate decomp time series), D2 (country stacked-bar contributions), D3 (product stacked-bar contributions).
+
+Section D (figs 4–6) uses `compute_tier` on `rate_usmca_monthly` so its statutory line is identical-by-construction to S2. Section D7 mirrors D2 with `product_group` and adds a `heatplot`-based figure P3 (S2−S4 gap on the product × partner grid).
 
 **`03b_baseline_figures.do`** — TBL-judgment paper figures using a separate aggregation methodology (tracker daily series, h2avg USMCA, 2024 weights). These are intended for ECONOMIC portrayal of the statutory schedule — they are NOT framework tiers and should not be conflated with S0–S3. Outputs: `figure_baseline_etr.png` (paper §4.1), `figure_daily_overlay.png` (paper §4.5), and `monthly_summary.xlsx` (supplementary table that gathers all six statutory ETRs × {2024, monthly} weights alongside T3/T4/S3 in one sheet).
 
@@ -115,8 +119,9 @@ Both must be at the same directory level as this repo:
 - Path globals: `$dir`, `$code`, `$data`, `$raw`, `$working`, `$results`, `$figures`, `$tables`
 - Analysis window: `$start_ym` to `$end_ym` (Jan 2025 -- Feb 2026)
 - Partner groups: China, Canada, Mexico, EU, Japan, S. Korea, UK, ROW
+- Product groups (9, defined in `code/utils/product_groups.csv`, merged into `merged_analysis.dta` in 01): Steel & Aluminum, Autos & Auto Parts, Electronics & Machinery, Pharmaceuticals, Energy & Minerals, Chemicals & Plastics, Apparel & Textiles, Food & Agriculture, Other Manufactured
 - Policy event dates: `$event_fentanyl`, `$event_liberation`, etc. (for figure reference lines)
-- Color palette: `$color_actual` (red), `$color_statutory` (navy), `$color_gap` (green), partner-specific colors
+- Color palette: `$color_actual` (red), `$color_statutory` (navy), `$color_gap` (green); partner-specific colors `$color_china/canada/mexico/...`; product-specific colors `$color_steel/autos/elec/pharma/energy/chem/apparel/food/other`
 - Graph scheme: `plotplainblind` (colorblind-friendly)
 
 ## Reusable Stata programs (`code/utils/programs.do`)
@@ -126,6 +131,7 @@ Both must be at the same directory level as this repo:
 - `report_merge "<label>"` — reports match / master-only / using-only counts after `merge`
 - `build_month_rev_map, saving(...)` — produces ym → revision crosswalk
 - `compute_tier, ratevar() weightvar() outfile() outvar() [byvar() percent]` — tier ETR aggregation; operates on the in-memory dataset (caller `preserve`s/`restore`s). Used by 02's ladder, 03 Section D, and 06.
+- `compute_diversion_decomp, byvar() outfile() outvar_prefix()` — Shapley two-way decomposition of the S0→S1 trade-diversion gap into between-group + within-group components. Group is partner_group (country lens) or product_group (product lens). Both lenses sum to the same `gap_diversion`; positive contribution = positive contribution to the gap. Used by 03 Section B.
 - `classify_pref_channel <subco> <rateprov> <cty>` — bins IMDB entries into 9 preference / rate-provision channels (mirrored in R section 3f). Used by 04 and 05a/05b.
 - HS2 chapter labels (99 chapters)
 

@@ -27,6 +27,9 @@
 *   counterfactual_other_pref_delta_monthly.csv
 *   tariff_revenue.csv
 *
+* Repo crosswalks:
+*   $code/utils/product_groups.csv  (HS2 -> 9-group product classification)
+*
 * Output (all to $working unless noted):
 *   census_hs10_clean.dta
 *   tracker_daily.dta
@@ -601,6 +604,28 @@ if _rc != 0 {
     assign_partner_group cty_code
 }
 
+** Merge the HS2 -> 9-product-group crosswalk (code/utils/product_groups.csv).
+** Used by 03 Section B (S0->S1 product-side Shapley) and Section D7
+** (product-group gap figures). Crosswalk covers HS2 01-99; any HS2 in the
+** data that's missing from the crosswalk gets caught by the assert below.
+preserve
+    import delimited using "${code}utils/product_groups.csv", ///
+        clear stringcols(1) varnames(1)
+    sort hs2
+    gisid hs2
+    tempfile pg_xwalk
+    save `pg_xwalk'
+restore
+merge m:1 hs2 using `pg_xwalk', keep(match master) gen(_merge_pg)
+qui count if _merge_pg == 1
+if r(N) > 0 {
+    di as error "ERROR: `=r(N)' rows have hs2 not in product_groups.csv"
+    di as error "       Inspect with: tab hs2 if _merge_pg == 1"
+    error 459
+}
+drop _merge_pg
+label var product_group "9-group HS2 product classification"
+
 ** Set up labels
 label var w_monthly                 "Monthly import weight share"
 label var total_imports_monthly     "Total monthly imports (USD)"
@@ -613,7 +638,7 @@ label var rate_2024                 "Statutory rate, USMCA 2024 baseline (S0/S1 
 label var rate_all_pref             "Statutory rate, USMCA monthly + non-USMCA prefs (S3 panel)"
 label var tariff_revenue_usmca_mo   "Implied revenue (monthly-USMCA rate)"
 
-order ym year month hs2 hs10 cty_code partner_group ///
+order ym year month hs2 product_group hs10 cty_code partner_group ///
       con_val_mo cal_dut_mo census_etr ///
       total_rate rate_2024 rate_usmca_monthly rate_all_pref ///
       tariff_revenue_statutory tariff_revenue_2024 tariff_revenue_usmca_mo ///

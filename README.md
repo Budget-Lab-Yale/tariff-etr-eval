@@ -15,7 +15,7 @@ The pipeline has two stages: R assembles raw data from external APIs and sibling
 | 0 | `code/R/00_pull_raw_data.R` | IMDB bulk (HS10 detail), tracker snapshots, Treasury revenue, USMCA + non-USMCA preference share files (Census HS2 API opt-in via `--with-census`) |
 | 1 | `code/01_etr_clean.do` | Import CSVs, clean, merge Census × tracker at HS10 × country × month; merge in three rate panels (rate_2024, rate_usmca_monthly, rate_all_pref) onto `merged_analysis.dta` |
 | 2 | `code/02_counterfactual_ladder.do` | Six-tier waterfall (S0→S1→S2→S3→T) — canonical tier values |
-| 3 | `code/03_etr_analysis.do` + `code/03b_baseline_figures.do` | 03: six-tier ETR decomposition + figures 1–6 + diagnostic tables; 03b: paper §4.1 baseline figure + §4.5 daily overlay + supplementary monthly summary table (TBL-judgment economic portrayal, separate methodology) |
+| 3 | `code/03_etr_analysis.do` + `code/03b_baseline_figures.do` | 03: six-tier ETR decomposition + figures 1–6 + S0→S1 trade-diversion decomp (figs D1/D2/D3) + product-group gap figs (P1/P2/P3) + diagnostic tables; 03b: paper §4.1 baseline figure + §4.5 daily overlay + supplementary monthly summary table (TBL-judgment economic portrayal, separate methodology) |
 | 4 | `code/04_fta_decomposition.do` | Preference channel decomposition (USMCA, KORUS, GSP, duty-free, etc.) |
 | 5 | `code/05_max_district_crosscheck.do` | Validate tracker rates vs. max observed across customs districts |
 | 6 | `code/06_baseline_etr_diagnostic.do` | Tracker total_rate vs S0-reconstruction at 2024 weights (figure 7) |

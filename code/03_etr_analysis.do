@@ -32,9 +32,11 @@
 *
 * Sections:
 *   A. Six-tier decomposition (consumes ladder, adds S4, computes channel gaps)
-*   B. Legacy Shapley between/within by country (h2avg total_rate; different Q)
+*   B. S0->S1 trade-diversion Shapley decomposition (country + product lenses)
+*      + figs D1, D2, D3
 *   C. Figures 1-3 (six-tier ladder line + stacked bar charts)
 *   D. Figures 4-6 + diagnostic tables (S2 vs S4 vs T, partner / HS2 / HS10)
+*      D7. Product-group gap (figs P1, P2, P3 + cmp_product_*)
 *
 * Input:
 *   $working/counterfactual_ladder.dta   (from 02; provides S0 S1 S2 S3 + T)
@@ -45,10 +47,14 @@
 *
 * Output:
 *   $working/decomp_monthly.dta     + $tables/decomp_monthly.csv
-*   $working/decomp_by_country.dta  + $tables/decomp_by_country.csv
+*   $working/diversion_by_country.dta + $tables/diversion_by_country_avg.csv
+*   $working/diversion_by_product.dta + $tables/diversion_by_product_avg.csv
 *   $figures/figure1_etr_comparison.png
 *   $figures/figure2_gap_stacked.png
 *   $figures/figure3_usmca_decomp.png
+*   $figures/figure_d1_diversion_decomp.png
+*   $figures/figure_d2_diversion_by_country.png
+*   $figures/figure_d3_diversion_by_product.png
 *
 *   Section D -- S2 vs S4 vs T comparison (six-tier framework labels):
 *     $figures/figure4_cmp_overall.png
@@ -62,6 +68,11 @@
 *     $tables/cmp_2x2_partner_monthly.csv   (D5: 2x2 zero-pattern, by partner)
 *     $tables/cmp_2x2_hs2_monthly.csv       (D5: 2x2 zero-pattern, by HS2)
 *     $tables/cmp_gap_quantiles_monthly.csv (D6: value-weighted |gap| quantiles)
+*     $figures/figure_p1_cmp_product_facets.png        (D7)
+*     $figures/figure_p2_cmp_gap_by_product.png        (D7)
+*     $figures/figure_p3_product_partner_heatmap.png   (D7; needs heatplot)
+*     $tables/cmp_product_monthly.csv                  (D7)
+*     $tables/cmp_product_partner_avg.csv              (D7)
 * ==============================================================================
 
 di as text _n "=========================================="
@@ -169,85 +180,287 @@ export delimited using "$tables/decomp_monthly.csv", replace
 
 
 * ======================================================================
-* B. SHAPLEY DECOMPOSITION (between- vs. within-country)
+* B. S0 -> S1 TRADE-DIVERSION DECOMPOSITION  (between vs within)
 * ======================================================================
 *
-* LEGACY: This section uses the tracker's `total_rate` (h2avg USMCA) and
-* answers a different question than the six-tier framework above. It
-* decomposes the Shapley between-country composition shift vs within-country
-* rate change at h2avg USMCA shares -- NOT the same as the framework's
-* trade-diversion (S0->S1) channel, which holds USMCA at 2024 baseline.
-* Kept for backward compatibility with prior analyses; do not interpret
-* between_c / within_c as the framework's gap_diversion / gap_usmca channels.
+* S0 -> S1 holds rates fixed at rate_2024 and shifts weights from 2024-annual
+* to actual-monthly. The entire gap is composition-driven, so Shapley splits
+* it into between-group + within-group along any partition. Two complementary
+* lenses:
+*
+*   Country lens:
+*     between-country = shifts in country shares of total imports
+*     within-country  = shifts in product mix inside each country
+*
+*   Product lens:
+*     between-product = shifts in product-group shares of total imports
+*     within-product  = shifts in country mix inside each product group
+*
+* Both lenses sum to the same gap_diversion = S0 - S1 from the ladder. The
+* country lens isolates "imports shifted away from CA/MX" effects; the
+* product lens isolates "imports shifted out of high-tariff steel into
+* low-tariff electronics" effects.
+*
+* See docs/six_tier_framework_plan.md and the Shapley two-way derivation in
+* programs.do::compute_diversion_decomp.
 
-di as text _n "  [B] Shapley decomposition by country..."
-di as error "      NOTE: Section B uses legacy h2avg total_rate; not equivalent to S0->S1."
+di as text _n "  [B] S0 -> S1 trade-diversion Shapley decomposition..."
 
+* --- B1. Country lens ---
+di as text "      Country lens (between/within-country)"
 use "$working/merged_analysis.dta", clear
+keep if ym >= $start_ym & ym <= $end_ym
 
-* Country-level under 2024 weights
-*   Symmetric inclusion: keep all rows present in merged_analysis (i.e. all
-*   HS10 x cty x ym cells with positive monthly trade), even when the 2024
-*   weight is zero/missing. Rows with imports == 0 contribute 0 to numerator
-*   and denominator and so do not affect the partner-group sums; the
-*   alignment matters mainly so the 2024 and monthly panels operate on the
-*   same product universe.
 preserve
-    replace imports = 0 if missing(imports)
-    gen double wtd_rev_c = total_rate * imports
-    collapse (sum) wtd_rev_c imports, by(ym partner_group)
-    safe_divide wtd_rev_c imports etr_c_2024
-    bysort ym: egen double total_imp = total(imports)
-    safe_divide imports total_imp share_c_2024
-    keep ym partner_group etr_c_2024 share_c_2024
-    tempfile country_2024
-    save `country_2024'
+    compute_diversion_decomp, byvar(partner_group) ///
+        outfile("$working/diversion_by_country.dta") outvar_prefix(c)
 restore
 
-* Country-level under monthly weights
+* --- B2. Product lens ---
+di as text "      Product lens (between/within-product)"
 preserve
-    gen double wtd_rev_c = total_rate * con_val_mo
-    collapse (sum) wtd_rev_c con_val_mo, by(ym partner_group)
-    safe_divide wtd_rev_c con_val_mo etr_c_monthly
-    bysort ym: egen double total_val = total(con_val_mo)
-    safe_divide con_val_mo total_val share_c_monthly
-    keep ym partner_group etr_c_monthly share_c_monthly
-    tempfile country_monthly
-    save `country_monthly'
+    compute_diversion_decomp, byvar(product_group) ///
+        outfile("$working/diversion_by_product.dta") outvar_prefix(p)
 restore
 
-* Shapley formula
-use `country_2024', clear
-merge 1:1 ym partner_group using `country_monthly', nogenerate
+* --- B3. Validate that both lenses sum to gap_diversion from ladder ---
+di as text "      Validating decomposition against ladder gap_diversion..."
 
-gen double between_c = 0.5 * (etr_c_2024 + etr_c_monthly) * ///
-                       (share_c_2024 - share_c_monthly)
-gen double within_c  = 0.5 * (share_c_2024 + share_c_monthly) * ///
-                       (etr_c_2024 - etr_c_monthly)
-gen double total_c = between_c + within_c
-
-* Convert to percentage points
-foreach v in etr_c_2024 etr_c_monthly between_c within_c total_c {
-    replace `v' = `v' * 100
-}
-foreach v in share_c_2024 share_c_monthly {
-    replace `v' = `v' * 100
-}
-
-label var between_c "Between-country (pp)"
-label var within_c  "Within-country (pp)"
-label var total_c   "Total contribution (pp)"
-
-sort ym partner_group
-save "$working/decomp_by_country.dta", replace
-export delimited using "$tables/decomp_by_country.csv", replace
-
-* Summary
 preserve
-    collapse (sum) between_total=between_c within_total=within_c, by(ym)
-    di as text _n "  === Shapley: Between vs. Within (pp) ==="
-    format between_total within_total %9.2f
-    list ym between_total within_total, clean noobs
+    use "$working/counterfactual_ladder.dta", clear
+    keep ym gap_diversion
+    tempfile lad_div
+    save `lad_div'
+restore
+
+preserve
+    use "$working/diversion_by_country.dta", clear
+    collapse (sum) c_between c_within c_total, by(ym)
+    merge 1:1 ym using `lad_div', nogenerate
+    gen double resid = c_total - gap_diversion
+    qui sum resid, detail
+    if abs(r(max)) > 1e-3 | abs(r(min)) > 1e-3 {
+        di as error "WARNING: country-lens sum differs from gap_diversion by up to " ///
+            string(max(abs(r(max)), abs(r(min))), "%9.4f") " pp"
+    }
+    else {
+        di as text "      Country lens: max residual " ///
+            string(max(abs(r(max)), abs(r(min))), "%9.6f") " pp (OK)"
+    }
+restore
+
+preserve
+    use "$working/diversion_by_product.dta", clear
+    collapse (sum) p_between p_within p_total, by(ym)
+    merge 1:1 ym using `lad_div', nogenerate
+    gen double resid = p_total - gap_diversion
+    qui sum resid, detail
+    if abs(r(max)) > 1e-3 | abs(r(min)) > 1e-3 {
+        di as error "WARNING: product-lens sum differs from gap_diversion by up to " ///
+            string(max(abs(r(max)), abs(r(min))), "%9.4f") " pp"
+    }
+    else {
+        di as text "      Product lens: max residual " ///
+            string(max(abs(r(max)), abs(r(min))), "%9.6f") " pp (OK)"
+    }
+restore
+
+* --- B4. Period-averaged decomp summary CSV (for paper appendix) ---
+preserve
+    use "$working/diversion_by_country.dta", clear
+    collapse (mean) c_between c_within c_total, by(partner_group)
+    gsort -c_total
+    label var c_between "Between-country avg (pp)"
+    label var c_within  "Within-country avg (pp)"
+    label var c_total   "Total avg (pp)"
+    format c_* %9.3f
+    di as text _n "  === Country diversion contributions (period mean) ==="
+    list partner_group c_between c_within c_total, clean noobs
+    export delimited using "$tables/diversion_by_country_avg.csv", replace
+restore
+
+preserve
+    use "$working/diversion_by_product.dta", clear
+    collapse (mean) p_between p_within p_total, by(product_group)
+    gsort -p_total
+    label var p_between "Between-product avg (pp)"
+    label var p_within  "Within-product avg (pp)"
+    label var p_total   "Total avg (pp)"
+    format p_* %9.3f
+    di as text _n "  === Product diversion contributions (period mean) ==="
+    list product_group p_between p_within p_total, clean noobs
+    export delimited using "$tables/diversion_by_product_avg.csv", replace
+restore
+
+
+* ======================================================================
+* B'. DIVERSION FIGURES (D1, D2, D3)
+* ======================================================================
+
+di as text _n "  [B'] Diversion decomposition figures..."
+
+* --- D1. Aggregate decomposition over time (country lens) ---
+di as text "      Fig D1: aggregate between/within over time"
+preserve
+    use "$working/diversion_by_country.dta", clear
+    collapse (sum) c_between c_within, by(ym)
+    gen double c_total = c_between + c_within
+    label var c_between "Between-country (pp)"
+    label var c_within  "Within-country (pp)"
+    label var c_total   "Total trade-diversion gap S0-S1 (pp)"
+
+    twoway ///
+        (connected c_total ym, ///
+            mcolor("$color_statutory") lcolor("$color_statutory") ///
+            msymbol(circle) msize(small) lwidth(medthick) lpattern(solid)) ///
+        (connected c_between ym, ///
+            mcolor("$color_canada") lcolor("$color_canada") ///
+            msymbol(diamond) msize(small) lwidth(medium) lpattern(dash)) ///
+        (connected c_within ym, ///
+            mcolor("$color_gap") lcolor("$color_gap") ///
+            msymbol(square) msize(small) lwidth(medium) lpattern(shortdash)) ///
+        , ///
+        legend(order( ///
+            1 "Total S0-S1 gap" ///
+            2 "Between-country" ///
+            3 "Within-country (product mix)") ///
+            rows(3) size(small) position(6)) ///
+        ytitle("Contribution to S0-S1 gap (pp)") ///
+        xtitle("") ///
+        title("Trade Diversion Decomposition: Country Lens") ///
+        subtitle("Shapley two-way, monthly Jan 2025 - Feb 2026") ///
+        xlabel(, format(%tmMon_CCYY) angle(45)) ///
+        ylabel(, format(%9.1f)) ///
+        yline(0, lcolor(gs10) lpattern(dot)) ///
+        graphregion(color(white)) plotregion(margin(small))
+
+    graph export "$figures/figure_d1_diversion_decomp.png", replace width(2400)
+restore
+
+* --- D2. Country contributions stacked over time ---
+di as text "      Fig D2: country stacked-bar contributions"
+preserve
+    use "$working/diversion_by_country.dta", clear
+    keep ym partner_group c_total
+
+    * Short codes for variable names after reshape
+    gen str2 pg_short = ""
+    replace pg_short = "CN" if partner_group == "China"
+    replace pg_short = "CA" if partner_group == "Canada"
+    replace pg_short = "MX" if partner_group == "Mexico"
+    replace pg_short = "EU" if partner_group == "EU"
+    replace pg_short = "JP" if partner_group == "Japan"
+    replace pg_short = "KR" if partner_group == "S. Korea"
+    replace pg_short = "UK" if partner_group == "UK"
+    replace pg_short = "RW" if partner_group == "ROW"
+
+    drop partner_group
+    reshape wide c_total, i(ym) j(pg_short) string
+    foreach pg in CN CA MX EU JP KR UK RW {
+        capture rename c_total`pg' pg_`pg'
+        capture confirm variable pg_`pg'
+        if _rc != 0 gen double pg_`pg' = 0
+        replace pg_`pg' = 0 if missing(pg_`pg')
+    }
+
+    sort ym
+    gen byte ym_idx = _n
+    levelsof ym, local(ymlist)
+    local relabel_str ""
+    local i = 1
+    foreach m of local ymlist {
+        local ms : di %tmMon_CCYY `m'
+        local ms = trim("`ms'")
+        local relabel_str `relabel_str' `i' "`ms'"
+        local ++i
+    }
+
+    graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
+        over(ym_idx, relabel(`relabel_str') ///
+                     label(angle(45) labsize(vsmall))) ///
+        stack ///
+        bar(1, color("$color_china"))  ///
+        bar(2, color("$color_canada")) ///
+        bar(3, color("$color_mexico")) ///
+        bar(4, color("$color_eu"))     ///
+        bar(5, color("$color_japan"))  ///
+        bar(6, color("$color_skorea")) ///
+        bar(7, color("$color_uk"))     ///
+        bar(8, color("$color_row"))    ///
+        legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
+                     5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
+               rows(1) size(vsmall) position(6)) ///
+        ytitle("Contribution to S0-S1 gap (pp)") ///
+        title("Trade Diversion: Country Contributions") ///
+        subtitle("Stacked monthly, signed (positive = adds to gap_diversion)") ///
+        graphregion(color(white))
+
+    graph export "$figures/figure_d2_diversion_by_country.png", replace width(2400)
+restore
+
+* --- D3. Product contributions stacked over time ---
+di as text "      Fig D3: product stacked-bar contributions"
+preserve
+    use "$working/diversion_by_product.dta", clear
+    keep ym product_group p_total
+
+    * Short codes for variable names after reshape
+    gen str4 pg_short = ""
+    replace pg_short = "stl"  if product_group == "Steel & Aluminum"
+    replace pg_short = "auto" if product_group == "Autos & Auto Parts"
+    replace pg_short = "elec" if product_group == "Electronics & Machinery"
+    replace pg_short = "phrm" if product_group == "Pharmaceuticals"
+    replace pg_short = "engy" if product_group == "Energy & Minerals"
+    replace pg_short = "chem" if product_group == "Chemicals & Plastics"
+    replace pg_short = "appr" if product_group == "Apparel & Textiles"
+    replace pg_short = "food" if product_group == "Food & Agriculture"
+    replace pg_short = "othr" if product_group == "Other Manufactured"
+
+    drop product_group
+    reshape wide p_total, i(ym) j(pg_short) string
+    foreach pg in stl auto elec phrm engy chem appr food othr {
+        capture rename p_total`pg' pg_`pg'
+        capture confirm variable pg_`pg'
+        if _rc != 0 gen double pg_`pg' = 0
+        replace pg_`pg' = 0 if missing(pg_`pg')
+    }
+
+    sort ym
+    gen byte ym_idx = _n
+    levelsof ym, local(ymlist)
+    local relabel_str ""
+    local i = 1
+    foreach m of local ymlist {
+        local ms : di %tmMon_CCYY `m'
+        local ms = trim("`ms'")
+        local relabel_str `relabel_str' `i' "`ms'"
+        local ++i
+    }
+
+    graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
+                     pg_appr pg_food pg_othr, ///
+        over(ym_idx, relabel(`relabel_str') ///
+                     label(angle(45) labsize(vsmall))) ///
+        stack ///
+        bar(1, color("$color_steel"))   ///
+        bar(2, color("$color_autos"))   ///
+        bar(3, color("$color_elec"))    ///
+        bar(4, color("$color_pharma"))  ///
+        bar(5, color("$color_energy"))  ///
+        bar(6, color("$color_chem"))    ///
+        bar(7, color("$color_apparel")) ///
+        bar(8, color("$color_food"))    ///
+        bar(9, color("$color_other"))   ///
+        legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
+                     5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
+                     8 "Food & Ag" 9 "Other") ///
+               rows(2) size(vsmall) position(6)) ///
+        ytitle("Contribution to S0-S1 gap (pp)") ///
+        title("Trade Diversion: Product Contributions") ///
+        subtitle("Stacked monthly, signed (positive = adds to gap_diversion)") ///
+        graphregion(color(white))
+
+    graph export "$figures/figure_d3_diversion_by_product.png", replace width(2400)
 restore
 
 
@@ -917,6 +1130,164 @@ preserve
 
     save "$working/cmp_gap_quantiles_monthly.dta", replace
     export delimited using "$tables/cmp_gap_quantiles_monthly.csv", replace
+restore
+
+
+* ----------------------------------------------------------------------
+* D7. Product group x month  (Tbl + Figs P1, P2, P3)
+*
+* Mirrors D2 with product_group instead of partner_group. Plus Fig P3:
+* a heatplot of the period-averaged S2-S4 gap across the
+* product_group x partner_group grid.
+* ----------------------------------------------------------------------
+
+di as text "      D7. Product group x month..."
+
+preserve
+    collapse (sum) stat_num=stat_rev_row cens_num=cens_rev_row ///
+                   total_val=con_val_mo, ///
+        by(ym product_group)
+
+    safe_divide stat_num total_val s2
+    safe_divide cens_num total_val s4
+
+    foreach v in s2 s4 {
+        replace `v' = `v' * 100
+    }
+    gen double gap_pp = s2 - s4
+
+    label var s2     "S2: Statutory (USMCA monthly), monthly wts (%)"
+    label var s4     "S4: Census collected ETR (%)"
+    label var gap_pp "S2 - S4 (pp)"
+
+    save "$working/cmp_product_monthly.dta", replace
+    export delimited using "$tables/cmp_product_monthly.csv", replace
+
+    ** Short codes for figure variable names
+    gen str4 pg_short = ""
+    replace pg_short = "stl"  if product_group == "Steel & Aluminum"
+    replace pg_short = "auto" if product_group == "Autos & Auto Parts"
+    replace pg_short = "elec" if product_group == "Electronics & Machinery"
+    replace pg_short = "phrm" if product_group == "Pharmaceuticals"
+    replace pg_short = "engy" if product_group == "Energy & Minerals"
+    replace pg_short = "chem" if product_group == "Chemicals & Plastics"
+    replace pg_short = "appr" if product_group == "Apparel & Textiles"
+    replace pg_short = "food" if product_group == "Food & Agriculture"
+    replace pg_short = "othr" if product_group == "Other Manufactured"
+
+    ** --- Fig P1: 9-panel facet by product group ---
+    encode product_group, gen(pg_id)
+
+    twoway ///
+        (connected s2 ym, ///
+            mcolor("$color_statutory") lcolor("$color_statutory") ///
+            msymbol(circle) msize(vsmall) lwidth(medium) lpattern(solid)) ///
+        (connected s4 ym, ///
+            mcolor("$color_gap") lcolor("$color_gap") ///
+            msymbol(diamond) msize(vsmall) lwidth(medium) lpattern(solid)) ///
+        , ///
+        by(pg_id, ///
+            cols(3) ///
+            title("S2 (Statutory, USMCA monthly) vs. S4 (Census) by Product Group") ///
+            subtitle("Monthly, Jan 2025 - Feb 2026") ///
+            note("") ///
+            graphregion(color(white))) ///
+        legend(order( ///
+            1 "S2: Statutory (USMCA monthly)" ///
+            2 "S4: Census") rows(1) size(small) position(6)) ///
+        ytitle("ETR (%)") xtitle("") ///
+        xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+        ylabel(, labsize(vsmall))
+
+    graph export "$figures/figure_p1_cmp_product_facets.png", replace width(3000)
+
+    ** --- Fig P2: gap contribution stacked by product group ---
+    bysort ym: egen double total_val_all = total(total_val)
+    gen double gap_contrib_pp = 100 * (stat_num - cens_num) / total_val_all
+
+    keep ym pg_short gap_contrib_pp
+    reshape wide gap_contrib_pp, i(ym) j(pg_short) string
+
+    foreach pg in stl auto elec phrm engy chem appr food othr {
+        capture rename gap_contrib_pp`pg' pg_`pg'
+        capture confirm variable pg_`pg'
+        if _rc != 0 gen double pg_`pg' = 0
+    }
+
+    sort ym
+    gen byte ym_idx = _n
+    levelsof ym, local(ymlist)
+    local relabel_str ""
+    local i = 1
+    foreach m of local ymlist {
+        local ms : di %tmMon_CCYY `m'
+        local ms = trim("`ms'")
+        local relabel_str `relabel_str' `i' "`ms'"
+        local ++i
+    }
+
+    graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
+                     pg_appr pg_food pg_othr, ///
+        over(ym_idx, relabel(`relabel_str') ///
+                     label(angle(45) labsize(vsmall))) ///
+        stack ///
+        bar(1, color("$color_steel"))   ///
+        bar(2, color("$color_autos"))   ///
+        bar(3, color("$color_elec"))    ///
+        bar(4, color("$color_pharma"))  ///
+        bar(5, color("$color_energy"))  ///
+        bar(6, color("$color_chem"))    ///
+        bar(7, color("$color_apparel")) ///
+        bar(8, color("$color_food"))    ///
+        bar(9, color("$color_other"))   ///
+        legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
+                     5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
+                     8 "Food & Ag" 9 "Other") ///
+               rows(2) size(vsmall) position(6)) ///
+        ytitle("Gap contribution (pp of overall ETR)") ///
+        title("S2 - S4 Gap, by Product Group") ///
+        subtitle("Monthly contribution to overall-ETR gap, pp") ///
+        graphregion(color(white))
+
+    graph export "$figures/figure_p2_cmp_gap_by_product.png", replace width(2400)
+restore
+
+** --- Fig P3: product_group x partner_group heatmap (period-averaged S2-S4) ---
+di as text "      Fig P3: product x partner heatmap"
+
+preserve
+    collapse (sum) stat_num=stat_rev_row cens_num=cens_rev_row ///
+                   total_val=con_val_mo, ///
+        by(product_group partner_group)
+
+    safe_divide stat_num total_val s2
+    safe_divide cens_num total_val s4
+    gen double gap_pp = (s2 - s4) * 100
+
+    label var gap_pp "S2 - S4 (pp), period average"
+
+    save "$working/cmp_product_partner_avg.dta", replace
+    export delimited using "$tables/cmp_product_partner_avg.csv", replace
+
+    ** heatplot is from SSC (ssc install heatplot palettes colrspace).
+    ** Falls back to a `graph hbar` matrix if heatplot isn't installed.
+    capture which heatplot
+    if _rc == 0 {
+        heatplot gap_pp i.product_group i.partner_group, ///
+            color(RdBu, reverse) cuts(-30(5)30) ///
+            ramp(right space(5) suffix("pp")) ///
+            keylabels(, range(-30 30)) ///
+            xtitle("") ytitle("") ///
+            title("S2 - S4 Gap by Product x Partner") ///
+            subtitle("Period-averaged, pp") ///
+            graphregion(color(white)) plotregion(margin(small))
+        graph export "$figures/figure_p3_product_partner_heatmap.png", ///
+            replace width(2400)
+    }
+    else {
+        di as error "WARNING: heatplot not installed; skipping Fig P3."
+        di as error "         Install with: ssc install heatplot palettes colrspace"
+    }
 restore
 
 
