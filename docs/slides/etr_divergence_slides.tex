@@ -50,7 +50,7 @@
 \begin{columns}[T]
 \begin{column}{0.55\textwidth}
 \centering
-\includegraphics[width=\linewidth]{figure_baseline_etr.png}
+\includegraphics[width=\linewidth]{figure_baseline.png}
 \end{column}
 \begin{column}{0.45\textwidth}
 \small
@@ -91,17 +91,21 @@ Existing work is piecewise: each paper opens one channel. We unify them.
 We construct a sequence of counterfactual ETRs and walk from a fully static baseline to the Treasury-observed rate. Each step turns one channel \emph{on}:
 
 \begin{center}
-\begin{tabular}{r l l}
+\begin{tabular}{r l l r}
 \toprule
-\tier{S0}        & USMCA 2024 baseline shares       & $\times$ 2024 weights   \\
-                 & \ldots\, \gap{$+$ USMCA adjustment} & (claim rates 2024 $\to$ H2-2025) \\
-\tier{S1}        & USMCA H2-2025 baseline           & $\times$ 2024 weights   \\
-                 & \ldots\, \gap{$+$ trade diversion}  & (composition shift)              \\
-\tier{S2}        & USMCA H2-2025 baseline           & $\times$ monthly weights         \\
-                 & \ldots\, \gap{$+$ all-other preferences} & (Annex II / ITA / Ch98 / KORUS / GSP)\\
-\tier{S3}        & + non-USMCA preferences          & $\times$ monthly weights         \\
-                 & \ldots\, \gap{$+$ residual + timing}  & (AVE failures, AD/CVD, refunds, ACH)  \\
-\tier{T}         & Treasury actual ETR              &                                \\
+                 &                                  &                                & \textbf{Mean (pp)} \\
+\midrule
+\tier{S0}        & USMCA 2024 baseline shares       & $\times$ 2024 weights          & \\
+                 & \ldots\, \gap{$+$ USMCA adjustment}      & (claim rates 2024 $\to$ H2-2025)         & \gap{2.6} \\
+\tier{S1}        & USMCA H2-2025 baseline           & $\times$ 2024 weights          & \\
+                 & \ldots\, \gap{$+$ trade diversion}       & (composition shift)                      & \gap{2.4} \\
+\tier{S2}        & USMCA H2-2025 baseline           & $\times$ monthly weights       & \\
+                 & \ldots\, \gap{$+$ all-other preferences} & (Annex II / ITA / Ch98 / KORUS / GSP)    & \gap{0.6} \\
+\tier{S3}        & + non-USMCA preferences          & $\times$ monthly weights       & \\
+                 & \ldots\, \gap{$+$ residual + timing}     & (AVE failures, AD/CVD, refunds, ACH)     & \gap{2.0} \\
+\tier{T}         & Treasury actual ETR              &                                & \\
+\midrule
+\multicolumn{3}{l}{\textbf{Total gap (S0 $-$ T), period mean}}                                 & \textbf{7.6} \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -141,7 +145,7 @@ For an aggregate ETR $S = \sum_i w_i r_i$ over $i = (\text{HS10}, \text{country}
 \begin{columns}[T]
 \begin{column}{0.55\textwidth}
 \centering
-\includegraphics[width=\linewidth]{figure_u1_usmca_adjustment.png}
+\includegraphics[width=\linewidth]{figure_adjustment_explainer.png}
 \end{column}
 \begin{column}{0.45\textwidth}
 \small
@@ -162,7 +166,7 @@ For an aggregate ETR $S = \sum_i w_i r_i$ over $i = (\text{HS10}, \text{country}
 \begin{columns}[T]
 \begin{column}{0.55\textwidth}
 \centering
-\includegraphics[width=\linewidth]{figure_d1_diversion_decomp.png}
+\includegraphics[width=\linewidth]{figure_diversion_decomp.png}
 \end{column}
 \begin{column}{0.45\textwidth}
 \small
@@ -183,7 +187,7 @@ For an aggregate ETR $S = \sum_i w_i r_i$ over $i = (\text{HS10}, \text{country}
 \begin{columns}[T]
 \begin{column}{0.6\textwidth}
 \centering
-\includegraphics[width=\linewidth]{figure_d2_diversion_by_country.png}
+\includegraphics[width=\linewidth]{figure_diversion_country.png}
 \end{column}
 \begin{column}{0.4\textwidth}
 \small
@@ -211,7 +215,7 @@ China alone carries 90\%+ of the between-country effect. Trade diversion is over
 \begin{columns}[T]
 \begin{column}{0.6\textwidth}
 \centering
-\includegraphics[width=\linewidth]{figure_d3_diversion_by_product.png}
+\includegraphics[width=\linewidth]{figure_diversion_product.png}
 \end{column}
 \begin{column}{0.4\textwidth}
 \small
@@ -267,7 +271,7 @@ The \texttt{duty\_free}-on-IEEPA term is the policy-salient piece: it captures e
 \begin{columns}[T]
 \begin{column}{0.55\textwidth}
 \centering
-\includegraphics[width=\linewidth]{figure_p3_product_partner_heatmap.png}
+\includegraphics[width=\linewidth]{figure_s2s4_heatmap.png}
 \end{column}
 \begin{column}{0.45\textwidth}
 \small
@@ -284,6 +288,70 @@ The map identifies \emph{where to drill down} for the residual story:
 \end{itemize}
 \end{column}
 \end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{All four decomposable channels at once: by country}
+
+\begin{columns}[T]
+\begin{column}{0.62\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figure_attribution_country.png}
+\end{column}
+\begin{column}{0.38\textwidth}
+\small
+Each panel: stacked monthly contribution per partner. Common $y$-axis.
+
+\medskip
+
+\textbf{Reading the figure:}
+\begin{itemize}\scriptsize
+  \item \tier{Adjustment} (S0$\to$S1): CA + MX dominate, by construction.
+  \item \tier{Diversion} (S1$\to$S2): China alone carries $\sim$90\% of the positive between-country effect.
+  \item \tier{Other prefs} (S2$\to$S3): broadly distributed but small in magnitude.
+  \item \tier{Residual} (S3$\to$S4): widest dispersion. CA + MX large in mid-2025; flips to ROW + EU in 2026.
+\end{itemize}
+
+\medskip
+
+\alert{Treasury timing} (S4$\to$T) cannot be split by country and is not shown.
+
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Late-period dynamic: residual channel sign-flip (Feb 2026)}
+
+\small
+
+\textbf{Observation.} In February 2026 the framework's residual+timing gap goes negative:
+
+\begin{center}
+\begin{tabular}{l r r r}
+\toprule
+Month & S3 (\%) & T (\%) & $\text{gap}_{\text{residual}+\text{timing}}$ (pp) \\
+\midrule
+2025m4  & 10.28 & 5.66  & $+4.61$ \\
+2025m9  & 12.78 & 10.73 & $+2.05$ \\
+2025m12 & 12.07 & 9.88  & $+2.19$ \\
+\textbf{2026m2}  & \textbf{10.31} & \textbf{10.49} & $\mathbf{-0.18}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Interpretation.} For most of 2025, Treasury collected \emph{less} than the cell-level statutory reconstruction (with all preferences applied) predicted — frictions, timing lags, refunds. By February 2026, Treasury collections \emph{slightly exceed} the cell-level reconstruction.
+
+\medskip
+
+\textbf{Why this matters.}
+\begin{itemize}\small
+  \item Consistent with Eck et al.'s prediction that frictional gaps compress as frontloading depletes and shipping-timing lags resolve.
+  \item Open question: is the persistent piece structural (USMCA + behavior-driven exemptions) and the transitory piece now mostly resolved?
+  \item Suggests the headline gap (S1$-$T) trajectory in 2026 will be dominated by the structural diversion + other-prefs channels, not by timing.
+\end{itemize}
 
 \end{frame}
 
@@ -434,7 +502,7 @@ All four are produced by the same \texttt{build\_counterfactual()} function on t
 \begin{columns}[T]
 \begin{column}{0.55\textwidth}
 \centering
-\includegraphics[width=\linewidth]{figure7_baseline_etr_diagnostic.png}
+\includegraphics[width=\linewidth]{figure_diagnostic.png}
 \end{column}
 \begin{column}{0.45\textwidth}
 \small
@@ -509,6 +577,33 @@ Month & S1 (\%) & T (\%) & S1 $-$ T (pp) \\
 \end{itemize}
 
 Independent methodologies converge.
+
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A5c. All four decomposable channels at once: by product}
+
+\begin{columns}[T]
+\begin{column}{0.62\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figure_attribution_product.png}
+\end{column}
+\begin{column}{0.38\textwidth}
+\small
+Same construction as the country facet (main deck), with the 9-group product partition.
+
+\medskip
+
+\textbf{Reading the figure:}
+\begin{itemize}\scriptsize
+  \item \tier{Adjustment}: dominated by Autos and Other Manufactured (USMCA-eligible CA/MX trade is concentrated there).
+  \item \tier{Diversion}: Steel \& Al, Autos compress \emph{between}; Electronics, Other shift \emph{within} (sub-product mix).
+  \item \tier{Other prefs}: small, with Pharma + Electronics carrying the policy-salient duty\_free-on-IEEPA carve-outs.
+  \item \tier{Residual}: Apparel, Food, Energy persistently positive (specific-duty AVE failures); Pharma + Other small.
+\end{itemize}
 
 \end{column}
 \end{columns}

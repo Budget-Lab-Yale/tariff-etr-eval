@@ -337,6 +337,52 @@ end
 
 
 * ==============================================================================
+* PROGRAM: export_dual_titles
+*
+* Exports two versions of the currently-displayed (or named) graph:
+*   ${figures}`base'_titled.png  -- current state (with whatever title/subtitle
+*                                   the graph was built with)
+*   ${figures}`base'.png         -- title and subtitle cleared via
+*                                   `graph display, title("") subtitle("")`
+*
+* The slides default to the no-suffix (clean) version; the paper draft uses
+* the _titled version. Build the graph once with title/subtitle/name, then
+* call this helper to export both.
+*
+* Options:
+*   BASE()    Filename stem (no extension), e.g. "figure_diversion_decomp" [required]
+*   GRname()  Saved graph name (defaults to "Graph", Stata's default).
+*             Pass an explicit name(g_X, replace) on the graph command and
+*             reference it here for safety, especially after graph combine.
+*   WIDTH()   Pixel width passed to graph export (default 2400).
+*   NOTitled  If set, only the no-title version is exported (used by figures
+*             where the slide-only version is sufficient).
+* ==============================================================================
+
+capture program drop export_dual_titles
+program define export_dual_titles
+    version 17.0
+    syntax , Base(string) [GRname(string) Width(integer 2400) NOTitled]
+
+    if "`grname'" == "" local grname "Graph"
+
+    if "`notitled'" == "" {
+        * Export current (titled) version.
+        graph export "${figures}`base'_titled.png", replace width(`width')
+
+        * Redisplay with empty titles, then export clean version.
+        graph display `grname', title("") subtitle("")
+        graph export "${figures}`base'.png", replace width(`width')
+    }
+    else {
+        * Skip titled version; just export clean.
+        graph display `grname', title("") subtitle("")
+        graph export "${figures}`base'.png", replace width(`width')
+    }
+end
+
+
+* ==============================================================================
 * PROGRAM: compute_per_group_attribution
 *
 * Per-group dollar contribution to a (S_left - S_right) gap, where both

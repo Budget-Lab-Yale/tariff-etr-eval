@@ -51,7 +51,8 @@
 * Output:
 *   $working/baseline_etr_diagnostic.dta
 *   $tables/baseline_etr_diagnostic.csv
-*   $figures/figure7_baseline_etr_diagnostic.png
+*   $figures/figure_diagnostic.png         (clean, slides default)
+*   $figures/figure_diagnostic_titled.png  (with title/subtitle, paper draft)
 * ==============================================================================
 
 di as text _n "=========================================="
@@ -277,9 +278,10 @@ twoway ///
     ylabel(0(5)50, format(%9.0f)) ///
     yscale(range(0)) ///
     graphregion(color(white)) ///
-    plotregion(margin(small))
+    plotregion(margin(small)) ///
+    name(g_diagnostic, replace)
 
-graph export "$figures/figure7_baseline_etr_diagnostic.png", replace width(2400)
+export_dual_titles, base("figure_diagnostic") grname(g_diagnostic)
 
 
 di as text _n "  06_baseline_etr_diagnostic complete." _n

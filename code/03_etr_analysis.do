@@ -53,38 +53,54 @@
 *   $working/decomp_monthly.dta     + $tables/decomp_monthly.csv
 *   $working/diversion_by_country.dta + $tables/diversion_by_country_avg.csv
 *   $working/diversion_by_product.dta + $tables/diversion_by_product_avg.csv
-*   $figures/figure1_etr_comparison.png
-*   $figures/figure2_gap_stacked.png
-*   $figures/figure3_usmca_decomp.png
-*   $figures/figure_d1_diversion_decomp.png
-*   $figures/figure_d2_diversion_by_country.png
-*   $figures/figure_d3_diversion_by_product.png
-*   $figures/figure_o2_others_by_country.png
-*   $figures/figure_o3_others_by_product.png
-*   $figures/figure_r2_residual_by_country.png
-*   $figures/figure_r3_residual_by_product.png
-*   $figures/figure_f2_attribution_by_country.png    (4-panel facet)
-*   $figures/figure_f3_attribution_by_product.png    (4-panel facet)
 *   $tables/attribution_by_country.csv
 *   $tables/attribution_by_product.csv
 *
-*   Section D -- S2 vs S4 vs T comparison (six-tier framework labels):
-*     $figures/figure4_cmp_overall.png
-*     $figures/figure5_cmp_partner_facets.png
-*     $figures/figure6_cmp_gap_by_partner.png
-*     $tables/cmp_overall_monthly.csv
-*     $tables/cmp_partner_monthly.csv
-*     $tables/cmp_hs2_ranking.csv
-*     $tables/cmp_top_hs10_anomalies.csv
-*     $tables/cmp_2x2_monthly.csv           (D5: 2x2 zero-pattern, overall)
-*     $tables/cmp_2x2_partner_monthly.csv   (D5: 2x2 zero-pattern, by partner)
-*     $tables/cmp_2x2_hs2_monthly.csv       (D5: 2x2 zero-pattern, by HS2)
-*     $tables/cmp_gap_quantiles_monthly.csv (D6: value-weighted |gap| quantiles)
-*     $figures/figure_p1_cmp_product_facets.png        (D7)
-*     $figures/figure_p2_cmp_gap_by_product.png        (D7)
-*     $figures/figure_p3_product_partner_heatmap.png   (D7; needs heatplot)
-*     $tables/cmp_product_monthly.csv                  (D7)
-*     $tables/cmp_product_partner_avg.csv              (D7)
+* Figure naming convention: every figure is exported in two versions --
+*   $figures/<base>.png            no titles or subtitles (slides default)
+*   $figures/<base>_titled.png     with titles + subtitles (paper draft)
+* The `<base>` follows `figure_<topic>[_<partition>]`.
+*
+* Figures by section:
+*
+*   Section B (S1->S2 trade-diversion Shapley):
+*     figure_diversion_decomp        (aggregate between/within stack)
+*     figure_diversion_country       (per-partner contributions)
+*     figure_diversion_product       (per-product contributions)
+*
+*   Section B2/B3/B4 (other channels by group):
+*     figure_others_country / figure_others_product       (S2->S3)
+*     figure_residual_country / figure_residual_product   (S3->S4)
+*
+*   Section B6 (4-panel attribution facets):
+*     figure_attribution_country     (4 channels x 8 countries)
+*     figure_attribution_product     (4 channels x 9 product groups)
+*
+*   Section C (six-tier ladder framework figures):
+*     figure_ladder                  (S0/S1/S2/S3/T line chart)
+*     figure_gap_stacked             (USMCA adjustment vs main analytic)
+*     figure_channel_stacked         (3-channel S1->T decomposition)
+*
+*   Section D (S2 vs S4 vs T comparison):
+*     figure_s2s4_overall            (3-line aggregate)
+*     figure_s2s4_facets_country     (8-panel by partner)
+*     figure_s2s4_gap_country        (gap stacked by partner)
+*
+*   Section D7 (product-side analogues):
+*     figure_s2s4_facets_product     (9-panel by product group)
+*     figure_s2s4_gap_product        (gap stacked by product)
+*     figure_s2s4_heatmap            (period-avg gap, product x partner; needs heatplot)
+*
+*   Section D8 (S1 vs S2 facets):
+*     figure_s1s2_facets_country
+*     figure_s1s2_facets_product
+*
+*   Tables (Section D):
+*     cmp_overall_monthly, cmp_partner_monthly, cmp_hs2_ranking,
+*     cmp_top_hs10_anomalies, cmp_2x2_monthly, cmp_2x2_partner_monthly,
+*     cmp_2x2_hs2_monthly, cmp_gap_quantiles_monthly,
+*     cmp_product_monthly, cmp_product_partner_avg
+*     cmp_s1s2_country_monthly, cmp_s1s2_product_monthly
 * ==============================================================================
 
 di as text _n "=========================================="
@@ -349,9 +365,10 @@ preserve
         title("Trade Diversion Decomposition: Country Lens") ///
         subtitle("Shapley two-way; segments sum to total S1-S2 gap") ///
         yline(0, lcolor(gs10) lpattern(dot)) ///
-        graphregion(color(white)) plotregion(margin(small))
+        graphregion(color(white)) plotregion(margin(small)) ///
+        name(g_div_decomp, replace)
 
-    graph export "$figures/figure_d1_diversion_decomp.png", replace width(2400)
+    export_dual_titles, base("figure_diversion_decomp") grname(g_div_decomp)
 restore
 
 * --- D2. Country contributions stacked over time ---
@@ -410,9 +427,10 @@ preserve
         ytitle("Contribution to S1-S2 gap (pp)") ///
         title("Trade Diversion: Country Contributions") ///
         subtitle("Stacked monthly, signed (positive = adds to gap_diversion)") ///
-        graphregion(color(white))
+        graphregion(color(white)) ///
+        name(g_div_country, replace)
 
-    graph export "$figures/figure_d2_diversion_by_country.png", replace width(2400)
+    export_dual_titles, base("figure_diversion_country") grname(g_div_country)
 restore
 
 * --- D3. Product contributions stacked over time ---
@@ -475,9 +493,10 @@ preserve
         ytitle("Contribution to S1-S2 gap (pp)") ///
         title("Trade Diversion: Product Contributions") ///
         subtitle("Stacked monthly, signed (positive = adds to gap_diversion)") ///
-        graphregion(color(white))
+        graphregion(color(white)) ///
+        name(g_div_product, replace)
 
-    graph export "$figures/figure_d3_diversion_by_product.png", replace width(2400)
+    export_dual_titles, base("figure_diversion_product") grname(g_div_product)
 restore
 
 
@@ -618,8 +637,9 @@ preserve
         ytitle("Contribution to S2-S3 gap (pp)") ///
         title("All-Other Preferences: Country Contributions") ///
         subtitle("Stacked monthly, signed; sums to gap_others") ///
-        graphregion(color(white))
-    graph export "$figures/figure_o2_others_by_country.png", replace width(2400)
+        graphregion(color(white)) ///
+        name(g_others_country, replace)
+    export_dual_titles, base("figure_others_country") grname(g_others_country)
 restore
 
 * --- O3: others by product ---
@@ -672,8 +692,9 @@ preserve
         ytitle("Contribution to S2-S3 gap (pp)") ///
         title("All-Other Preferences: Product Contributions") ///
         subtitle("Stacked monthly, signed; sums to gap_others") ///
-        graphregion(color(white))
-    graph export "$figures/figure_o3_others_by_product.png", replace width(2400)
+        graphregion(color(white)) ///
+        name(g_others_product, replace)
+    export_dual_titles, base("figure_others_product") grname(g_others_product)
 restore
 
 * --- R2: residual by country ---
@@ -722,8 +743,9 @@ preserve
         ytitle("Contribution to S3-S4 gap (pp)") ///
         title("Residual: Country Contributions") ///
         subtitle("Stacked monthly, signed; sums to gap_residual (S3-S4)") ///
-        graphregion(color(white))
-    graph export "$figures/figure_r2_residual_by_country.png", replace width(2400)
+        graphregion(color(white)) ///
+        name(g_resid_country, replace)
+    export_dual_titles, base("figure_residual_country") grname(g_resid_country)
 restore
 
 * --- R3: residual by product ---
@@ -776,8 +798,9 @@ preserve
         ytitle("Contribution to S3-S4 gap (pp)") ///
         title("Residual: Product Contributions") ///
         subtitle("Stacked monthly, signed; sums to gap_residual (S3-S4)") ///
-        graphregion(color(white))
-    graph export "$figures/figure_r3_residual_by_product.png", replace width(2400)
+        graphregion(color(white)) ///
+        name(g_resid_product, replace)
+    export_dual_titles, base("figure_residual_product") grname(g_resid_product)
 restore
 
 
@@ -995,9 +1018,10 @@ graph combine g_c_adjustment g_c_diversion g_c_others g_c_residual, ///
     cols(2) ycommon ///
     title("Per-Country Attribution Across the Four Decomposable Channels") ///
     subtitle("Stacked monthly; gap_timing (S4-T) is Treasury-aggregate-only, not shown") ///
-    graphregion(color(white))
+    graphregion(color(white)) ///
+    name(g_attr_country, replace)
 
-graph export "$figures/figure_f2_attribution_by_country.png", replace width(3000)
+export_dual_titles, base("figure_attribution_country") grname(g_attr_country) width(3000)
 
 * Drop named graphs to free memory before product loop.
 graph drop g_c_adjustment g_c_diversion g_c_others g_c_residual
@@ -1080,9 +1104,10 @@ graph combine g_p_adjustment g_p_diversion g_p_others g_p_residual, ///
     cols(2) ycommon ///
     title("Per-Product Attribution Across the Four Decomposable Channels") ///
     subtitle("Stacked monthly; gap_timing (S4-T) is Treasury-aggregate-only, not shown") ///
-    graphregion(color(white))
+    graphregion(color(white)) ///
+    name(g_attr_product, replace)
 
-graph export "$figures/figure_f3_attribution_by_product.png", replace width(3000)
+export_dual_titles, base("figure_attribution_product") grname(g_attr_product) width(3000)
 
 graph drop g_p_adjustment g_p_diversion g_p_others g_p_residual
 
@@ -1156,9 +1181,10 @@ twoway ///
     ylabel(, format(%9.0f)) ///
     yscale(range(0)) ///
     graphregion(color(white)) ///
-    plotregion(margin(small))
+    plotregion(margin(small)) ///
+    name(g_ladder, replace)
 
-graph export "$figures/figure1_etr_comparison.png", replace width(2400)
+export_dual_titles, base("figure_ladder") grname(g_ladder)
 
 
 * --- Figure 2: Gap decomposition stacked bar (S0->T, two stacks) ---
@@ -1183,9 +1209,10 @@ graph bar (asis) gap_s1_t gap_adjustment, ///
     ytitle("Gap (percentage points)") ///
     title("Statutory-Actual ETR Gap Decomposition") ///
     subtitle("Stacked components, Jan 2025 - Feb 2026") ///
-    graphregion(color(white))
+    graphregion(color(white)) ///
+    name(g_gap_stacked, replace)
 
-graph export "$figures/figure2_gap_stacked.png", replace width(2400)
+export_dual_titles, base("figure_gap_stacked") grname(g_gap_stacked)
 
 
 * --- Figure 3: S1->Treasury decomposed into diversion / others / residual (3 stacks) ---
@@ -1211,9 +1238,10 @@ graph bar (asis) gap_diversion gap_others gap_s3_t, ///
     ytitle("Gap (percentage points)") ///
     title("Preferences Gap Decomposition") ///
     subtitle("S1{&rarr}Treasury split into USMCA / all-others / residual") ///
-    graphregion(color(white))
+    graphregion(color(white)) ///
+    name(g_channel_stacked, replace)
 
-graph export "$figures/figure3_usmca_decomp.png", replace width(2400)
+export_dual_titles, base("figure_channel_stacked") grname(g_channel_stacked)
 
 
 * ======================================================================
@@ -1329,9 +1357,10 @@ preserve
         xlabel(, format(%tmMon_CCYY) angle(45)) ///
         ylabel(, format(%9.0f)) ///
         yscale(range(0)) ///
-        graphregion(color(white)) plotregion(margin(small))
+        graphregion(color(white)) plotregion(margin(small)) ///
+        name(g_s2s4_overall, replace)
 
-    graph export "$figures/figure4_cmp_overall.png", replace width(2400)
+    export_dual_titles, base("figure_s2s4_overall") grname(g_s2s4_overall)
 restore
 
 ** Reload merged_analysis for the remaining D2-D6 sections.
@@ -1384,28 +1413,40 @@ preserve
     ** --- Fig 5: 8-panel facet by partner group ---
     encode partner_group, gen(pg_id)
 
-    twoway ///
-        (connected s2 ym, ///
-            mcolor("$color_statutory") lcolor("$color_statutory") ///
-            msymbol(circle) msize(vsmall) lwidth(medium) lpattern(solid)) ///
-        (connected s4 ym, ///
-            mcolor("$color_gap") lcolor("$color_gap") ///
-            msymbol(diamond) msize(vsmall) lwidth(medium) lpattern(solid)) ///
-        , ///
-        by(pg_id, ///
-            cols(4) ///
-            title("S2 (Statutory, USMCA H2-2025) vs. S4 (Census) by Partner") ///
-            subtitle("Monthly, Jan 2025 - Feb 2026") ///
-            note("") ///
-            graphregion(color(white))) ///
-        legend(order( ///
-            1 "S2: Statutory (USMCA H2-2025)" ///
-            2 "S4: Census") rows(1) size(small) position(6)) ///
-        ytitle("ETR (%)") xtitle("") ///
-        xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
-        ylabel(, labsize(vsmall))
-
-    graph export "$figures/figure5_cmp_partner_facets.png", replace width(3000)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local fig_t "S2 (Statutory, USMCA H2-2025) vs. S4 (Census) by Partner"
+            local fig_st "Monthly, Jan 2025 - Feb 2026"
+            local sfx "_titled"
+        }
+        else {
+            local fig_t ""
+            local fig_st ""
+            local sfx ""
+        }
+        twoway ///
+            (connected s2 ym, ///
+                mcolor("$color_statutory") lcolor("$color_statutory") ///
+                msymbol(circle) msize(vsmall) lwidth(medium) lpattern(solid)) ///
+            (connected s4 ym, ///
+                mcolor("$color_gap") lcolor("$color_gap") ///
+                msymbol(diamond) msize(vsmall) lwidth(medium) lpattern(solid)) ///
+            , ///
+            by(pg_id, ///
+                cols(4) ///
+                title("`fig_t'") ///
+                subtitle("`fig_st'") ///
+                note("") ///
+                graphregion(color(white))) ///
+            legend(order( ///
+                1 "S2: Statutory (USMCA H2-2025)" ///
+                2 "S4: Census") rows(1) size(small) position(6)) ///
+            ytitle("ETR (%)") xtitle("") ///
+            xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+            ylabel(, labsize(vsmall))
+        graph export "$figures/figure_s2s4_facets_country`sfx'.png", ///
+            replace width(3000)
+    }
 
     ** --- Fig C: overall gap decomposed by partner group contribution ---
     ** Partner p's pp contribution to overall gap =
@@ -1456,9 +1497,10 @@ preserve
         ytitle("Gap contribution (pp of overall ETR)") ///
         title("Statutory - Census gap, by partner group") ///
         subtitle("Monthly contribution to overall-ETR gap, pp") ///
-        graphregion(color(white))
+        graphregion(color(white)) ///
+        name(g_s2s4_gap_country, replace)
 
-    graph export "$figures/figure6_cmp_gap_by_partner.png", replace width(2400)
+    export_dual_titles, base("figure_s2s4_gap_country") grname(g_s2s4_gap_country)
 restore
 
 
@@ -1804,28 +1846,40 @@ preserve
     ** --- Fig P1: 9-panel facet by product group ---
     encode product_group, gen(pg_id)
 
-    twoway ///
-        (connected s2 ym, ///
-            mcolor("$color_statutory") lcolor("$color_statutory") ///
-            msymbol(circle) msize(vsmall) lwidth(medium) lpattern(solid)) ///
-        (connected s4 ym, ///
-            mcolor("$color_gap") lcolor("$color_gap") ///
-            msymbol(diamond) msize(vsmall) lwidth(medium) lpattern(solid)) ///
-        , ///
-        by(pg_id, ///
-            cols(3) ///
-            title("S2 (Statutory, USMCA H2-2025) vs. S4 (Census) by Product Group") ///
-            subtitle("Monthly, Jan 2025 - Feb 2026") ///
-            note("") ///
-            graphregion(color(white))) ///
-        legend(order( ///
-            1 "S2: Statutory (USMCA H2-2025)" ///
-            2 "S4: Census") rows(1) size(small) position(6)) ///
-        ytitle("ETR (%)") xtitle("") ///
-        xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
-        ylabel(, labsize(vsmall))
-
-    graph export "$figures/figure_p1_cmp_product_facets.png", replace width(3000)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local fig_t "S2 (Statutory, USMCA H2-2025) vs. S4 (Census) by Product Group"
+            local fig_st "Monthly, Jan 2025 - Feb 2026"
+            local sfx "_titled"
+        }
+        else {
+            local fig_t ""
+            local fig_st ""
+            local sfx ""
+        }
+        twoway ///
+            (connected s2 ym, ///
+                mcolor("$color_statutory") lcolor("$color_statutory") ///
+                msymbol(circle) msize(vsmall) lwidth(medium) lpattern(solid)) ///
+            (connected s4 ym, ///
+                mcolor("$color_gap") lcolor("$color_gap") ///
+                msymbol(diamond) msize(vsmall) lwidth(medium) lpattern(solid)) ///
+            , ///
+            by(pg_id, ///
+                cols(3) ///
+                title("`fig_t'") ///
+                subtitle("`fig_st'") ///
+                note("") ///
+                graphregion(color(white))) ///
+            legend(order( ///
+                1 "S2: Statutory (USMCA H2-2025)" ///
+                2 "S4: Census") rows(1) size(small) position(6)) ///
+            ytitle("ETR (%)") xtitle("") ///
+            xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+            ylabel(, labsize(vsmall))
+        graph export "$figures/figure_s2s4_facets_product`sfx'.png", ///
+            replace width(3000)
+    }
 
     ** --- Fig P2: gap contribution stacked by product group ---
     bysort ym: egen double total_val_all = total(total_val)
@@ -1873,9 +1927,10 @@ preserve
         ytitle("Gap contribution (pp of overall ETR)") ///
         title("S2 - S4 Gap, by Product Group") ///
         subtitle("Monthly contribution to overall-ETR gap, pp") ///
-        graphregion(color(white))
+        graphregion(color(white)) ///
+        name(g_s2s4_gap_product, replace)
 
-    graph export "$figures/figure_p2_cmp_gap_by_product.png", replace width(2400)
+    export_dual_titles, base("figure_s2s4_gap_product") grname(g_s2s4_gap_product)
 restore
 
 ** --- Fig P3: product_group x partner_group heatmap (period-averaged S2-S4) ---
@@ -1896,23 +1951,162 @@ preserve
     export delimited using "$tables/cmp_product_partner_avg.csv", replace
 
     ** heatplot is from SSC (ssc install heatplot palettes colrspace).
-    ** Falls back to a `graph hbar` matrix if heatplot isn't installed.
     capture which heatplot
     if _rc == 0 {
-        heatplot gap_pp i.product_group i.partner_group, ///
-            color(RdBu, reverse) cuts(-30(5)30) ///
-            ramp(right space(5) suffix("pp")) ///
-            keylabels(, range(-30 30)) ///
-            xtitle("") ytitle("") ///
-            title("S2 - S4 Gap by Product x Partner") ///
-            subtitle("Period-averaged, pp") ///
-            graphregion(color(white)) plotregion(margin(small))
-        graph export "$figures/figure_p3_product_partner_heatmap.png", ///
-            replace width(2400)
+        foreach v in titled clean {
+            if "`v'" == "titled" {
+                local fig_t "S2 - S4 Gap by Product x Partner"
+                local fig_st "Period-averaged, pp"
+                local sfx "_titled"
+            }
+            else {
+                local fig_t ""
+                local fig_st ""
+                local sfx ""
+            }
+            heatplot gap_pp i.product_group i.partner_group, ///
+                color(RdBu, reverse) cuts(-30(5)30) ///
+                ramp(right space(5) suffix("pp")) ///
+                keylabels(, range(-30 30)) ///
+                xtitle("") ytitle("") ///
+                title("`fig_t'") ///
+                subtitle("`fig_st'") ///
+                graphregion(color(white)) plotregion(margin(small))
+            graph export "$figures/figure_s2s4_heatmap`sfx'.png", ///
+                replace width(2400)
+        }
     }
     else {
-        di as error "WARNING: heatplot not installed; skipping Fig P3."
+        di as error "WARNING: heatplot not installed; skipping S2-S4 heatmap."
         di as error "         Install with: ssc install heatplot palettes colrspace"
+    }
+restore
+
+
+* ----------------------------------------------------------------------
+* D8. S1 vs S2 facets  (country and product partitions)
+*
+* Same panel-line-chart form as D2 (S2 vs S4 by country) and D7's P1
+* (S2 vs S4 by product), but the two lines are S1 (rate_h2avg x 2024
+* weights) and S2 (rate_h2avg x monthly weights). Visualizes the
+* trade-diversion channel at the group level.
+* ----------------------------------------------------------------------
+
+di as text _n "      D8. S1 vs S2 facets..."
+
+use "$working/merged_analysis.dta", clear
+keep if ym >= $start_ym & ym <= $end_ym
+
+gen double s1_num = rate_h2avg * imports
+gen double s2_num = rate_h2avg * con_val_mo
+
+* --- D8a. S1 vs S2 by country ---
+preserve
+    collapse (sum) s1_num s2_num imports con_val_mo, by(ym partner_group)
+
+    safe_divide s1_num imports     s1
+    safe_divide s2_num con_val_mo  s2
+    replace s1 = s1 * 100
+    replace s2 = s2 * 100
+    gen double gap_s1_s2 = s1 - s2
+
+    label var s1        "S1: rate_h2avg x 2024 wts (%)"
+    label var s2        "S2: rate_h2avg x monthly wts (%)"
+    label var gap_s1_s2 "S1 - S2 (pp)"
+
+    save "$working/cmp_s1s2_country_monthly.dta", replace
+    export delimited using "$tables/cmp_s1s2_country_monthly.csv", replace
+
+    encode partner_group, gen(pg_id)
+
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local fig_t "S1 (USMCA h2avg, 2024 wts) vs. S2 (USMCA h2avg, monthly wts) by Partner"
+            local fig_st "Rate panel held fixed; weights shift -- the trade-diversion channel"
+            local sfx "_titled"
+        }
+        else {
+            local fig_t ""
+            local fig_st ""
+            local sfx ""
+        }
+        twoway ///
+            (connected s1 ym, ///
+                mcolor("$color_statutory") lcolor("$color_statutory") ///
+                msymbol(circle) msize(vsmall) lwidth(medium) lpattern(solid)) ///
+            (connected s2 ym, ///
+                mcolor("$color_canada") lcolor("$color_canada") ///
+                msymbol(diamond) msize(vsmall) lwidth(medium) lpattern(shortdash)) ///
+            , ///
+            by(pg_id, ///
+                cols(4) ///
+                title("`fig_t'") ///
+                subtitle("`fig_st'") ///
+                note("") ///
+                graphregion(color(white))) ///
+            legend(order( ///
+                1 "S1: 2024 weights" ///
+                2 "S2: monthly weights") rows(1) size(small) position(6)) ///
+            ytitle("ETR (%)") xtitle("") ///
+            xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+            ylabel(, labsize(vsmall))
+        graph export "$figures/figure_s1s2_facets_country`sfx'.png", ///
+            replace width(3000)
+    }
+restore
+
+* --- D8b. S1 vs S2 by product ---
+preserve
+    collapse (sum) s1_num s2_num imports con_val_mo, by(ym product_group)
+
+    safe_divide s1_num imports     s1
+    safe_divide s2_num con_val_mo  s2
+    replace s1 = s1 * 100
+    replace s2 = s2 * 100
+    gen double gap_s1_s2 = s1 - s2
+
+    label var s1        "S1: rate_h2avg x 2024 wts (%)"
+    label var s2        "S2: rate_h2avg x monthly wts (%)"
+    label var gap_s1_s2 "S1 - S2 (pp)"
+
+    save "$working/cmp_s1s2_product_monthly.dta", replace
+    export delimited using "$tables/cmp_s1s2_product_monthly.csv", replace
+
+    encode product_group, gen(pg_id)
+
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local fig_t "S1 (USMCA h2avg, 2024 wts) vs. S2 (USMCA h2avg, monthly wts) by Product Group"
+            local fig_st "Rate panel held fixed; weights shift -- the trade-diversion channel"
+            local sfx "_titled"
+        }
+        else {
+            local fig_t ""
+            local fig_st ""
+            local sfx ""
+        }
+        twoway ///
+            (connected s1 ym, ///
+                mcolor("$color_statutory") lcolor("$color_statutory") ///
+                msymbol(circle) msize(vsmall) lwidth(medium) lpattern(solid)) ///
+            (connected s2 ym, ///
+                mcolor("$color_canada") lcolor("$color_canada") ///
+                msymbol(diamond) msize(vsmall) lwidth(medium) lpattern(shortdash)) ///
+            , ///
+            by(pg_id, ///
+                cols(3) ///
+                title("`fig_t'") ///
+                subtitle("`fig_st'") ///
+                note("") ///
+                graphregion(color(white))) ///
+            legend(order( ///
+                1 "S1: 2024 weights" ///
+                2 "S2: monthly weights") rows(1) size(small) position(6)) ///
+            ytitle("ETR (%)") xtitle("") ///
+            xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+            ylabel(, labsize(vsmall))
+        graph export "$figures/figure_s1s2_facets_product`sfx'.png", ///
+            replace width(3000)
     }
 restore
 

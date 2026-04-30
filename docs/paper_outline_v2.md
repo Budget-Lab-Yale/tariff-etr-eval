@@ -184,22 +184,84 @@
 
 ### 5.3 Aggregate ETR formula
 
-For aggregate $S(w) = \sum_i w_i r_i$ over $i = $ (HS10, country) cells:
+**Symbols** (cell level). Index $i$ runs over (HS10 × country) cells in a given month $t$:
 
-$$S^{\text{tier}}_t = \frac{\sum_i r_i^{\text{tier}}(t) \cdot w_i^{\text{tier}}(t)}{\sum_i w_i^{\text{tier}}(t)}$$
+- $r_i$: cell-level statutory tariff rate (a fraction). Concretely, one of the four rate panels — `rate_2024`, `rate_h2avg`, `rate_usmca_monthly`, `rate_all_pref` — depending on which tier we are computing.
+- $w_i$: cell-level value weight in dollars. Concretely either `imports` (2024 annual weight) or `con_val_mo` (monthly weight) depending on tier.
+
+**Aggregate ETR.** For a given (rate panel, weight panel) pair the aggregate effective tariff rate is the value-weighted average across cells:
+
+$$
+S = \frac{\sum_i w_i \, r_i}{\sum_i w_i}.
+$$
+
+Writing this out for a particular tier and month $t$:
+
+$$
+S^{\text{tier}}_t = \frac{\sum_i r^{\text{tier}}_{i,t} \cdot w^{\text{tier}}_{i,t}}{\sum_i w^{\text{tier}}_{i,t}}.
+$$
+
+For example, **S2** uses $r_i = $ `rate_h2avg`$_i$ and $w_i = $ `con_val_mo`$_i$ at month $t$.
+
+**Symbols** (group level). For any partition $g \in \{1, \ldots, G\}$ of cells (e.g. 8 partner groups or 9 product groups), define group-level rate and group-level share:
+
+- $R_g$: group $g$'s value-weighted average rate,
+$$
+R_g = \frac{\sum_{i \in g} w_i r_i}{\sum_{i \in g} w_i}.
+$$
+- $s_g$: group $g$'s share of total weight,
+$$
+s_g = \frac{\sum_{i \in g} w_i}{\sum_i w_i}, \qquad \sum_g s_g = 1.
+$$
+
+**Partition identity.** The aggregate ETR equals the share-weighted average of group-level rates:
+
+$$
+S = \sum_g s_g \, R_g.
+$$
+
+This is the algebraic foundation for the Shapley decomposition in §5.4: at any given month, $S$ is a linear function of $G$ shares and $G$ rates.
+
+**Methodology choices**:
 
 - Single-stage row-level value-weighted average. No HS2 bridging.
-- Zero-tariff products **must be in the denominator** [`docs/weighting_note.md`].
+- Zero-tariff products **must be in the denominator** [`docs/weighting_note.md`]. Dropping them inflates the ETR from ~3.4% to ~27%.
+- All rate panels are day-weighted across HTS revisions within each month (R `00_pull_raw_data.R` §3e), so $r^{\text{tier}}_{i,t}$ is a smooth monthly object even when the underlying revision schedule changes mid-month.
 
 ### 5.4 Shapley two-way decomposition (S1 → S2 trade diversion)
 
-- For partition $g$ (partner_group or product_group):
+**Setup.** For any pair of tiers that share a rate panel but differ in weights (or vice versa), define two periods indexed by superscripts $0$ and $1$:
 
-$$\Delta S = \sum_g \tfrac{1}{2}(R_g^{0} + R_g^{1})(s_g^{0} - s_g^{1}) + \sum_g \tfrac{1}{2}(s_g^{0} + s_g^{1})(R_g^{0} - R_g^{1})$$
+- For trade diversion (S1 → S2): rate panel held at `rate_h2avg`; period $0$ = 2024 weights ($w^0_i = $ `imports`$_i$), period $1$ = monthly weights ($w^1_i = $ `con_val_mo`$_i$ at month $t$).
 
-- First term = **between-group** (composition shift); second term = **within-group** (rate shift inside each group).
-- Both partitions sum to the same Δ at every month; the country and product lenses are complementary, not mutually exclusive.
-- Sign convention: positive contribution = positive contribution to (S1 − S2), i.e. positive contribution to gap_diversion.
+The aggregate ETR in each period is:
+
+$$
+S^k = \sum_g s^k_g \, R^k_g \qquad (k = 0, 1),
+$$
+
+where $s^k_g$ and $R^k_g$ are group $g$'s share and rate computed using the period-$k$ weights, exactly as defined in §5.3.
+
+**Trade-diversion gap.** The framework defines $\text{gap}_{\text{diversion}} = S^1_{\text{frame}} - S^2_{\text{frame}} = S^0 - S^1$ in the superscript notation here. (The "0" / "1" labeling reflects the two periods entering the decomposition; "S1" / "S2" labels the two framework tiers being compared.)
+
+**The Shapley two-way decomposition**. Decompose $\Delta S = S^0 - S^1$ into a between-group term (shifts in shares $s_g$) and a within-group term (shifts in rates $R_g$). Symmetric Shapley two-way (averaging the two orderings of share-then-rate vs rate-then-share):
+
+$$
+\Delta S = \underbrace{\sum_g \tfrac{1}{2}(R^0_g + R^1_g)(s^0_g - s^1_g)}_{\text{between-group: composition shift}} + \underbrace{\sum_g \tfrac{1}{2}(s^0_g + s^1_g)(R^0_g - R^1_g)}_{\text{within-group: rate shift inside group}}.
+$$
+
+**Reading the terms** (for the country lens, $g$ = partner_group):
+
+- **Between-country.** $(s^0_g - s^1_g) > 0$ means group $g$ lost share from period 0 to period 1. Multiplied by the average of group $g$'s two rates. Captures composition: how much of the gap comes from "imports shifted away from country $g$ toward other countries". Positive when high-rate countries lose share or low-rate countries gain share.
+- **Within-country.** $(R^0_g - R^1_g) > 0$ means group $g$'s within-group product mix shifted to less-tariffed cells. Multiplied by the average of group $g$'s two shares. Captures rate change inside each group at fixed across-group composition.
+
+**Trade diversion is purely composition-driven.** For S1 → S2 the rate panel is fixed (`rate_h2avg` in both periods). Therefore the within-group term involves $R^0_g - R^1_g$ which arises only from the within-group product mix changing — i.e., the same `rate_h2avg` rates re-weighted by changing within-group import shares. The between-group term arises from the across-group share of total imports changing.
+
+For S0 → S1 (USMCA adjustment) the situation is the opposite: weights are fixed and rates change. The between-group term is mechanically zero (no share movement at fixed weights). The within-group term collapses to a per-group dollar attribution — see §5.5.
+
+**Sign convention.** Positive contribution by group $g$ = positive contribution to $\Delta S$ = positive contribution to gap_diversion = (S1 − S2) > 0. Negative contributions ("reverse diversion") arise when a high-tariff group gains share (e.g., a hypothetical China-share-rises scenario) or a low-tariff group loses share. In our 2025–2026 data, ROW shows persistent negative between-country contribution because low-tariff partners (Vietnam, India, etc.) gained share.
+
+**Both partitions sum to the same $\Delta S$** at every month — the country and product lenses are complementary, not mutually exclusive. We compute both. The Shapley sum identity is asserted at runtime in `03_etr_analysis.do` Section B (validates both lenses against `gap_diversion` from `counterfactual_ladder.dta` to within numerical noise, default tolerance $10^{-3}$ pp).
 
 ### 5.5 Per-group attribution (S2 → S3, S3 → S4)
 

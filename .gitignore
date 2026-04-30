@@ -45,3 +45,11 @@ Thumbs.db
 .vscode/
 *.swp
 .claude/
+
+# LaTeX build artifacts
+*.aux
+*.nav
+*.out
+*.snm
+*.toc
+*.synctex.gz

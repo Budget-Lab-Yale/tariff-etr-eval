@@ -34,14 +34,14 @@
 *   $tables/cmp_2x2_monthly.csv      (2x2 zero-pattern; for §C)
 *   $raw/counterfactual_usmca2024.csv (rate panel; for §C summary)
 *
-* Outputs:
+* Outputs (each figure exported in two versions: <base>.png clean / <base>_titled.png):
 *   $working/baseline_etr.dta + $tables/baseline_etr.csv
-*   $figures/figure_baseline_etr.png
+*   $figures/figure_baseline.png  (was figure_baseline_etr.png)
 *   $figures/figure_daily_overlay.png
 *   $working/monthly_summary.dta
 *   $tables/monthly_summary.csv + $tables/monthly_summary.xlsx
-*   $figures/figure_u1_usmca_adjustment.png
-*   $figures/figure_u2_adjustment_by_country.png
+*   $figures/figure_adjustment_explainer.png  (was figure_u1_usmca_adjustment.png)
+*   $figures/figure_adjustment_country.png    (was figure_u2_adjustment_by_country.png)
 *   $tables/adjustment_by_country.csv
 * ==============================================================================
 
@@ -130,9 +130,10 @@ twoway ///
     ylabel(, format(%9.0f)) ///
     yscale(range(0)) ///
     graphregion(color(white)) ///
-    plotregion(margin(small))
+    plotregion(margin(small)) ///
+    name(g_baseline, replace)
 
-graph export "$figures/figure_baseline_etr.png", replace width(2400)
+export_dual_titles, base("figure_baseline") grname(g_baseline)
 
 
 * ======================================================================
@@ -195,9 +196,10 @@ twoway ///
     ylabel(, format(%9.0f)) ///
     yscale(range(0)) ///
     graphregion(color(white)) ///
-    plotregion(margin(small))
+    plotregion(margin(small)) ///
+    name(g_daily_overlay, replace)
 
-graph export "$figures/figure_daily_overlay.png", replace width(2400)
+export_dual_titles, base("figure_daily_overlay") grname(g_daily_overlay)
 
 
 * ======================================================================
@@ -453,33 +455,44 @@ encode partner_group, gen(pg_id)
 
 * Color choices: 2024 baseline (purple) and h2avg baseline (navy) need to be
 * visually distinct so the reader can see the empirical line move between them.
-twoway ///
-    (connected etr_2024 ym, ///
-        mcolor("$color_japan") lcolor("$color_japan") ///
-        msymbol(circle) msize(vsmall) lwidth(medium) lpattern(dash)) ///
-    (connected etr_monthly ym, ///
-        mcolor("$color_actual") lcolor("$color_actual") ///
-        msymbol(diamond) msize(vsmall) lwidth(medthick) lpattern(solid)) ///
-    (connected etr_h2avg ym, ///
-        mcolor("$color_statutory") lcolor("$color_statutory") ///
-        msymbol(square) msize(vsmall) lwidth(medium) lpattern(dash)) ///
-    , ///
-    by(pg_id, ///
-        cols(2) ///
-        title("USMCA Adjustment: CA and MX Statutory ETR by USMCA Scenario") ///
-        subtitle("Empirical line shifts from 2024 baseline to H2-2025 baseline mid-2025") ///
-        note("") ///
-        graphregion(color(white))) ///
-    legend(order( ///
-        1 "USMCA 2024 baseline (S0 panel)" ///
-        2 "USMCA monthly empirical" ///
-        3 "USMCA H2-2025 baseline (S1/S2 panel)") ///
-        rows(3) size(small) position(6)) ///
-    ytitle("Statutory ETR (%)") xtitle("") ///
-    xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
-    ylabel(, labsize(vsmall))
-
-graph export "$figures/figure_u1_usmca_adjustment.png", replace width(2400)
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local fig_t "USMCA Adjustment: CA and MX Statutory ETR by USMCA Scenario"
+        local fig_st "Empirical line shifts from 2024 baseline to H2-2025 baseline mid-2025"
+        local sfx "_titled"
+    }
+    else {
+        local fig_t ""
+        local fig_st ""
+        local sfx ""
+    }
+    twoway ///
+        (connected etr_2024 ym, ///
+            mcolor("$color_japan") lcolor("$color_japan") ///
+            msymbol(circle) msize(vsmall) lwidth(medium) lpattern(dash)) ///
+        (connected etr_monthly ym, ///
+            mcolor("$color_actual") lcolor("$color_actual") ///
+            msymbol(diamond) msize(vsmall) lwidth(medthick) lpattern(solid)) ///
+        (connected etr_h2avg ym, ///
+            mcolor("$color_statutory") lcolor("$color_statutory") ///
+            msymbol(square) msize(vsmall) lwidth(medium) lpattern(dash)) ///
+        , ///
+        by(pg_id, ///
+            cols(2) ///
+            title("`fig_t'") ///
+            subtitle("`fig_st'") ///
+            note("") ///
+            graphregion(color(white))) ///
+        legend(order( ///
+            1 "USMCA 2024 baseline (S0 panel)" ///
+            2 "USMCA monthly empirical" ///
+            3 "USMCA H2-2025 baseline (S1/S2 panel)") ///
+            rows(3) size(small) position(6)) ///
+        ytitle("Statutory ETR (%)") xtitle("") ///
+        xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+        ylabel(, labsize(vsmall))
+    graph export "$figures/figure_adjustment_explainer`sfx'.png", replace width(2400)
+}
 
 
 * --- D2. Period-averaged S0 - S1 gap by partner_group (Fig U2) ---
@@ -526,9 +539,10 @@ graph hbar (asis) gap_adjustment, ///
     ytitle("USMCA adjustment (pp; S0 - S1, period avg)") ///
     title("USMCA Adjustment Gap by Partner Group") ///
     subtitle("Where the 2024 -> H2-2025 USMCA shift moves the statutory rate") ///
-    graphregion(color(white))
+    graphregion(color(white)) ///
+    name(g_adj_country, replace)
 
-graph export "$figures/figure_u2_adjustment_by_country.png", replace width(2400)
+export_dual_titles, base("figure_adjustment_country") grname(g_adj_country)
 
 
 di as text _n "  03b_baseline_figures complete." _n
