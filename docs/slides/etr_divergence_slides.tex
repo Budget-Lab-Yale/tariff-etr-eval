@@ -18,26 +18,37 @@
 \usepackage{xcolor}
 \usepackage{hyperref}
 
-\definecolor{tblnavy}{RGB}{0,85,164}
-\definecolor{tblred}{RGB}{200,16,46}
-\definecolor{tblgreen}{RGB}{40,167,69}
-\definecolor{tblgray}{RGB}{108,117,125}
+% Wong colorblind-safe palette (matches code/utils/globals.do).
+\definecolor{wblue}{RGB}{0,114,178}        % statutory / framework anchor
+\definecolor{wvermillion}{RGB}{213,94,0}   % Treasury / actual / China
+\definecolor{wgreen}{RGB}{0,158,115}       % gap / Census / Mexico
+\definecolor{wgray}{RGB}{120,120,120}      % neutral
+\definecolor{tblnavy}{RGB}{0,114,178}      % alias kept for backwards compat in macros
+\definecolor{tblred}{RGB}{213,94,0}
 
-\setbeamercolor{frametitle}{bg=tblnavy, fg=white}
-\setbeamercolor{progress bar}{fg=tblred}
-\setbeamercolor{title separator}{fg=tblred}
+% White background, plain frame titles. Logo on every non-title frame via
+% \logo (rendered top-right by metropolis), and on title slide via \titlegraphic.
+\setbeamercolor{background canvas}{bg=white}
+\setbeamercolor{normal text}{bg=white, fg=black}
+\setbeamercolor{frametitle}{bg=white, fg=wblue}
+\setbeamercolor{progress bar}{fg=wvermillion}
+\setbeamercolor{title separator}{fg=wvermillion}
 
-\graphicspath{{../../results/figures/}}
+\graphicspath{{../../results/figures/}{./}}
 
-% Helper for tier labels
-\newcommand{\tier}[1]{\textbf{\color{tblnavy}#1}}
-\newcommand{\gap}[1]{\textit{\color{tblred}#1}}
+% Budget Lab logo (sits in docs/slides/ alongside this file)
+\titlegraphic{\vspace*{4em}\hfill\includegraphics[height=1.2cm]{budget_lab_logo.png}\hspace*{1em}}
+\logo{\includegraphics[height=0.6cm]{budget_lab_logo.png}}
 
-\title{Decomposing the Statutory--Actual Tariff Rate Divergence}
-\subtitle{A six-tier framework for the 2025--2026 episode}
-\author{John Iselin}
+% Helper macros for inline tier and gap call-outs in slide body text.
+\newcommand{\tier}[1]{\textbf{\color{wblue}#1}}
+\newcommand{\gap}[1]{\textit{\color{wvermillion}#1}}
+
+\title{Actual versus Statutory Tariff Rates: 2025--2026}
+\subtitle{Measuring and evaluating the gap between observed and estimated tariff rates}
+\author{John Iselin \and John Ricco \and Abhi Gupta}
 \institute{The Budget Lab at Yale}
-\date{April 2026}
+\date{May 2026}
 
 % ============================================================================
 \begin{document}
@@ -571,7 +582,7 @@ Month & S1 (\%) & T (\%) & S1 $-$ T (pp) \\
 
 \textbf{Other tracking series}:
 \begin{itemize}\scriptsize
-  \item \emph{PWBM} Jan 2026: 10.3\%; ours T = 10.65\% (Δ +0.35 pp)
+  \item \emph{PWBM} Jan 2026: 10.3\%; ours T = 10.65\% ($\Delta$ +0.35 pp)
   \item \emph{Yale Budget Lab} Aug 2025: 11.5\% / 15.7--18.2\% range; ours T = 11.22\% / S1 = 16.46\% (in range)
   \item \emph{Gopinath \& Neiman} Sept 2025: 27\% statutory cited; our S0 = 19.57\% (lower because their figure appears to be a pre-substitution / pre-USMCA-stabilization upper bound)
 \end{itemize}

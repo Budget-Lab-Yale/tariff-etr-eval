@@ -39,34 +39,36 @@ if _rc != 0 {
 graph set window fontface "Times New Roman"
 
 * --- Color globals (RGB for Stata graph commands) ---
-global color_actual    "200 16 46"       // Red
-global color_statutory "0 85 164"        // Navy
-global color_gap       "40 167 69"       // Green
-global color_gray      "108 117 125"     // Gray
+* Wong colorblind-safe palette (Nature Methods 8, 441; 2011) -- 8 distinct
+* hues that remain distinguishable under deuteranopia, protanopia, and
+* tritanopia. Replaces an earlier TBL-branded palette that paired red and
+* green (China vs Mexico) which fails the standard colorblind checks.
+global color_actual    "213 94 0"        // Vermillion (Treasury actual / collected)
+global color_statutory "0 114 178"       // Blue (statutory / framework anchor)
+global color_gap       "0 158 115"       // Bluish green (gap / Census S4)
+global color_gray      "153 153 153"     // Neutral gray
 
-* Partner group colors (colorblind-friendly)
-global color_china     "200 16 46"
-global color_canada    "0 85 164"
-global color_mexico    "40 167 69"
-global color_eu        "255 193 7"
-global color_japan     "155 89 182"
-global color_skorea    "230 126 34"
-global color_uk        "26 188 156"
-global color_row       "149 165 166"
+* Partner group colors (Wong palette)
+global color_china     "213 94 0"        // Vermillion
+global color_canada    "0 114 178"       // Blue
+global color_mexico    "0 158 115"       // Bluish green
+global color_eu        "240 228 66"      // Yellow
+global color_japan     "204 121 167"     // Reddish purple
+global color_skorea    "230 159 0"       // Orange
+global color_uk        "86 180 233"      // Sky blue
+global color_row       "153 153 153"     // Gray
 
 * Product group colors (9 groups; consistent across decomp + gap figures).
-* Choices echo the policy-salience rationale: warm reds for the directly
-* tariffed S232 metals/autos; cool blues for the heavily-exempted electronics
-* and pharma; muted/earthy tones for the residual categories.
-global color_steel     "200 16 46"     // Steel & Aluminum (red, S232)
-global color_autos     "230 126 34"    // Autos & Auto Parts (orange, S232 autos)
-global color_elec      "0 85 164"      // Electronics & Machinery (blue, exempted)
-global color_pharma    "26 188 156"    // Pharmaceuticals (teal, exempted)
-global color_energy    "108 117 125"   // Energy & Minerals (gray)
-global color_chem      "155 89 182"    // Chemicals & Plastics (purple)
-global color_apparel   "255 193 7"     // Apparel & Textiles (yellow, high MFN)
-global color_food      "40 167 69"     // Food & Agriculture (green)
-global color_other     "189 195 199"   // Other Manufactured (light gray)
+* Wong palette extended; pharma/energy/other use lighter neutrals.
+global color_steel     "213 94 0"        // Vermillion (S232)
+global color_autos     "230 159 0"       // Orange (S232 autos)
+global color_elec      "0 114 178"       // Blue (exempted)
+global color_pharma    "86 180 233"      // Sky blue (exempted)
+global color_energy    "204 121 167"     // Reddish purple
+global color_chem      "153 153 153"     // Gray
+global color_apparel   "240 228 66"      // Yellow (high MFN)
+global color_food      "0 158 115"       // Bluish green
+global color_other     "200 200 200"     // Light gray (catchall)
 
 * --- Analysis parameters ---
 * Analysis window (Stata monthly dates)
