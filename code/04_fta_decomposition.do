@@ -171,6 +171,91 @@ list ym pref_channel gap_contrib_pp import_share if ///
 
 
 * ======================================================================
+* C2. AGGREGATE S2->S3 STACKED BAR BY PREFERENCE CHANNEL  (Fig)
+* ======================================================================
+*
+* Stacked bar by ym, segments = preference channels. Each segment is the
+* per-channel contribution to the overall S2 -> S3 gap, in pp. Seven
+* channels grouped into three policy-salience tiers:
+*   Major IEEPA carve-outs:    duty_free  (Annex II / ITA / Ch98 / Pharma)
+*   Bilateral FTAs:            korus, other_fta
+*   GSP / AGOA:                gsp_agoa
+*   Other (small):             ch99_dutiable, mfn_dutiable, ftz_bonded, other
+* The "Other" group is rolled up into a single small segment for visual.
+
+di as text _n "  [C2] S2 -> S3 stacked-bar figure..."
+
+preserve
+    use "$working/fta_decomp_monthly.dta", clear
+    keep ym pref_channel gap_contrib_pp
+
+    * Roll up the four "noise / non-preference" channels into one segment.
+    gen str20 channel_grp = pref_channel
+    replace channel_grp = "other_residual" if ///
+        inlist(pref_channel, "ch99_dutiable", "mfn_dutiable", "ftz_bonded", "other")
+
+    collapse (sum) gap_contrib_pp, by(ym channel_grp)
+
+    * Reshape wide for the stacked-bar
+    reshape wide gap_contrib_pp, i(ym) j(channel_grp) string
+    foreach ch in usmca duty_free korus gsp_agoa other_fta other_residual {
+        capture rename gap_contrib_pp`ch' c_`ch'
+        capture confirm variable c_`ch'
+        if _rc != 0 gen double c_`ch' = 0
+        replace c_`ch' = 0 if missing(c_`ch')
+    }
+
+    sort ym
+    gen byte ym_idx = _n
+    levelsof ym, local(ymlist)
+    local relabel_str ""
+    local i = 1
+    foreach m of local ymlist {
+        local ms : di %tmMon_CCYY `m'
+        local ms = trim("`ms'")
+        local relabel_str `relabel_str' `i' "`ms'"
+        local ++i
+    }
+
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local fig_t "Other Preferences (S2 - S3 gap), by Channel"
+            local fig_st "Stacked monthly contributions, pp"
+            local sfx "_titled"
+        }
+        else {
+            local fig_t ""
+            local fig_st ""
+            local sfx ""
+        }
+        graph bar (asis) c_duty_free c_korus c_other_fta c_gsp_agoa c_usmca c_other_residual, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(vsmall))) ///
+            stack ///
+            bar(1, color("$color_statutory")) ///
+            bar(2, color("$color_canada")) ///
+            bar(3, color("$color_eu")) ///
+            bar(4, color("$color_japan")) ///
+            bar(5, color("$color_skorea")) ///
+            bar(6, color("$color_gray")) ///
+            legend(order( ///
+                1 "Duty-free (Annex II/ITA/Ch98/Pharma)" ///
+                2 "KORUS" ///
+                3 "Other FTAs" ///
+                4 "GSP / AGOA" ///
+                5 "USMCA (residual after S0->S1)" ///
+                6 "Other (Ch99, MFN, FTZ, residual)") ///
+                rows(2) size(vsmall) position(6)) ///
+            ytitle("Contribution to S2 - S3 gap (pp)") ///
+            title("`fig_t'") ///
+            subtitle("`fig_st'") ///
+            graphregion(color(white))
+        graph export "$figures/figure_others_channel_stack`sfx'.png", replace width(2400)
+    }
+restore
+
+
+* ======================================================================
 * D. COUNTRY x CHANNEL DETAIL
 * ======================================================================
 
