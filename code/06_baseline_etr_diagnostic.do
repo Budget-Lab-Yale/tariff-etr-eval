@@ -2,11 +2,25 @@
 * 06_baseline_etr_diagnostic.do
 * Creator: John Iselin
 * Date: April 2026
+* Mapping to framework Fig 1 lines:
+*   etr_full         = framework S1 (rate_h2avg x imports, full universe)
+*   s0_recon         = framework S0 (rate_2024  x imports, full universe)
+*   etr_tracker_daily ~= framework S1 -- tracker's day-weighted daily ETR
+*                       collapsed to monthly. Should agree with etr_full by
+*                       construction; persistent gap = self-consistency
+*                       diagnostic for rev-to-month aggregation.
+*   etr_nonzero / etr_matched are sensitivity slices restricted by tracker
+*                       universe; not framework tiers.
+*
+* The headline gap_recon = etr_full - s0_recon is identically the framework's
+* USMCA adjustment channel (S1 - S0).
+*
 * Purpose: Diagnostic at 2024 trade weights, exposing four orthogonal gaps:
-*            (a) USMCA-reconstruction methodology
+*            (a) USMCA-adjustment / S0->S1 gap from the framework
 *                  etr_full - s0_recon
-*                  (same panel + weights, only difference is which baseline
-*                  USMCA assumption is encoded in the rate column)
+*                  (etr_full uses tracker total_rate = rate_h2avg = S1 panel;
+*                   s0_recon uses rate_2024 = S0 panel; both at 2024 weights.
+*                   This IS the framework's S1 - S0 USMCA adjustment gap.)
 *            (b) Zero-rate-dropping effect
 *                  etr_full - etr_nonzero
 *                  (same rate, restricted to products with nonzero tracker
@@ -125,13 +139,13 @@ compress
 * ======================================================================
 *
 * All four use 2024 import weights. They differ in (universe, rate):
-*   etr_full       full universe, total_rate  (tracker baseline)
+*   etr_full       full universe, total_rate  (= rate_h2avg = framework S1)
 *   etr_matched    matched-only,  total_rate
 *   etr_nonzero    nonzero-only,  total_rate
-*   s0_recon       full universe, rate_2024   (our S0 reconstruction)
+*   s0_recon       full universe, rate_2024   (= framework S0)
 *
 * Diagnostic gaps:
-*   etr_full - s0_recon      pure USMCA-reconstruction methodology
+*   etr_full - s0_recon      framework S1 - S0 = USMCA adjustment gap
 *   etr_full - etr_nonzero   zero-rate-dropping effect
 *   etr_full - etr_matched   unmatched-product effect
 
@@ -206,14 +220,14 @@ gen double gap_match_drop  = etr_matched - etr_full
 gen double gap_recon       = etr_full    - s0_recon
 gen double gap_vs_tracker  = etr_full    - etr_tracker_daily
 
-label var etr_full           "ETR, 2024 wts, full universe, total_rate (%)"
+label var etr_full           "ETR, 2024 wts, full universe, total_rate = S1 (%)"
 label var etr_matched        "ETR, 2024 wts, matched-only, total_rate (%)"
 label var etr_nonzero        "ETR, 2024 wts, nonzero-only, total_rate (%)"
-label var s0_recon           "S0 reconstruction (rate_2024 x 2024 wts) (%)"
+label var s0_recon           "S0 (rate_2024 x 2024 wts) (%)"
 label var etr_tracker_daily  "Tracker daily ETR, monthly avg (%)"
 label var gap_zero_drop      "Effect of dropping zero-rate products (pp)"
 label var gap_match_drop     "Effect of dropping unmatched products (pp)"
-label var gap_recon          "Tracker baseline - S0 reconstruction (pp)"
+label var gap_recon          "S1 - S0 = USMCA adjustment gap (pp)"
 label var gap_vs_tracker     "Full 2024-wt ETR - tracker daily (pp)"
 
 format etr_* s0_recon gap_* %9.2f
@@ -250,17 +264,17 @@ twoway ///
         lpattern(solid)) ///
     , ///
     legend(order( ///
-        1 "2024 wts, full universe (tracker total_rate)" ///
-        2 "2024 wts, full universe (S0 reconstruction)" ///
+        1 "2024 wts, full universe (S1: tracker total_rate)" ///
+        2 "2024 wts, full universe (S0: USMCA 2024 baseline)" ///
         3 "2024 wts, nonzero-rate products only" ///
         4 "Tracker daily ETR (actual wts, monthly avg)") ///
         rows(4) size(small) position(6)) ///
     ytitle("Effective Tariff Rate (%)") ///
     xtitle("") ///
     title("Baseline Statutory ETR Diagnostic") ///
-    subtitle("Tracker baseline vs S0 reconstruction at 2024 wts; tracker daily benchmark") ///
+    subtitle("Framework S1 vs S0 at 2024 weights; tracker daily benchmark") ///
     xlabel(, format(%tmMon_CCYY) angle(45)) ///
-    ylabel(, format(%9.0f)) ///
+    ylabel(0(5)50, format(%9.0f)) ///
     yscale(range(0)) ///
     graphregion(color(white)) ///
     plotregion(margin(small))

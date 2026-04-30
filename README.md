@@ -45,21 +45,23 @@ Both sibling repos must be at the same directory level as this repo.
 
 | Tier | Definition |
 |------|------------|
-| S0 | Statutory @ 2024 USMCA shares × 2024 import weights |
-| S1 | Statutory @ 2024 USMCA shares × monthly import weights |
-| S2 | Statutory @ monthly USMCA shares × monthly weights |
+| S0 | Statutory @ USMCA 2024 baseline shares × 2024 import weights |
+| S1 | Statutory @ USMCA H2-2025 baseline shares × 2024 import weights (= the paper's headline statutory line) |
+| S2 | Statutory @ USMCA H2-2025 baseline shares × monthly weights |
 | S3 | + non-USMCA preferences (Annex II / ITA / Ch98 / KORUS / GSP / FTAs), monthly IMDB-derived shares |
 | S4 | Census collected ETR (cal_dut / con_val at HS10 × cty, summed) |
 | T | Treasury actual ETR |
 
 **Gap channels**:
-- **S0 → S1**: trade diversion (composition shift in monthly weights)
-- **S1 → S2**: USMCA surge (CA/MX claim-rate dynamics)
-- **S2 → S3**: all-other preferences (Annex II / ITA / Ch98 / KORUS / GSP / other FTAs)
-- **S3 → S4**: residual (specific-duty AVE failures, AD/CVD, tracker error, behavioral noise)
-- **S4 → T**: timing / enforcement (Treasury vs Census aggregation)
+- **S0 → S1**: USMCA adjustment (claim-rate normalization 2024 → H2-2025; weights frozen). Mostly retrospective — firms filed USMCA claims late, and a July 2025 reporting change made the utilization visible. Shown as backstory in 03b's USMCA explainer figures, not part of the main analytic waterfall.
+- **S1 → S2**: trade diversion (composition shift in monthly weights with USMCA stable at h2avg). Main analysis channel.
+- **S2 → S3**: all-other preferences (Annex II / ITA / Ch98 / KORUS / GSP / other FTAs).
+- **S3 → S4**: residual (specific-duty AVE failures, AD/CVD, tracker error, behavioral noise).
+- **S4 → T**: timing / enforcement (Treasury vs Census aggregation).
 
-The first two channels are sign-bearing — they can flip negative for specific countries or months (e.g., "reverse diversion" for CA/MX whose imports concentrate in inelastic high-tariff categories). The all-other-preferences rung is structurally non-negative. See `docs/six_tier_framework_plan.md` §5a for the bidirectional channel discussion.
+`gap_adjustment` is mostly one-signed; `gap_diversion` is bidirectional (negative country-period averages = "reverse diversion" for CA/MX whose imports concentrate in inelastic high-tariff categories). The all-other-preferences rung is structurally non-negative. See `docs/six_tier_framework_plan.md` §5a for the bidirectional channel discussion.
+
+The framework's S1 panel equals the tracker's daily ETR collapsed to monthly by construction, so the paper's headline §4.1 "baseline statutory" line is also S1 — the framework backbone aligns with the headline figure.
 
 ## Output
 

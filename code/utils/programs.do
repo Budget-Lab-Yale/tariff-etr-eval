@@ -241,37 +241,39 @@ end
 * ==============================================================================
 * PROGRAM: compute_diversion_decomp
 *
-* Shapley two-way decomposition of the S0 -> S1 (trade-diversion) gap.
-* S0 and S1 share a single rate panel (rate_2024) and differ only in weights:
-* S0 uses 2024 annual weights (`imports`), S1 uses actual monthly weights
-* (`con_val_mo`). The gap is therefore entirely composition-driven, and
-* Shapley splits it cleanly into a between-group and within-group component:
+* Shapley two-way decomposition of a "fixed-rate, weights-shift" gap. Used
+* in the framework for the trade-diversion channel (S1 -> S2 in the current
+* design): rate panel held at rate_h2avg, weights shift from 2024 annual
+* (`imports`) to actual monthly (`con_val_mo`). Shapley splits the resulting
+* aggregate gap cleanly into a between-group and within-group component:
 *
-*    gap_diversion = sum_g [0.5*(R_g_24 + R_g_mw)*(s_g_24 - s_g_mw)]   <-- between
-*                  + sum_g [0.5*(s_g_24 + s_g_mw)*(R_g_24 - R_g_mw)]   <-- within
+*    gap = sum_g [0.5*(R_g_24 + R_g_mw)*(s_g_24 - s_g_mw)]   <-- between
+*        + sum_g [0.5*(s_g_24 + s_g_mw)*(R_g_24 - R_g_mw)]   <-- within
 *
 * where g indexes the partition (partner_group or product_group), R_g is
 * group g's value-weighted rate, s_g is group g's share of total imports.
 * Sign convention: positive contribution = positive contribution to
-* gap_diversion = (S0 - S1).
+* (S_2024-weighted - S_monthly-weighted) at the given rate panel.
 *
 * Operates on the in-memory dataset; caller is responsible for `preserve` /
-* `restore`. The dataset must carry rate_2024, imports (2024 weight),
-* con_val_mo (monthly weight), ym, and the byvar column.
+* `restore`. The dataset must carry the named rate panel column, imports
+* (2024 weight), con_val_mo (monthly weight), ym, and the byvar column.
 *
 * Side effects: collapses the in-memory dataset.
 *
 * Options:
+*   RATEvar()       Rate column to hold fixed across the two weighting schemes
+*                   (e.g. rate_h2avg for S1->S2, rate_2024 for S0->S1 holding
+*                   USMCA at 2024 baseline -- not the framework channel)  [required]
 *   BYvar()         Grouping variable (partner_group, product_group, ...) [required]
-*   OUTfile()       Path/tempfile to save the (ym x byvar) panel        [required]
+*   OUTfile()       Path/tempfile to save the (ym x byvar) panel          [required]
 *   OUTvar_prefix() Prefix for between/within/total columns (e.g. "c", "p") [required]
 *
 * Output columns (all in pp): <prefix>_between, <prefix>_within, <prefix>_total.
-* sum across groups per ym = (S0 - S1) at month ym, in pp.
 *
 * Usage:
 *   preserve
-*       compute_diversion_decomp, byvar(partner_group) ///
+*       compute_diversion_decomp, ratevar(rate_h2avg) byvar(partner_group) ///
 *           outfile("$working/diversion_by_country.dta") outvar_prefix(c)
 *   restore
 * ==============================================================================
@@ -279,9 +281,9 @@ end
 capture program drop compute_diversion_decomp
 program define compute_diversion_decomp
     version 17.0
-    syntax , BYvar(name) OUTfile(string) OUTvar_prefix(name)
+    syntax , RATEvar(name) BYvar(name) OUTfile(string) OUTvar_prefix(name)
 
-    confirm variable rate_2024
+    confirm variable `ratevar'
     confirm variable imports
     confirm variable con_val_mo
     confirm variable ym
@@ -289,8 +291,8 @@ program define compute_diversion_decomp
 
     * Build group-level numerators (rate * weight) and weights.
     tempvar num_24 num_mw
-    gen double `num_24' = rate_2024 * imports
-    gen double `num_mw' = rate_2024 * con_val_mo
+    gen double `num_24' = `ratevar' * imports
+    gen double `num_mw' = `ratevar' * con_val_mo
 
     collapse (sum) num_24=`num_24' num_mw=`num_mw' ///
                    imports con_val_mo, ///

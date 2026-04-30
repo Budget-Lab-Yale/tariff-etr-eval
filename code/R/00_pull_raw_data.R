@@ -44,8 +44,9 @@
 #   tariff_revenue.csv                  -- actual monthly ETR
 #   usmca_shares/usmca_product_shares_*.csv -- USMCA utilization shares (diagnostic)
 #   counterfactual_usmca_none.csv       -- HS10 x country x month (0% USMCA)
-#   counterfactual_usmca2024.csv        -- HS10 x country x month (2024 USMCA)
-#   counterfactual_usmca_monthly.csv    -- HS10 x country x month (monthly USMCA, S2)
+#   counterfactual_usmca2024.csv        -- HS10 x country x month (USMCA 2024 baseline; S0)
+#   counterfactual_usmca_monthly.csv    -- HS10 x country x month (monthly USMCA empirical)
+#   counterfactual_h2avg.csv            -- HS10 x country x month (USMCA H2-2025; S1/S2)
 #   imdb_other_pref_shares_monthly.csv  -- HS10 x country x month preference shares
 #   counterfactual_other_pref_delta_monthly.csv -- HS10 x country x month
 #                                          rate-reduction delta from S2 to S3
@@ -849,8 +850,12 @@ if (file.exists(jan_2026) && !file.exists(feb_2026)) {
 #
 # Scenarios written:
 #   counterfactual_usmca_none.csv      -- 0% utilization (upper bound)
-#   counterfactual_usmca2024.csv       -- 2024 annual shares (pre-tariff)
-#   counterfactual_usmca_monthly.csv   -- actual monthly 2025-2026 shares
+#   counterfactual_usmca2024.csv       -- 2024 annual shares (pre-tariff baseline; S0)
+#   counterfactual_usmca_monthly.csv   -- actual monthly 2025-2026 shares (explainer)
+#   counterfactual_h2avg.csv           -- H2-2025 average shares (tracker production
+#                                         baseline; S1/S2 panel rate_h2avg). All four
+#                                         use the same day-weighting machinery so the
+#                                         scenarios are apples-to-apples comparable.
 
 log_msg("  Building counterfactual rate CSVs (from scenario snapshots)...")
 
@@ -893,7 +898,8 @@ log_msg(sprintf("    %d month-revision pairs for day-weighting", nrow(mrw)))
 scenario_outputs <- list(
   usmca_none    = "counterfactual_usmca_none.csv",
   usmca_2024    = "counterfactual_usmca2024.csv",
-  usmca_monthly = "counterfactual_usmca_monthly.csv"
+  usmca_monthly = "counterfactual_usmca_monthly.csv",
+  usmca_h2avg   = "counterfactual_h2avg.csv"
 )
 
 build_counterfactual <- function(scenario, out_file) {

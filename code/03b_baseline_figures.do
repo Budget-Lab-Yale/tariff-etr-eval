@@ -16,11 +16,18 @@
 *   A. Baseline statutory ETR vs Treasury actual         (Paper §4.1, Fig 1)
 *   B. Daily statutory ETR overlaid on monthly average   (Paper §4.5, Fig 5)
 *   C. Monthly summary table (Excel + CSV)               (Paper supplement)
+*   D. USMCA adjustment explainer                        (Paper §3, story figs)
+*       D1: Fig U1, monthly USMCA-applied statutory ETR for CA and MX vs the
+*           2024 baseline and H2-2025 baseline reference lines. Shows the
+*           July 2025 reporting-pattern shift directly: empirical line moves
+*           from near the 2024 baseline to near the H2-2025 baseline.
+*       D2: Fig U2, period-averaged S0->S1 gap by partner_group (CA and MX
+*           dominate; everyone else ~0).
 *
 * Inputs:
 *   $working/tracker_daily.dta       (per-day statutory ETR, h2avg USMCA)
 *   $working/revenue_monthly.dta     (Treasury actual ETR)
-*   $working/merged_analysis.dta     (HS10 x cty x ym panel; for §C summary)
+*   $working/merged_analysis.dta     (HS10 x cty x ym panel; for §C and §D)
 *   $working/decomp_monthly.dta      (S3 tier; for §C supplementary table)
 *   $working/baseline_etr.dta        (saved here in §A; consumed by §C)
 *   $working/weights_2024.dta        (universe pair count; for §C)
@@ -33,6 +40,9 @@
 *   $figures/figure_daily_overlay.png
 *   $working/monthly_summary.dta
 *   $tables/monthly_summary.csv + $tables/monthly_summary.xlsx
+*   $figures/figure_u1_usmca_adjustment.png
+*   $figures/figure_u2_adjustment_by_country.png
+*   $tables/adjustment_by_country.csv
 * ==============================================================================
 
 di as text _n "=========================================="
@@ -380,6 +390,145 @@ else {
         firstrow(varlabels) sheet("Summary", replace)
 }
 di as text "      Saved $tables/monthly_summary.xlsx (`=_N' months, Summary sheet)"
+
+
+* ======================================================================
+* D. USMCA ADJUSTMENT EXPLAINER  (Paper §3, story figures)
+* ======================================================================
+*
+* The framework absorbs USMCA claim-rate normalization upfront in S0 -> S1:
+* S0 holds USMCA at 2024 baseline shares (~38% CA, ~50% MX), S1 stabilizes
+* at H2-2025 shares (~89% both). Most of the movement is retrospective --
+* firms filed USMCA claims late, and a July 2025 reporting change made the
+* underlying utilization visible. These figures explain that backstory
+* without burdening the main waterfall (S1 -> T) with claim-rate dynamics.
+*
+*   Fig U1 (D1): Monthly statutory ETR for CA and MX under three USMCA
+*                scenarios -- 2024 baseline (rate_2024), H2-2025 baseline
+*                (rate_h2avg), and empirical monthly (rate_usmca_monthly).
+*                The rate_usmca_monthly line drops sharply mid-2025 as
+*                claim rates ramp; the two reference lines bracket it.
+*   Fig U2 (D2): Period-averaged S0 - S1 gap by partner group. CA and MX
+*                carry the gap; everyone else is essentially zero.
+
+di as text _n "  [D] USMCA adjustment explainer..."
+
+* --- D1. Build CA + MX monthly statutory ETRs under three USMCA scenarios ---
+
+di as text "      D1. CA and MX statutory ETR under {2024, monthly, h2avg} USMCA"
+
+tempfile etr_2024 etr_monthly etr_h2avg
+
+use "$working/merged_analysis.dta", clear
+keep if ym >= $start_ym & ym <= $end_ym
+keep if inlist(cty_code, "$cty_canada", "$cty_mexico")
+
+preserve
+    compute_tier, ratevar(rate_2024)          weightvar(con_val_mo) ///
+        outfile(`etr_2024')   outvar(etr_2024)   byvar(partner_group) percent
+restore
+preserve
+    compute_tier, ratevar(rate_usmca_monthly) weightvar(con_val_mo) ///
+        outfile(`etr_monthly') outvar(etr_monthly) byvar(partner_group) percent
+restore
+preserve
+    compute_tier, ratevar(rate_h2avg)         weightvar(con_val_mo) ///
+        outfile(`etr_h2avg')  outvar(etr_h2avg)  byvar(partner_group) percent
+restore
+
+use `etr_2024', clear
+merge 1:1 ym partner_group using `etr_monthly', nogenerate
+merge 1:1 ym partner_group using `etr_h2avg',   nogenerate
+
+label var etr_2024    "USMCA 2024 baseline (%)"
+label var etr_monthly "USMCA monthly empirical (%)"
+label var etr_h2avg   "USMCA H2-2025 baseline (%)"
+
+format etr_* %9.2f
+sort partner_group ym
+list partner_group ym etr_2024 etr_monthly etr_h2avg, clean noobs
+
+** Two-panel facet: CA and MX
+encode partner_group, gen(pg_id)
+
+* Color choices: 2024 baseline (purple) and h2avg baseline (navy) need to be
+* visually distinct so the reader can see the empirical line move between them.
+twoway ///
+    (connected etr_2024 ym, ///
+        mcolor("$color_japan") lcolor("$color_japan") ///
+        msymbol(circle) msize(vsmall) lwidth(medium) lpattern(dash)) ///
+    (connected etr_monthly ym, ///
+        mcolor("$color_actual") lcolor("$color_actual") ///
+        msymbol(diamond) msize(vsmall) lwidth(medthick) lpattern(solid)) ///
+    (connected etr_h2avg ym, ///
+        mcolor("$color_statutory") lcolor("$color_statutory") ///
+        msymbol(square) msize(vsmall) lwidth(medium) lpattern(dash)) ///
+    , ///
+    by(pg_id, ///
+        cols(2) ///
+        title("USMCA Adjustment: CA and MX Statutory ETR by USMCA Scenario") ///
+        subtitle("Empirical line shifts from 2024 baseline to H2-2025 baseline mid-2025") ///
+        note("") ///
+        graphregion(color(white))) ///
+    legend(order( ///
+        1 "USMCA 2024 baseline (S0 panel)" ///
+        2 "USMCA monthly empirical" ///
+        3 "USMCA H2-2025 baseline (S1/S2 panel)") ///
+        rows(3) size(small) position(6)) ///
+    ytitle("Statutory ETR (%)") xtitle("") ///
+    xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+    ylabel(, labsize(vsmall))
+
+graph export "$figures/figure_u1_usmca_adjustment.png", replace width(2400)
+
+
+* --- D2. Period-averaged S0 - S1 gap by partner_group (Fig U2) ---
+
+di as text "      D2. Period-averaged adjustment gap by country"
+
+tempfile cty_s0 cty_s1
+
+use "$working/merged_analysis.dta", clear
+keep if ym >= $start_ym & ym <= $end_ym
+
+preserve
+    compute_tier, ratevar(rate_2024) weightvar(imports) ///
+        outfile(`cty_s0') outvar(s0) byvar(partner_group) percent
+restore
+preserve
+    compute_tier, ratevar(rate_h2avg) weightvar(imports) ///
+        outfile(`cty_s1') outvar(s1) byvar(partner_group) percent
+restore
+
+use `cty_s0', clear
+merge 1:1 ym partner_group using `cty_s1', nogenerate
+
+gen double gap_adjustment = s0 - s1
+
+* Period-averaged adjustment gap per country
+collapse (mean) s0 s1 gap_adjustment, by(partner_group)
+
+label var s0             "S0 period avg (%)"
+label var s1             "S1 period avg (%)"
+label var gap_adjustment "USMCA adjustment S0-S1, period avg (pp)"
+
+gsort -gap_adjustment
+format s0 s1 gap_adjustment %9.3f
+
+di as text _n "  === USMCA adjustment by country (period mean) ==="
+list partner_group s0 s1 gap_adjustment, clean noobs
+
+export delimited using "$tables/adjustment_by_country.csv", replace
+
+graph hbar (asis) gap_adjustment, ///
+    over(partner_group, sort(1) descending) ///
+    bar(1, color("$color_canada")) ///
+    ytitle("USMCA adjustment (pp; S0 - S1, period avg)") ///
+    title("USMCA Adjustment Gap by Partner Group") ///
+    subtitle("Where the 2024 -> H2-2025 USMCA shift moves the statutory rate") ///
+    graphregion(color(white))
+
+graph export "$figures/figure_u2_adjustment_by_country.png", replace width(2400)
 
 
 di as text _n "  03b_baseline_figures complete." _n

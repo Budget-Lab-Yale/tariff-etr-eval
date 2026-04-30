@@ -1,0 +1,548 @@
+% ============================================================================
+% Decomposing the Statutory-Actual Tariff Rate Divergence
+% John Iselin, The Budget Lab @ Yale
+%
+% Build:
+%   pdflatex etr_divergence_slides.tex
+% (figure paths assume the file sits in docs/slides/ and figures live in
+%  ../../results/figures/)
+% ============================================================================
+
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usetheme{metropolis}
+\usepackage{booktabs}
+\usepackage{amsmath, amssymb}
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{hyperref}
+
+\definecolor{tblnavy}{RGB}{0,85,164}
+\definecolor{tblred}{RGB}{200,16,46}
+\definecolor{tblgreen}{RGB}{40,167,69}
+\definecolor{tblgray}{RGB}{108,117,125}
+
+\setbeamercolor{frametitle}{bg=tblnavy, fg=white}
+\setbeamercolor{progress bar}{fg=tblred}
+\setbeamercolor{title separator}{fg=tblred}
+
+\graphicspath{{../../results/figures/}}
+
+% Helper for tier labels
+\newcommand{\tier}[1]{\textbf{\color{tblnavy}#1}}
+\newcommand{\gap}[1]{\textit{\color{tblred}#1}}
+
+\title{Decomposing the Statutory--Actual Tariff Rate Divergence}
+\subtitle{A six-tier framework for the 2025--2026 episode}
+\author{John Iselin}
+\institute{The Budget Lab at Yale}
+\date{April 2026}
+
+% ============================================================================
+\begin{document}
+
+\maketitle
+
+% ----------------------------------------------------------------------------
+\begin{frame}{The puzzle}
+
+\begin{columns}[T]
+\begin{column}{0.55\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figure_baseline_etr.png}
+\end{column}
+\begin{column}{0.45\textwidth}
+\small
+\begin{itemize}
+  \item By late 2025 the trade-weighted statutory tariff rate hit roughly 21--22\%; the actual rate (duties / imports) sits near 10--11\%.
+  \item A persistent $\sim$11 pp gap between the schedule on paper and the duties Treasury collects.
+  \item The gap is not noise. It reflects \alert{real behavioral and administrative responses}: USMCA claiming, supply-chain diversion, exemptions, timing.
+  \item For policy and welfare analysis we need to know \alert{which channels carry the gap} and how they evolve.
+\end{itemize}
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{What the literature has established}
+
+\small
+
+\begin{itemize}
+  \item \textbf{Gopinath \& Neiman (2026, NBER w34620)} document the gap; pass-through on \emph{collected} duties is near 100\%, so the gap is what shields prices, not under-implementation.
+  \item \textbf{Azzimonti (2025, Richmond Fed)} decomposes May 2025 into three pieces: within-country product mix (0.6 pp), cross-country share shifts (2.7 pp), implementation frictions (5.5 pp).
+  \item \textbf{Eck, Hoang, Mix, Ray (2026, FEDS Notes ``Mind the Gap'')} find the December 2025 announced ETR was 14.7\%; realized fell short by 5.43 pp ($\approx$44\% of the announced increase). They split into composition and rate-discrepancy channels with Laspeyres baseline weights.
+  \item \textbf{PWBM (2025--26)} tracks the USMCA claim-rate ramp: $\sim$33\% (2024) $\to$ $\sim$88\% (Dec 2025) for CA/MX. Mechanical-vs-behavioral split shows $\sim$\$46B lost to behavior.
+  \item \textbf{Waugh (2026, Minneapolis Fed)} computes a Trade Restrictiveness Index ($\sim$21--23\%) capturing the welfare cost of dispersion, $\approx$2$\times$ the duties-to-imports ratio.
+\end{itemize}
+
+Existing work is piecewise: each paper opens one channel. We unify them.
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Our approach: a five-channel ladder}
+
+\small
+
+We construct a sequence of counterfactual ETRs and walk from a fully static baseline to the Treasury-observed rate. Each step turns one channel \emph{on}:
+
+\begin{center}
+\begin{tabular}{r l l}
+\toprule
+\tier{S0}        & USMCA 2024 baseline shares       & $\times$ 2024 weights   \\
+                 & \ldots\, \gap{$+$ USMCA adjustment} & (claim rates 2024 $\to$ H2-2025) \\
+\tier{S1}        & USMCA H2-2025 baseline           & $\times$ 2024 weights   \\
+                 & \ldots\, \gap{$+$ trade diversion}  & (composition shift)              \\
+\tier{S2}        & USMCA H2-2025 baseline           & $\times$ monthly weights         \\
+                 & \ldots\, \gap{$+$ all-other preferences} & (Annex II / ITA / Ch98 / KORUS / GSP)\\
+\tier{S3}        & + non-USMCA preferences          & $\times$ monthly weights         \\
+                 & \ldots\, \gap{$+$ residual + timing}  & (AVE failures, AD/CVD, refunds, ACH)  \\
+\tier{T}         & Treasury actual ETR              &                                \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.5em}
+
+\textbf{Two design choices:}
+\begin{itemize}\small
+  \item \textbf{S1 is the framework anchor}, not S0. By absorbing USMCA stabilization upfront we treat the 2024 $\to$ H2-2025 claim-rate ramp as backstory. Most analysis lives between S1 and T.
+  \item \tier{S1} is the same line that anchors the headline figure (tracker daily ETR collapsed monthly). The framework backbone aligns with what economists already plot.
+\end{itemize}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{The math}
+
+\small
+
+For an aggregate ETR $S = \sum_i w_i r_i$ over $i = (\text{HS10}, \text{country})$ cells, every rung is a fixed-rate or fixed-weights move. The Shapley two-way decomposition along any partition $g$ (e.g., partner group, product group):
+
+\[
+\Delta S = \underbrace{\sum_g \tfrac{1}{2}(R_g^{0} + R_g^{1})\,(s_g^{0} - s_g^{1})}_{\text{between-group}} + \underbrace{\sum_g \tfrac{1}{2}(s_g^{0} + s_g^{1})\,(R_g^{0} - R_g^{1})}_{\text{within-group}}
+\]
+
+\begin{itemize}
+  \item Both partitions (country / product) sum exactly to $\Delta S$ at every month — apples-to-apples comparable.
+  \item \emph{Between} captures composition (which countries / products account for more or less of the trade basket); \emph{within} captures intra-group rate shifts.
+  \item All four rate panels (\texttt{rate\_2024}, \texttt{rate\_h2avg}, \texttt{rate\_usmca\_monthly}, \texttt{rate\_all\_pref}) are produced by the same R day-weighting machinery against tracker scenario snapshots, so the rungs differ only in their \emph{stated} dimension (USMCA layer or weights), not in numerical method.
+\end{itemize}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{S0 $\to$ S1: USMCA adjustment (backstory)}
+
+\begin{columns}[T]
+\begin{column}{0.55\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figure_u1_usmca_adjustment.png}
+\end{column}
+\begin{column}{0.45\textwidth}
+\small
+\begin{itemize}
+  \item CA/MX USMCA claim rates: $\sim$38\%/$\sim$50\% in 2024 $\to$ $\sim$89\% by H2 2025.
+  \item Empirical line transitions between the two reference baselines mid-2025; July 2025 USITC reporting change made the underlying utilization \emph{visible} in the data.
+  \item Mostly retrospective: firms filed USMCA claims late, paperwork caught up.
+  \item We absorb this upfront so it doesn't crowd out the policy-relevant signals (S1$\to$T).
+\end{itemize}
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{S1 $\to$ S2: trade diversion}
+
+\begin{columns}[T]
+\begin{column}{0.55\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figure_d1_diversion_decomp.png}
+\end{column}
+\begin{column}{0.45\textwidth}
+\small
+\begin{itemize}
+  \item Holds USMCA fixed at H2-2025; only weights move (2024 $\to$ monthly).
+  \item Shapley splits each month into \tier{between-country} (share shifts: who exports more or less) and \tier{within-country} (product mix inside each country).
+  \item Stacked bars sum to the total $S1 - S2$ per month.
+  \item Sign-bearing: between-country can flip negative (``reverse diversion'' for CA/MX whose imports concentrate in inelastic high-tariff categories).
+\end{itemize}
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Trade diversion by country}
+
+\begin{columns}[T]
+\begin{column}{0.6\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figure_d2_diversion_by_country.png}
+\end{column}
+\begin{column}{0.4\textwidth}
+\small
+A positive ``China'' segment means the US trade basket shifted in a way that lowered the monthly-weighted ETR \emph{attributable to China dynamics}: either China's overall share dropped, or the China-specific bilateral mix moved toward less-tariffed lines.
+
+\medskip
+
+The two effects are bundled in a single bar; D1 separates between-country (share shift) from within-country (mix shift).
+
+\medskip
+
+The CA/MX bars run small or negative because their high-tariff exposure (S232, fentanyl) makes share losses look like ``reverse diversion'' under this sign convention.
+
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Trade diversion by product}
+
+\begin{columns}[T]
+\begin{column}{0.6\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figure_d3_diversion_by_product.png}
+\end{column}
+\begin{column}{0.4\textwidth}
+\small
+9-group taxonomy aligned with policy salience: S232 metals, autos, electronics, pharma, energy, chemicals, apparel, food, other.
+
+\medskip
+
+\textbf{Steel \& Aluminum} typically drives the largest positive segment: imports compressed dramatically under 50\% S232 rates, so the monthly basket has less of the highest-tariff item.
+
+\medskip
+
+Electronics and pharma move the other direction: large dollar shares but smaller rate gaps mean their share \emph{rises} as steel falls, producing a negative-signed contribution.
+
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{S2 $\to$ S3: all-other preferences}
+
+\small
+
+Seven preference channels (importer-declared via IMDB), classified into three groups:
+\begin{description}\small
+  \item[Major IEEPA carve-outs] \texttt{duty\_free} entries (\texttt{rate\_prov} 10/18/19): Annex II, ITA, Chapter 98 / Berman Amendment, generic pharma. Reduces both MFN base \emph{and} IEEPA reciprocal — large swing for affected lines.
+  \item[Bilateral preferences] KORUS, AU, IL, SG, CL, CO, PE, PA, JO, MA, OM, BH, JP. Reduces MFN base only.
+  \item[GSP / AGOA] \texttt{A}, \texttt{A+}, \texttt{D}, \texttt{E}, \texttt{J}, \texttt{W}, \texttt{Z}, \texttt{N}. Reduces MFN base only.
+\end{description}
+
+\vspace{0.4em}
+
+\textbf{Math:} per cell,
+\[
+\Delta_{\text{base}} = (s_{\text{duty\_free}} + s_{\text{korus}} + s_{\text{gsp}} + s_{\text{other\_fta}}) \cdot r_{\text{base}}^{\text{pre}}, \qquad \Delta_{\text{recip}} = s_{\text{duty\_free}} \cdot r_{\text{IEEPA}}^{\text{pre}}
+\]
+\[
+r_{\text{S3}} = \max\!\left(0,\ r_{\text{S2}} - \Delta_{\text{base}} - \Delta_{\text{recip}}\right)
+\]
+
+The \texttt{duty\_free}-on-IEEPA term is the policy-salient piece: it captures executive-branch carve-outs from the reciprocal regime. KORUS/GSP/other-FTA are ``preferences as usual.''
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Where the gap concentrates: product $\times$ country}
+
+\begin{columns}[T]
+\begin{column}{0.55\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figure_p3_product_partner_heatmap.png}
+\end{column}
+\begin{column}{0.45\textwidth}
+\small
+Period-averaged $S2 - S4$ gap on the 9 (product) $\times$ 8 (partner) grid.
+
+\medskip
+
+The map identifies \emph{where to drill down} for the residual story:
+\begin{itemize}
+  \item China $\times$ Electronics: the Annex II carve-out story.
+  \item CA/MX $\times$ Autos: the USMCA + S232 derivatives story.
+  \item EU $\times$ Pharma: generic pharmaceutical exemption.
+  \item Most cells: small. The gap is concentrated, not pervasive.
+\end{itemize}
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{What the literature says vs.\ what our data can show}
+
+\small
+
+\begin{tabular}{p{0.27\textwidth} p{0.32\textwidth} p{0.32\textwidth}}
+\toprule
+\textbf{Driver (literature)} & \textbf{Channel in our framework} & \textbf{What our data add} \\
+\midrule
+USMCA utilization \newline (PWBM, Yale) & S0 $\to$ S1 (USMCA adjustment) & Day-weighted CA/MX claim rates pre/post July 2025 reporting change; per-product attribution.\\[0.5em]
+Cross-country diversion \newline (Azzimonti, Eck et al.) & S1 $\to$ S2 \emph{between-country} & Shapley split disentangles share shifts from product mix at the same partition. \\[0.5em]
+Within-country product mix \newline (Azzimonti) & S1 $\to$ S2 \emph{within-country} & 9-group partition + HS10 detail for further drill-down. \\[0.5em]
+Annex II / ITA / Ch98 carve-outs & S2 $\to$ S3 (\texttt{duty\_free}-on-IEEPA term) & IMDB-classified shares per HS10 $\times$ cty $\times$ ym; can isolate which products are exempt where.\\[0.5em]
+Implementation frictions, ACH, FTZ, AD/CVD & S3 $\to$ T (residual + timing) & Tracker miss / over diagnostics flag specific authority-parsing gaps; unmodeled duties and over-statements are itemized.\\
+\bottomrule
+\end{tabular}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{Investigation paths from here}
+
+\small
+
+\begin{itemize}
+  \item \textbf{Convergence dynamics.} Eck et al.\ predict the gap compresses if tariffs persist (frontloading depletes; shipping lags resolve). Our monthly day-weighted panel can test this directly: does the residual rung shrink month-over-month conditional on stable rate panels?
+  \item \textbf{Annex II quantification.} The largest single chunk of S2$\to$S3 likely sits in the IEEPA carve-out term. Decomposing further by HS2 chapter inside electronics / pharma / energy would tell us how much of the carve-out story is each product class.
+  \item \textbf{Tracker error itemization.} Two diagnostics (\texttt{05a tracker\_miss}, \texttt{05b tracker\_over}) export operator-handoff CSVs identifying specific HTS codes where collected duties exceed (or fall short of) tracker rates. These bound how much of the residual is measurement error vs.\ behavior.
+  \item \textbf{Welfare framing.} Pair our duty-collection ETR series with Waugh's TRI. The framework's per-cell rates are the inputs; estimating dispersion and the welfare-equivalent uniform rate is mechanical from there.
+  \item \textbf{2018--19 vs 2025 comparison.} Eck et al.\ note the 2018 episode had a 22\% gap fraction; the 2025 episode has 44\%. Re-running the framework on 2017--2019 data would test whether the channel mix has structurally changed.
+\end{itemize}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}[plain]{}
+
+\centering
+\Huge \textbf{Appendix}
+
+\vspace{1em}
+
+\Large Detailed math, methodology, and diagnostics
+
+\end{frame}
+
+% ============================================================================
+% APPENDIX
+% ============================================================================
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A1. Tier definitions}
+
+\small
+
+\begin{tabular}{l l l l}
+\toprule
+Tier & Rate panel & Weight & USMCA layer \\
+\midrule
+S0 & \texttt{rate\_2024}      & \texttt{imports} (2024)    & 2024 baseline ($\sim$38\% CA / $\sim$50\% MX) \\
+S1 & \texttt{rate\_h2avg}     & \texttt{imports} (2024)    & H2-2025 baseline ($\sim$89\% CA/MX) \\
+S2 & \texttt{rate\_h2avg}     & \texttt{con\_val\_mo}      & H2-2025 baseline \\
+S3 & \texttt{rate\_all\_pref} & \texttt{con\_val\_mo}      & H2-2025, $-$ non-USMCA preference $\Delta$ \\
+S4 & Census collected         & ---                        & --- \\
+T  & Treasury actual          & ---                        & --- \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.6em}
+
+All four rate panels share authority stacking (S232, IEEPA recip, fentanyl, S301, S122, base) and MFN exemptions; differ only in the USMCA layer. Per-cell rates are day-weighted across HTS revisions within each month using the same machinery.
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A2. Shapley two-way derivation}
+
+\small
+
+For aggregate $S(w) = \sum_g s_g(w) R_g(w)$ where $g$ partitions $i = (\text{HS10}, \text{cty})$ cells, with $R_g(w) = \sum_{i \in g} w_i r_i / \sum_{i \in g} w_i$ and $s_g(w) = \sum_{i \in g} w_i / \sum_i w_i$:
+
+\medskip
+
+A first-order Shapley decomposition of $\Delta S = S(w^1) - S(w^0)$ averages the two orderings of (share change, rate change):
+\[
+\Delta S = \tfrac{1}{2}\!\sum_g\!\left[(R_g^0 + R_g^1)(s_g^1 - s_g^0)\right] + \tfrac{1}{2}\!\sum_g\!\left[(s_g^0 + s_g^1)(R_g^1 - R_g^0)\right].
+\]
+
+\medskip
+
+Validation: across both lenses (country, product) and across all months, the per-rung sum $\sum_g \text{between}_g + \text{within}_g$ matches the framework's \texttt{gap\_diversion} from \texttt{counterfactual\_ladder.dta} to within numerical noise. This is asserted in 03 Section B at runtime.
+
+\medskip
+
+Sign convention: positive contribution = positive contribution to $S^{\text{2024 wts}} - S^{\text{monthly wts}}$ at the fixed rate panel.
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A3. Rate panel construction}
+
+\small
+
+Per (HS10 $\times$ country) cell, the tariff-rate-tracker (\texttt{src/06\_calculate\_rates.R}) produces \emph{per-revision} rates by stacking authority components:
+
+\begin{enumerate}\small
+  \item Authority components from HTSUS / Chapter 99 text: \texttt{rate\_232}, \texttt{rate\_ieepa\_recip}, \texttt{rate\_fent}, \texttt{rate\_301}, \texttt{rate\_s122}, base MFN.
+  \item Metal-content scaling (S232): rate scaled by per-type metal share; IEEPA recip / S122 apply to the non-metal portion.
+  \item Authority stacking: China-with-232 = $232 + \text{recip} \cdot \text{nonmetal} + \text{fent} + 301 + \text{s122} \cdot \text{nonmetal}$; CA/MX-with-232 = $232 + (\text{recip} + \text{fent} + \text{s122}) \cdot \text{nonmetal}$; without-232 = all authorities full.
+  \item USMCA scaling at the H2-2025 average (or 2024 baseline / monthly empirical, depending on scenario). Auto/MHD parts use a 0.40 US-content rule.
+  \item MFN exemption shares (HS2 $\times$ country) and IEEPA floor adjustments (10\% minimum for EU/JP/KR/CH).
+\end{enumerate}
+
+\medskip
+
+Per-revision rates are then \alert{day-weighted across revisions within each month} in R section 3e to produce HS10 $\times$ country $\times$ month panels (one per USMCA scenario), so mid-month policy changes (e.g., Liberation Day on April 2, 2025) are correctly captured.
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A4. Mapping: the four scenario panels}
+
+\small
+
+\begin{tabular}{l p{0.42\textwidth} p{0.32\textwidth}}
+\toprule
+Panel & USMCA layer & Used for \\
+\midrule
+\texttt{rate\_2024}            & 2024 annual claim shares ($\sim$38\% CA / $\sim$50\% MX) & S0 (anchor of USMCA adjustment) \\
+\texttt{rate\_h2avg}           & H2-2025 average claim shares ($\sim$89\% CA/MX); the tracker's production baseline & S1, S2 (framework anchor) \\
+\texttt{rate\_usmca\_monthly}  & Actual month-by-month USITC DataWeb shares & USMCA adjustment explainer fig (U1); not a tier input \\
+\texttt{rate\_all\_pref}       & H2-2025 USMCA, then $-$ non-USMCA preference $\Delta$ from IMDB & S3 \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.5em}
+
+All four are produced by the same \texttt{build\_counterfactual()} function on tracker scenario snapshots and the same day-weighting algorithm in \texttt{code/R/00\_pull\_raw\_data.R} Section 3e.
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A5. Diagnostic: S0 vs S1 reconstruction at 2024 weights}
+
+\begin{columns}[T]
+\begin{column}{0.55\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figure7_baseline_etr_diagnostic.png}
+\end{column}
+\begin{column}{0.45\textwidth}
+\small
+Self-consistency check at 2024 weights:
+
+\begin{itemize}
+  \item \texttt{etr\_full} $\equiv$ S1 (\texttt{rate\_h2avg} $\times$ \texttt{imports})
+  \item \texttt{s0\_recon} $\equiv$ S0 (\texttt{rate\_2024} $\times$ \texttt{imports})
+  \item \texttt{etr\_tracker\_daily} $\approx$ S1 (tracker's daily ETR collapsed monthly)
+\end{itemize}
+
+\medskip
+
+The headline gap (\texttt{etr\_full} $-$ \texttt{s0\_recon}) is identically the framework's USMCA adjustment channel.
+
+\medskip
+
+Persistent discrepancy between \texttt{etr\_full} and \texttt{etr\_tracker\_daily} would flag a divergence between cell-level reconstruction and the tracker's day-weighted aggregation.
+
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A6. Product taxonomy (9 groups)}
+
+\small
+
+\begin{tabular}{l l l}
+\toprule
+Group & HS2 chapters & Policy salience \\
+\midrule
+Steel \& Aluminum         & 72, 73, 76          & Section 232 (50\% rates) \\
+Autos \& Auto Parts       & 87 (+ derivatives)  & Section 232 autos (Apr 2025) \\
+Electronics \& Machinery  & 84, 85              & Annex II / ITA exemptions; China 301 \\
+Pharmaceuticals           & 30                  & Generic pharma exemption \\
+Energy \& Minerals        & 25--27              & Fentanyl carve-outs (CA energy/minerals) \\
+Chemicals \& Plastics     & 28, 29, 31--40      & Major IEEPA exposure \\
+Apparel \& Textiles       & 50--67              & High MFN baseline \\
+Food \& Agriculture       & 01--24              & Specific duties; AVE failures \\
+Other Manufactured        & 41--49, 68--71, 86, 88--97 & Catch-all \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.6em}
+
+Defined in \texttt{code/utils/product\_groups.csv}; merged onto \texttt{merged\_analysis.dta} in Step 1. Used by both the trade-diversion product Shapley (Fig D3) and the gap visualization (Figs P1--P3).
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A7. Channel mapping vs.\ existing literature}
+
+\small
+
+\begin{tabular}{p{0.30\textwidth} p{0.30\textwidth} p{0.32\textwidth}}
+\toprule
+\textbf{Our channel} & \textbf{Azzimonti (2025)} & \textbf{Eck et al.\ (2026)} \\
+\midrule
+S0 $\to$ S1 USMCA adjustment & --- (their period predates the H2-2025 ramp) & subset of ``rate discrepancies'' \\[0.4em]
+S1 $\to$ S2 between-country & cross-country share shifts (2.7 pp) & ``composition'': cross-country \\[0.4em]
+S1 $\to$ S2 within-country  & within-country product mix (0.6 pp) & ``composition'': within-country product reclassification / engineering \\[0.4em]
+S2 $\to$ S3 other prefs     & part of ``frictions'' (5.5 pp) & part of ``rate discrepancies'' \\[0.4em]
+S3 $\to$ T residual+timing  & remainder of ``frictions'' (ACH, customs delays, CIT ruling) & residual rate discrepancies \\
+\bottomrule
+\end{tabular}
+
+\vspace{0.6em}
+
+Our framework's contribution: separates the (large) USMCA piece, isolates non-USMCA preferences as a distinct rung, and provides a Shapley-clean partition of trade diversion that the literature handles ad hoc.
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A8. Data sources}
+
+\small
+
+\begin{description}\small
+  \item[Census IMDB bulk] HS10 $\times$ country $\times$ district $\times$ preference $\times$ rate provision $\times$ month. Primary monthly trade source. Pulled monthly via the IMDB bulk ZIPs.
+  \item[USITC DataWeb] USMCA (S, S+) program codes per HS10 $\times$ country $\times$ month. Source of USMCA claim-rate panels (2024 baseline; H2-2025 average; monthly empirical).
+  \item[Tariff Rate Tracker] (sibling repo) HTS10 $\times$ country statutory rates per revision; daily ETR; 2024 import weights; revision-date metadata.
+  \item[Tariff Impact Tracker] (sibling repo) Treasury customs duties / monthly imports = T.
+\end{description}
+
+\medskip
+
+Window: January 2025 -- February 2026 (\texttt{\$start\_ym} to \texttt{\$end\_ym} in \texttt{globals.do}). Crosswalk: HS2 $\to$ 9 product groups in \texttt{code/utils/product\_groups.csv}; Census country codes $\to$ 8 partner groups via \texttt{assign\_partner\_group}.
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A9. Limitations \& caveats}
+
+\small
+
+\begin{itemize}
+  \item \textbf{H2-2025 baseline is a stylized choice.} If USMCA claim rates continue to evolve post-Feb 2026, the S1/S2 panel anchors may need updating. The framework structure tolerates this — just rebuild \texttt{rate\_h2avg} from new tracker scenario snapshots.
+  \item \textbf{Product groupings are policy-salient, not exhaustive.} The 9-group split groups copper (Ch 74) into ``Other Manufactured'' even though it became S232-relevant in June 2025. A finer split is straightforward.
+  \item \textbf{Treasury timing.} The S4 $\to$ T gap mixes cash-vs-accrual, refunds, FTZ deferrals, and post-entry adjustments. Our framework does not separately attribute these; further work would require Treasury microdata.
+  \item \textbf{S2 $\to$ S3 by-group decomposition is in development.} The country/product Shapley currently runs only for S1 $\to$ S2. Extending to other rungs is mechanical given the same helper infrastructure.
+  \item \textbf{Pre-2025 historical comparison absent.} The framework can in principle be re-run on 2017--19 data; this is on the to-do list.
+\end{itemize}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}[plain]{}
+
+\centering
+\Huge \textbf{End}
+
+\vspace{1em}
+
+\large code: \href{https://github.com/johniselin-budget-lab/tariff-etr-eval}{\texttt{johniselin-budget-lab/tariff-etr-eval}}
+
+\end{frame}
+
+\end{document}

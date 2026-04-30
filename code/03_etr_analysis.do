@@ -3,27 +3,26 @@
 * Creator: John Iselin
 * Date: April 2026
 * Purpose: Six-tier decomposition of the statutory-actual ETR gap and the
-*          framework figures + diagnostic tables built from it. Legacy h2avg
-*          Shapley between/within decomposition kept in Section B (different
-*          conceptual question; not the new gap_diversion channel).
+*          framework figures + diagnostic tables built from it.
 *
 *          The TBL-judgment paper figures (baseline statutory vs Treasury;
-*          daily overlay; supplementary monthly summary) live in the sibling
-*          script 03b_baseline_figures.do -- they use a separate aggregation
-*          methodology (tracker daily series, h2avg USMCA, 2024 weights) and
-*          are intended for ECONOMIC portrayal, not deconstruction.
+*          daily overlay; supplementary monthly summary; USMCA adjustment
+*          explainer) live in the sibling script 03b_baseline_figures.do.
 *
 * Tiers (S0/S1/S2/S3 from 02_counterfactual_ladder.do; S4 + T computed here):
-*   S0: Statutory @ 2024 USMCA shares x 2024 import weights
-*   S1: Statutory @ 2024 USMCA shares x actual monthly weights
-*   S2: Statutory @ monthly USMCA shares x actual monthly weights
+*   S0: Statutory @ USMCA 2024 baseline x 2024 import weights
+*   S1: Statutory @ USMCA H2-2025 (rate_h2avg) x 2024 import weights
+*   S2: Statutory @ USMCA H2-2025 (rate_h2avg) x actual monthly weights
 *   S3: + non-USMCA preferences (Annex II / ITA / Ch98 / KORUS / GSP / FTAs)
 *   S4: Census calculated ETR (cal_dut / con_val at HS10 x country, summed)
 *   T:  Treasury actual ETR (customs duties / imports)
 *
 * Gap channels:
-*   S0 -> S1 = Trade diversion (composition shift)
-*   S1 -> S2 = USMCA surge (CA/MX claim-rate dynamics)
+*   S0 -> S1 = USMCA adjustment (claim-rate normalization 2024 -> H2-2025;
+*              weights frozen). Mostly retrospective: paperwork caught up
+*              after July 2025 reporting changes. Explainer figs in 03b.
+*   S1 -> S2 = Trade diversion (composition shift in monthly weights with
+*              USMCA stable at h2avg). Main analysis channel; figs D1-D3.
 *   S2 -> S3 = All-other preferences (Annex II / ITA / Ch98 / KORUS / GSP / FTAs)
 *   S3 -> S4 = Residual (AVE failures, AD/CVD, tracker error, behavioral)
 *   S4 -> T  = Timing/enforcement (Treasury vs Census aggregation)
@@ -32,7 +31,7 @@
 *
 * Sections:
 *   A. Six-tier decomposition (consumes ladder, adds S4, computes channel gaps)
-*   B. S0->S1 trade-diversion Shapley decomposition (country + product lenses)
+*   B. S1->S2 trade-diversion Shapley decomposition (country + product lenses)
 *      + figs D1, D2, D3
 *   C. Figures 1-3 (six-tier ladder line + stacked bar charts)
 *   D. Figures 4-6 + diagnostic tables (S2 vs S4 vs T, partner / HS2 / HS10)
@@ -41,9 +40,9 @@
 * Input:
 *   $working/counterfactual_ladder.dta   (from 02; provides S0 S1 S2 S3 + T)
 *   $working/merged_analysis.dta         (provides S4 = Census collected;
-*                                         also rate_2024, rate_usmca_monthly,
-*                                         rate_all_pref panels for Section D
-*                                         compute_tier calls)
+*                                         also rate_h2avg, rate_2024,
+*                                         rate_all_pref panels for Section B
+*                                         and Section D compute_tier calls)
 *
 * Output:
 *   $working/decomp_monthly.dta     + $tables/decomp_monthly.csv
@@ -87,8 +86,8 @@ di as text "==========================================" _n
 * Reads S0/S1/S2/S3 + treasury_actual from 02_counterfactual_ladder.dta
 * and adds S4 (Census collected ETR), then computes the six-tier channel
 * decomposition. S0-S3 are computed in 02 by applying compute_tier to the
-* rate_2024 / rate_usmca_monthly / rate_all_pref columns of merged_analysis;
-* this script consumes them so tier values are consistent across all figures.
+* rate_2024 / rate_h2avg / rate_all_pref columns of merged_analysis; this
+* script consumes them so tier values are consistent across all figures.
 
 di as text "  [A] Six-tier decomposition..."
 
@@ -141,27 +140,29 @@ if r(N) > 0 {
 di as text "      Combined `=_N' months, tiers S0-S4 + T"
 
 * Channel decomposition (pp). Sequential: each rung subtracts one channel.
-* Sign-bearing channels: gap_diversion and gap_usmca can flip negative
-* (see docs/six_tier_framework_plan.md sec. 5a). gap_others is structurally
-* non-negative by the delta math in R section 3g.
-gen double gap_diversion = s0 - s1
-gen double gap_usmca     = s1 - s2
-gen double gap_others    = s2 - s3
-gen double gap_residual  = s3 - s4 if !missing(s4)
-gen double gap_timing    = s4 - t  if !missing(s4) & !missing(t)
-gen double gap_total     = s0 - t  if !missing(t)
+* gap_adjustment is mostly one-signed (USMCA claim rates rose 2024 -> H2-2025
+* almost everywhere CA/MX trade existed). gap_diversion is bidirectional
+* (negative country-period averages = "reverse diversion"). gap_others is
+* structurally non-negative by the delta math in R section 3g. See
+* docs/six_tier_framework_plan.md sec. 5a.
+gen double gap_adjustment = s0 - s1
+gen double gap_diversion  = s1 - s2
+gen double gap_others     = s2 - s3
+gen double gap_residual   = s3 - s4 if !missing(s4)
+gen double gap_timing     = s4 - t  if !missing(s4) & !missing(t)
+gen double gap_total      = s0 - t  if !missing(t)
 
-label var s0  "S0: Statutory (USMCA 2024) x 2024 wts (%)"
-label var s1  "S1: Statutory (USMCA 2024) x monthly wts (%)"
-label var s2  "S2: Statutory (USMCA monthly) x monthly wts (%)"
+label var s0  "S0: Statutory (USMCA 2024 baseline) x 2024 wts (%)"
+label var s1  "S1: Statutory (USMCA H2-2025) x 2024 wts (%)"
+label var s2  "S2: Statutory (USMCA H2-2025) x monthly wts (%)"
 label var s3  "S3: + non-USMCA preferences x monthly wts (%)"
 label var s4  "S4: Census collected ETR (%)"
 label var t   "T:  Treasury actual ETR (%)"
-label var gap_diversion "Trade diversion (S0-S1, pp)"
-label var gap_usmca     "USMCA surge (S1-S2, pp)"
-label var gap_others    "All-other preferences (S2-S3, pp)"
-label var gap_residual  "Residual (S3-S4, pp)"
-label var gap_timing    "Timing/enforcement (S4-T, pp)"
+label var gap_adjustment "USMCA adjustment (S0-S1, pp)"
+label var gap_diversion  "Trade diversion (S1-S2, pp)"
+label var gap_others     "All-other preferences (S2-S3, pp)"
+label var gap_residual   "Residual (S3-S4, pp)"
+label var gap_timing     "Timing/enforcement (S4-T, pp)"
 label var gap_total     "Total gap (S0-T, pp)"
 
 di as text _n "  === Six-Tier Decomposition ==="
@@ -170,7 +171,7 @@ format gap_* %9.2f
 list ym s0 s1 s2 s3 s4 t, clean noobs
 
 di as text _n "  === Channel Decomposition (pp) ==="
-list ym gap_diversion gap_usmca gap_others gap_residual gap_timing gap_total, ///
+list ym gap_adjustment gap_diversion gap_others gap_residual gap_timing gap_total, ///
     clean noobs
 
 sort ym
@@ -180,13 +181,13 @@ export delimited using "$tables/decomp_monthly.csv", replace
 
 
 * ======================================================================
-* B. S0 -> S1 TRADE-DIVERSION DECOMPOSITION  (between vs within)
+* B. S1 -> S2 TRADE-DIVERSION DECOMPOSITION  (between vs within)
 * ======================================================================
 *
-* S0 -> S1 holds rates fixed at rate_2024 and shifts weights from 2024-annual
-* to actual-monthly. The entire gap is composition-driven, so Shapley splits
-* it into between-group + within-group along any partition. Two complementary
-* lenses:
+* S1 -> S2 holds rates fixed at rate_h2avg (USMCA stabilized at H2-2025
+* baseline) and shifts weights from 2024-annual to actual-monthly. The
+* entire gap is composition-driven, so Shapley splits it into between-group
+* and within-group along any partition. Two complementary lenses:
 *
 *   Country lens:
 *     between-country = shifts in country shares of total imports
@@ -196,7 +197,7 @@ export delimited using "$tables/decomp_monthly.csv", replace
 *     between-product = shifts in product-group shares of total imports
 *     within-product  = shifts in country mix inside each product group
 *
-* Both lenses sum to the same gap_diversion = S0 - S1 from the ladder. The
+* Both lenses sum to the same gap_diversion = S1 - S2 from the ladder. The
 * country lens isolates "imports shifted away from CA/MX" effects; the
 * product lens isolates "imports shifted out of high-tariff steel into
 * low-tariff electronics" effects.
@@ -204,7 +205,7 @@ export delimited using "$tables/decomp_monthly.csv", replace
 * See docs/six_tier_framework_plan.md and the Shapley two-way derivation in
 * programs.do::compute_diversion_decomp.
 
-di as text _n "  [B] S0 -> S1 trade-diversion Shapley decomposition..."
+di as text _n "  [B] S1 -> S2 trade-diversion Shapley decomposition..."
 
 * --- B1. Country lens ---
 di as text "      Country lens (between/within-country)"
@@ -212,14 +213,14 @@ use "$working/merged_analysis.dta", clear
 keep if ym >= $start_ym & ym <= $end_ym
 
 preserve
-    compute_diversion_decomp, byvar(partner_group) ///
+    compute_diversion_decomp, ratevar(rate_h2avg) byvar(partner_group) ///
         outfile("$working/diversion_by_country.dta") outvar_prefix(c)
 restore
 
 * --- B2. Product lens ---
 di as text "      Product lens (between/within-product)"
 preserve
-    compute_diversion_decomp, byvar(product_group) ///
+    compute_diversion_decomp, ratevar(rate_h2avg) byvar(product_group) ///
         outfile("$working/diversion_by_product.dta") outvar_prefix(p)
 restore
 
@@ -299,38 +300,41 @@ restore
 
 di as text _n "  [B'] Diversion decomposition figures..."
 
-* --- D1. Aggregate decomposition over time (country lens) ---
-di as text "      Fig D1: aggregate between/within over time"
+* --- D1. Aggregate decomposition over time (country lens), stacked bar ---
+* between + within sum to total by Shapley construction; the stacked bar
+* makes the additivity visible.
+di as text "      Fig D1: aggregate between/within stacked"
 preserve
     use "$working/diversion_by_country.dta", clear
     collapse (sum) c_between c_within, by(ym)
-    gen double c_total = c_between + c_within
     label var c_between "Between-country (pp)"
-    label var c_within  "Within-country (pp)"
-    label var c_total   "Total trade-diversion gap S0-S1 (pp)"
+    label var c_within  "Within-country, product mix (pp)"
 
-    twoway ///
-        (connected c_total ym, ///
-            mcolor("$color_statutory") lcolor("$color_statutory") ///
-            msymbol(circle) msize(small) lwidth(medthick) lpattern(solid)) ///
-        (connected c_between ym, ///
-            mcolor("$color_canada") lcolor("$color_canada") ///
-            msymbol(diamond) msize(small) lwidth(medium) lpattern(dash)) ///
-        (connected c_within ym, ///
-            mcolor("$color_gap") lcolor("$color_gap") ///
-            msymbol(square) msize(small) lwidth(medium) lpattern(shortdash)) ///
-        , ///
+    sort ym
+    gen byte ym_idx = _n
+    levelsof ym, local(ymlist)
+    local relabel_str ""
+    local i = 1
+    foreach m of local ymlist {
+        local ms : di %tmMon_CCYY `m'
+        local ms = trim("`ms'")
+        local relabel_str `relabel_str' `i' "`ms'"
+        local ++i
+    }
+
+    graph bar (asis) c_between c_within, ///
+        over(ym_idx, relabel(`relabel_str') ///
+                     label(angle(45) labsize(vsmall))) ///
+        stack ///
+        bar(1, color("$color_canada")) ///
+        bar(2, color("$color_gap")) ///
         legend(order( ///
-            1 "Total S0-S1 gap" ///
-            2 "Between-country" ///
-            3 "Within-country (product mix)") ///
-            rows(3) size(small) position(6)) ///
-        ytitle("Contribution to S0-S1 gap (pp)") ///
-        xtitle("") ///
+            1 "Between-country (share shifts)" ///
+            2 "Within-country (product mix)") ///
+            rows(1) size(small) position(6)) ///
+        ytitle("Contribution to S1-S2 gap (pp)") ///
         title("Trade Diversion Decomposition: Country Lens") ///
-        subtitle("Shapley two-way, monthly Jan 2025 - Feb 2026") ///
-        xlabel(, format(%tmMon_CCYY) angle(45)) ///
-        ylabel(, format(%9.1f)) ///
+        subtitle("Shapley two-way; segments sum to total S1-S2 gap") ///
         yline(0, lcolor(gs10) lpattern(dot)) ///
         graphregion(color(white)) plotregion(margin(small))
 
@@ -390,7 +394,7 @@ preserve
         legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
                      5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
                rows(1) size(vsmall) position(6)) ///
-        ytitle("Contribution to S0-S1 gap (pp)") ///
+        ytitle("Contribution to S1-S2 gap (pp)") ///
         title("Trade Diversion: Country Contributions") ///
         subtitle("Stacked monthly, signed (positive = adds to gap_diversion)") ///
         graphregion(color(white))
@@ -455,7 +459,7 @@ preserve
                      5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
                      8 "Food & Ag" 9 "Other") ///
                rows(2) size(vsmall) position(6)) ///
-        ytitle("Contribution to S0-S1 gap (pp)") ///
+        ytitle("Contribution to S1-S2 gap (pp)") ///
         title("Trade Diversion: Product Contributions") ///
         subtitle("Stacked monthly, signed (positive = adds to gap_diversion)") ///
         graphregion(color(white))
@@ -473,22 +477,22 @@ restore
 *
 * Three figures:
 *   Figure 1 -- Line chart: S0, S1, S2, S3, Treasury (5 lines)
-*   Figure 2 -- Stacked bar: trade diversion + everything else
-*   Figure 3 -- Stacked bar: USMCA surge + all-other preferences + residual
-*               (decomposition of S1 -> Treasury gap into 3 channels)
+*   Figure 2 -- Stacked bar: USMCA adjustment (S0->S1) + main analytic (S1->T)
+*   Figure 3 -- Stacked bar: trade diversion + all-other preferences + residual
+*               (decomposition of the S1 -> Treasury main analytic gap)
 
 di as text _n "  [C] Generating figures from six-tier decomposition..."
 
 use "${working}/decomp_monthly.dta", clear
 keep ym s0 s1 s2 s3 s4 t gap_*
 
-* Sub-channel for figure 3 stacking: gap_others + (S3 -> Treasury residual)
-gen double gap_s3_treasury = s3 - t if !missing(t)
-gen double gap_s1_treasury = s1 - t if !missing(t)
+* Sub-channels for figure stacking
+gen double gap_s3_t = s3 - t if !missing(t)   // residual + timing combined
+gen double gap_s1_t = s1 - t if !missing(t)   // total main-analytic gap (S1->T)
 
 di as text _n "  === Figure-input ladder ==="
 format s0 s1 s2 s3 t gap_* %9.2f
-list ym s0 s1 s2 s3 t gap_diversion gap_usmca gap_others, clean noobs
+list ym s0 s1 s2 s3 t gap_adjustment gap_diversion gap_others, clean noobs
 
 
 * --- Figure 1: ETR line chart (S0, S1, S2, S3, Treasury) ---
@@ -497,13 +501,13 @@ di as text _n "      Figure 1: ETR comparison"
 
 twoway ///
     (connected s0 ym, ///
-        mcolor("$color_statutory") lcolor("$color_statutory") ///
-        msymbol(circle) msize(small) lwidth(medthick) ///
-        lpattern(solid)) ///
+        mcolor("$color_gray") lcolor("$color_gray") ///
+        msymbol(circle) msize(vsmall) lwidth(medium) ///
+        lpattern(dash)) ///
     (connected s1 ym, ///
         mcolor("$color_statutory") lcolor("$color_statutory") ///
-        msymbol(diamond) msize(small) lwidth(medium) ///
-        lpattern(dash)) ///
+        msymbol(diamond) msize(small) lwidth(thick) ///
+        lpattern(solid)) ///
     (connected s2 ym, ///
         mcolor("$color_canada") lcolor("$color_canada") ///
         msymbol(square) msize(small) lwidth(medium) ///
@@ -518,10 +522,10 @@ twoway ///
         lpattern(solid)) ///
     , ///
     legend(order( ///
-        1 "S0 (USMCA 2024, 2024 wts)" ///
-        2 "S1 (USMCA 2024, monthly wts)" ///
-        3 "S2 (USMCA monthly)" ///
-        4 "S3 (+ all-other prefs)" ///
+        1 "S0 (USMCA 2024 baseline; backstory)" ///
+        2 "S1 (USMCA H2-2025, 2024 wts; framework anchor)" ///
+        3 "S2 (USMCA H2-2025, monthly wts)" ///
+        4 "S3 (+ all-other prefs, monthly wts)" ///
         5 "T (Treasury actual)") ///
         rows(5) size(small) position(6)) ///
     ytitle("Effective Tariff Rate (%)") ///
@@ -538,11 +542,12 @@ twoway ///
 graph export "$figures/figure1_etr_comparison.png", replace width(2400)
 
 
-* --- Figure 2: Gap decomposition stacked bar (S0->Treasury, two stacks) ---
+* --- Figure 2: Gap decomposition stacked bar (S0->T, two stacks) ---
+* USMCA adjustment vs the main-analytic gap (S1->T).
 
-di as text "      Figure 2: Gap decomposition (stacked: diversion vs everything else)"
+di as text "      Figure 2: Gap decomposition (USMCA adjustment vs main analytic)"
 
-graph bar (asis) gap_s1_treasury gap_diversion, ///
+graph bar (asis) gap_s1_t gap_adjustment, ///
     over(ym, relabel( ///
         1 `" "Jan" "2025" "' ///
         2 "Feb" 3 "Mar" 4 "Apr" 5 "May" 6 "Jun" ///
@@ -553,8 +558,8 @@ graph bar (asis) gap_s1_treasury gap_diversion, ///
     bar(1, color("$color_gap") fintensity(70)) ///
     bar(2, color("$color_statutory") fintensity(70)) ///
     legend(order( ///
-        2 "Trade diversion (S0{&rarr}S1)" ///
-        1 "Preferences + residual (S1{&rarr}Treasury)") ///
+        2 "USMCA adjustment (S0{&rarr}S1)" ///
+        1 "Main analytic gap (S1{&rarr}Treasury)") ///
         rows(1) size(small) position(6)) ///
     ytitle("Gap (percentage points)") ///
     title("Statutory-Actual ETR Gap Decomposition") ///
@@ -564,11 +569,11 @@ graph bar (asis) gap_s1_treasury gap_diversion, ///
 graph export "$figures/figure2_gap_stacked.png", replace width(2400)
 
 
-* --- Figure 3: S1->Treasury decomposed into USMCA / others / residual (3 stacks) ---
+* --- Figure 3: S1->Treasury decomposed into diversion / others / residual (3 stacks) ---
 
-di as text "      Figure 3: USMCA / all-others / residual decomposition"
+di as text "      Figure 3: Trade diversion / all-others / residual decomposition"
 
-graph bar (asis) gap_usmca gap_others gap_s3_treasury, ///
+graph bar (asis) gap_diversion gap_others gap_s3_t, ///
     over(ym, relabel( ///
         1 `" "Jan" "2025" "' ///
         2 "Feb" 3 "Mar" 4 "Apr" 5 "May" 6 "Jun" ///
@@ -580,7 +585,7 @@ graph bar (asis) gap_usmca gap_others gap_s3_treasury, ///
     bar(2, color("$color_eu")     fintensity(75)) ///
     bar(3, color("$color_gray")   fintensity(70)) ///
     legend(order( ///
-        1 "USMCA surge (S1{&rarr}S2)" ///
+        1 "Trade diversion (S1{&rarr}S2)" ///
         2 "All-other preferences (S2{&rarr}S3)" ///
         3 "Residual + timing (S3{&rarr}Treasury)") ///
         rows(2) size(small) position(6)) ///
@@ -597,9 +602,9 @@ graph export "$figures/figure3_usmca_decomp.png", replace width(2400)
 * ======================================================================
 *
 * Clean comparison between:
-*   S2 = rate_usmca_monthly weighted by con_val_mo (statutory rate with
-*        USMCA at the month's actual utilization). Identical by construction
-*        to S2 in counterfactual_ladder.dta -- same panel, same row-level
+*   S2 = rate_h2avg weighted by con_val_mo (statutory rate with USMCA at
+*        the H2-2025 stabilized baseline). Identical by construction to S2
+*        in counterfactual_ladder.dta -- same panel, same row-level
 *        Sum(rate*val)/Sum(val) collapse.
 *   S4 = cal_dut_mo / con_val_mo (Census-collected duties)
 *   T  = Treasury actual ETR (revenue_monthly.dta)
@@ -618,15 +623,15 @@ graph export "$figures/figure3_usmca_decomp.png", replace width(2400)
 *   Tbl 3a -- results/tables/cmp_hs2_ranking.csv
 *   Tbl 3b -- results/tables/cmp_top_hs10_anomalies.csv
 
-di as text _n "  [D] S2 (statutory, USMCA monthly) vs S4 (Census) vs T (Treasury)..."
+di as text _n "  [D] S2 (statutory, USMCA H2-2025) vs S4 (Census) vs T (Treasury)..."
 
 use "$working/merged_analysis.dta", clear
 keep if ym >= $start_ym & ym <= $end_ym
 
-** Sanity: rate_usmca_monthly is the S2 panel rate, merged in 01.
-capture confirm variable rate_usmca_monthly
+** Sanity: rate_h2avg is the S2 panel rate, merged in 01.
+capture confirm variable rate_h2avg
 if _rc != 0 {
-    di as error "ERROR: rate_usmca_monthly not found. Re-run 01_etr_clean.do."
+    di as error "ERROR: rate_h2avg not found. Re-run 01_etr_clean.do."
     error 111
 }
 
@@ -634,7 +639,7 @@ if _rc != 0 {
 * ----------------------------------------------------------------------
 * D1. Overall monthly comparison (Tbl 1 + Fig 4)
 *
-* Statutory = S2 (rate_usmca_monthly x con_val_mo, row-level value-weighted).
+* Statutory = S2 (rate_h2avg x con_val_mo, row-level value-weighted).
 * Identical by construction to S2 in counterfactual_ladder.dta, since both
 * use the same panel and the same row-level Sum(rate*val)/Sum(val) collapse.
 * ----------------------------------------------------------------------
@@ -642,7 +647,7 @@ if _rc != 0 {
 di as text "      D1. Overall monthly..."
 
 preserve
-    compute_tier, ratevar(rate_usmca_monthly) weightvar(con_val_mo) ///
+    compute_tier, ratevar(rate_h2avg) weightvar(con_val_mo) ///
         outfile("$working/cmp_overall_monthly.dta") outvar(s2) percent
 restore
 
@@ -667,7 +672,7 @@ preserve
     gen double gap_s4_t  = s4 - t
     gen double gap_s2_t  = s2 - t
 
-    label var s2        "S2: Statutory (USMCA monthly), monthly wts (%)"
+    label var s2        "S2: Statutory (USMCA H2-2025), monthly wts (%)"
     label var s4        "S4: Census collected ETR (%)"
     label var t         "T: Treasury actual ETR (%)"
     label var gap_s2_s4 "S2 - S4 (pp)"
@@ -694,7 +699,7 @@ preserve
             msymbol(triangle) msize(small) lwidth(medium) lpattern(dash)) ///
         , ///
         legend(order( ///
-            1 "S2: Statutory (USMCA monthly)" ///
+            1 "S2: Statutory (USMCA H2-2025)" ///
             2 "S4: Census (cal. duty / cons. value)" ///
             3 "T: Treasury actual") ///
             rows(3) size(small) position(6)) ///
@@ -712,9 +717,11 @@ restore
 
 ** Reload merged_analysis for the remaining D2-D6 sections.
 ** census_etr is already on the dataset (computed in 01); no need to recompute.
+** stat_rev_row uses rate_h2avg (the S2 panel rate after the framework
+** restructuring; was rate_usmca_monthly under the prior framework).
 use "$working/merged_analysis.dta", clear
 keep if ym >= $start_ym & ym <= $end_ym
-gen double stat_rev_row = rate_usmca_monthly * con_val_mo
+gen double stat_rev_row = rate_h2avg * con_val_mo
 gen double cens_rev_row = cal_dut_mo
 
 
@@ -737,7 +744,7 @@ preserve
     }
     gen double gap_pp = s2 - s4
 
-    label var s2     "S2: Statutory (USMCA monthly), monthly wts (%)"
+    label var s2     "S2: Statutory (USMCA H2-2025), monthly wts (%)"
     label var s4     "S4: Census collected ETR (%)"
     label var gap_pp "S2 - S4 (pp)"
 
@@ -768,12 +775,12 @@ preserve
         , ///
         by(pg_id, ///
             cols(4) ///
-            title("S2 (Statutory, USMCA monthly) vs. S4 (Census) by Partner") ///
+            title("S2 (Statutory, USMCA H2-2025) vs. S4 (Census) by Partner") ///
             subtitle("Monthly, Jan 2025 - Feb 2026") ///
             note("") ///
             graphregion(color(white))) ///
         legend(order( ///
-            1 "S2: Statutory (USMCA monthly)" ///
+            1 "S2: Statutory (USMCA H2-2025)" ///
             2 "S4: Census") rows(1) size(small) position(6)) ///
         ytitle("ETR (%)") xtitle("") ///
         xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
@@ -844,7 +851,7 @@ di as text "      D3. HS2 chapter ranking..."
 
 preserve
     ** Aggregate over the whole window for a single ranked table
-    gen double stat_num_row = rate_usmca_monthly * con_val_mo
+    gen double stat_num_row = rate_h2avg * con_val_mo
     collapse (sum) stat_num = stat_num_row ///
                    cens_num = cal_dut_mo ///
                    total_val = con_val_mo, ///
@@ -862,7 +869,7 @@ preserve
     ** Dollar-weighted contribution to overall gap (in USD)
     gen double gap_usd = stat_num - cens_num
 
-    label var s2         "S2: Statutory (USMCA monthly), monthly wts (%)"
+    label var s2         "S2: Statutory (USMCA H2-2025), monthly wts (%)"
     label var s4         "S4: Census collected ETR (%)"
     label var gap_pp     "Chapter-level gap S2-S4 (pp)"
     label var gap_usd    "Chapter-level gap in $ (S2 - S4)"
@@ -940,7 +947,7 @@ di as text "      D5. 2x2 cross-tab (stat-zero x cens-zero)..."
 preserve
     keep if con_val_mo > 0 & !missing(con_val_mo)
 
-    gen byte stat_pos = (rate_usmca_monthly > 0 & !missing(rate_usmca_monthly))
+    gen byte stat_pos = (rate_h2avg > 0 & !missing(rate_h2avg))
     gen byte cens_pos = (cal_dut_mo > 0 & !missing(cal_dut_mo))
 
     gen str12 bucket = ""
@@ -1044,7 +1051,7 @@ restore
 * ----------------------------------------------------------------------
 *
 * At the HS10 x country x month cell,
-*     gap_pp = 100 * (rate_usmca_monthly - census_etr).
+*     gap_pp = 100 * (rate_h2avg - census_etr).
 * Restricted to cells with positive trade (con_val_mo > 0). Quantiles
 * and share-within-threshold are weighted by con_val_mo.
 *
@@ -1059,7 +1066,7 @@ di as text "      D6. |gap| distribution by month (value-weighted)..."
 preserve
     keep if con_val_mo > 0 & !missing(con_val_mo)
     * census_etr already on merged_analysis.dta from 01 -- no recompute needed.
-    gen double gap_pp  = 100 * (rate_usmca_monthly - census_etr)
+    gen double gap_pp  = 100 * (rate_h2avg - census_etr)
     replace   gap_pp   = 0 if missing(gap_pp)
     gen double abs_gap = abs(gap_pp)
 
@@ -1156,7 +1163,7 @@ preserve
     }
     gen double gap_pp = s2 - s4
 
-    label var s2     "S2: Statutory (USMCA monthly), monthly wts (%)"
+    label var s2     "S2: Statutory (USMCA H2-2025), monthly wts (%)"
     label var s4     "S4: Census collected ETR (%)"
     label var gap_pp "S2 - S4 (pp)"
 
@@ -1188,12 +1195,12 @@ preserve
         , ///
         by(pg_id, ///
             cols(3) ///
-            title("S2 (Statutory, USMCA monthly) vs. S4 (Census) by Product Group") ///
+            title("S2 (Statutory, USMCA H2-2025) vs. S4 (Census) by Product Group") ///
             subtitle("Monthly, Jan 2025 - Feb 2026") ///
             note("") ///
             graphregion(color(white))) ///
         legend(order( ///
-            1 "S2: Statutory (USMCA monthly)" ///
+            1 "S2: Statutory (USMCA H2-2025)" ///
             2 "S4: Census") rows(1) size(small) position(6)) ///
         ytitle("ETR (%)") xtitle("") ///
         xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///

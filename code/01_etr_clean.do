@@ -9,8 +9,8 @@
 *   A. Census trade data (HS10 x country x month from IMDB; HS2 derived
 *      downstream via substr(hs10,1,2))
 *   B. Tracker data (daily ETRs, snapshot rates, revision dates, weights,
-*      and three counterfactual rate panels: cf_usmca_monthly [S2],
-*      cf_usmca2024 [S0/S1], cf_pref_delta [S3 input])
+*      and four counterfactual rate panels: cf_usmca_monthly [explainer],
+*      cf_usmca2024 [S0], cf_h2avg [S1/S2], cf_pref_delta [S3 input])
 *   C. Treasury revenue (actual ETR)
 *   D. Merge: Census x tracker snapshots at HS10 x country x month
 *   E. Compute trade weights + merge rate panels onto master
@@ -24,6 +24,7 @@
 *   import_weights_2024.csv
 *   counterfactual_usmca_monthly.csv
 *   counterfactual_usmca2024.csv
+*   counterfactual_h2avg.csv
 *   counterfactual_other_pref_delta_monthly.csv
 *   tariff_revenue.csv
 *
@@ -38,7 +39,7 @@
 *   revision_dates.dta
 *   tracker_snapshots.dta
 *   weights_2024.dta
-*   cf_usmca_monthly.dta, cf_usmca2024.dta, cf_pref_delta.dta
+*   cf_usmca_monthly.dta, cf_usmca2024.dta, cf_h2avg.dta, cf_pref_delta.dta
 *   revenue_monthly.dta
 *   merged_analysis.dta          <-- master analytical dataset
 *   $logs/merged_analysis_codebook.log  (data dictionary)
@@ -387,6 +388,38 @@ save "$working/cf_usmca2024.dta", replace
 di as text "       `=_N' HS10 x country x month rows"
 
 
+* --- B7b. Counterfactual rates (USMCA at H2-2025 baseline, S1/S2 panel) ---
+*
+* Day-weighted monthly statutory rate at HS10 x country x month with USMCA
+* held at the tracker's H2-2025 production baseline shares (~89% CA/MX).
+* Same day-weighting machinery as B6 (cf_usmca_monthly) and B7 (cf_usmca2024)
+* so all three panels are apples-to-apples comparable across revisions.
+* Replaces the old `rate_h2avg = total_rate` alias, which used per-revision
+* tracker_snapshots and missed mid-month policy changes (e.g. Liberation Day
+* on Apr 2, 2025 was invisible at the April-1 revision lookup).
+
+di as text "  [B7b] Counterfactual rates (USMCA H2-2025 baseline, S1/S2 panel)..."
+
+import delimited using "$raw/counterfactual_h2avg.csv", ///
+    clear stringcols(1 2 3)
+capture rename hts10 hs10
+
+gen year  = real(substr(year_month, 1, 4))
+gen month = real(substr(year_month, 6, 7))
+gen int ym = ym(year, month)
+format ym %tm
+drop year month year_month
+
+rename total_rate rate_h2avg
+
+keep hs10 cty_code ym rate_h2avg
+sort hs10 cty_code ym
+gisid hs10 cty_code ym
+compress
+save "$working/cf_h2avg.dta", replace
+di as text "       `=_N' HS10 x country x month rows"
+
+
 * --- B8. Non-USMCA preference delta (S2 → S3) ---
 *
 * Sparse delta panel from R pull section 3g: per (HS10 × cty × ym) cell,
@@ -559,7 +592,7 @@ local cfm_pct = 100 * `n_cfm_match' / _N
 di as text "      USMCA-monthly rate matched: `n_cfm_match' / " _N ///
     " (" string(`cfm_pct', "%4.1f") "%)"
 
-** Merge S0/S1 rate panel: USMCA frozen at 2024 baseline
+** Merge S0 rate panel: USMCA frozen at 2024 baseline
 merge 1:1 hs10 cty_code ym using "$working/cf_usmca2024.dta", ///
     keep(match master) gen(_merge_cf24)
 qui count if _merge_cf24 == 3
@@ -576,15 +609,43 @@ if `cf24_pct' < 95 {
     di as error "         (expected to match cf_usmca_monthly universe)"
 }
 
+** Merge S1/S2 rate panel: USMCA at H2-2025 baseline (rate_h2avg)
+merge 1:1 hs10 cty_code ym using "$working/cf_h2avg.dta", ///
+    keep(match master) gen(_merge_h2avg)
+qui count if _merge_h2avg == 3
+local n_h2avg_match = r(N)
+replace rate_h2avg = 0 if missing(rate_h2avg)
+drop _merge_h2avg
+local h2avg_pct = 100 * `n_h2avg_match' / _N
+di as text "      USMCA-h2avg rate matched: `n_h2avg_match' / " _N ///
+    " (" string(`h2avg_pct', "%4.1f") "%)"
+if `h2avg_pct' < 95 {
+    di as error "WARNING: cf_h2avg match rate below 95% -- investigate"
+    di as error "         (expected to match cf_usmca_monthly universe)"
+}
+
 ** Merge S3 preference delta and build rate_all_pref.
 ** cf_pref_delta is sparse by design: only cells with positive non-USMCA
 ** preference share appear. A low match rate here is expected -- no floor check.
+**
+** rate_all_pref subtracts the non-USMCA preference delta from rate_h2avg
+** (the day-weighted h2avg-USMCA panel), so the framework's S2 -> S3 step
+** holds USMCA at the stable H2-2025 baseline; monthly USMCA noise is
+** absorbed in S0 -> S1 instead.
 merge 1:1 hs10 cty_code ym using "$working/cf_pref_delta.dta", ///
     keep(match master) gen(_merge_delta)
 replace delta_base  = 0 if missing(delta_base)
 replace delta_recip = 0 if missing(delta_recip)
-gen double rate_all_pref = max(0, rate_usmca_monthly - delta_base - delta_recip)
+gen double rate_all_pref = max(0, rate_h2avg - delta_base - delta_recip)
 drop delta_base delta_recip _merge_delta
+
+** rate_h2avg is now merged in as a day-weighted panel from cf_h2avg.dta
+** (B7b above). The earlier `gen rate_h2avg = total_rate` alias is gone:
+** total_rate is per-revision-snapshot and missed mid-month policy changes
+** (e.g. Liberation Day on Apr 2, 2025 was invisible at the April-1 lookup).
+** Both rate_h2avg and total_rate now exist on the dataset; rate_h2avg is
+** the framework input, total_rate is retained as the raw tracker per-
+** revision rate for diagnostics (06).
 
 ** Implied tariff revenue (under alternative statutory rate definitions)
 gen double tariff_revenue_statutory = total_rate * con_val_mo
@@ -633,14 +694,15 @@ label var imports                   "2024 imports (USD)"
 label var w_2024                    "2024 annual weight share"
 label var tariff_revenue_statutory  "Implied statutory revenue (monthly wts)"
 label var tariff_revenue_2024       "Implied statutory revenue (2024 wts)"
-label var rate_usmca_monthly        "Statutory rate, USMCA monthly shares (S2 panel)"
-label var rate_2024                 "Statutory rate, USMCA 2024 baseline (S0/S1 panel)"
-label var rate_all_pref             "Statutory rate, USMCA monthly + non-USMCA prefs (S3 panel)"
+label var rate_usmca_monthly        "Empirical monthly USMCA rate (explainer; not a tier input)"
+label var rate_2024                 "Statutory rate, USMCA at 2024 baseline shares (S0 panel)"
+label var rate_h2avg                "Statutory rate, USMCA at H2-2025 average (S1/S2 panel; day-weighted)"
+label var rate_all_pref             "Statutory rate, h2avg USMCA + non-USMCA prefs (S3 panel)"
 label var tariff_revenue_usmca_mo   "Implied revenue (monthly-USMCA rate)"
 
 order ym year month hs2 product_group hs10 cty_code partner_group ///
       con_val_mo cal_dut_mo census_etr ///
-      total_rate rate_2024 rate_usmca_monthly rate_all_pref ///
+      total_rate rate_h2avg rate_2024 rate_usmca_monthly rate_all_pref ///
       tariff_revenue_statutory tariff_revenue_2024 tariff_revenue_usmca_mo ///
       w_monthly w_2024 imports revision
 
@@ -673,6 +735,7 @@ if r(N) > 0 {
 
 ** Non-negative invariants on rates and value columns.
 assert total_rate          >= 0 if !missing(total_rate)
+assert rate_h2avg          >= 0 if !missing(rate_h2avg)
 assert rate_2024           >= 0 if !missing(rate_2024)
 assert rate_usmca_monthly  >= 0 if !missing(rate_usmca_monthly)
 assert rate_all_pref       >= 0 if !missing(rate_all_pref)
@@ -680,14 +743,15 @@ assert con_val_mo          >= 0 if !missing(con_val_mo)
 assert cal_dut_mo          >= 0 if !missing(cal_dut_mo)
 assert imports             >= 0 if !missing(imports)
 
-** S3 <= S2 by construction (rate_all_pref = max(0, rate_usmca_monthly - delta)).
-** A violation would mean the R pipeline emitted negative deltas; the max(0,...)
-** guards the floor but cannot catch upper-bound violations.
-gen double _s3_excess = rate_all_pref - rate_usmca_monthly
+** S3 <= S2 by construction: rate_all_pref = max(0, rate_h2avg - delta), and
+** delta is non-negative by R section 3g math. A violation would mean the R
+** pipeline emitted negative deltas; the max(0,...) guards the floor but
+** cannot catch upper-bound violations.
+gen double _s3_excess = rate_all_pref - rate_h2avg
 qui sum _s3_excess
 if r(max) > 1e-9 {
     qui count if _s3_excess > 1e-9
-    di as error "ERROR: rate_all_pref > rate_usmca_monthly in `=r(N)' rows"
+    di as error "ERROR: rate_all_pref > rate_h2avg in `=r(N)' rows"
     di as error "       Max excess: `=string(r(max), "%9.6f")' -- check delta panel"
     error 459
 }

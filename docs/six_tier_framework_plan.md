@@ -2,6 +2,27 @@
 
 **Authored**: 2026-04-28
 **Status**: Approved for implementation — R-side first.
+
+> ⚠️ **STALE — framework restructured 2026-04-29.** The S0/S1/S2 *rate panels*
+> changed when the framework was rebuilt around an h2avg-USMCA spine. Current
+> definitions live in `CLAUDE.md` ("Six-tier framework" section). Summary of
+> what changed:
+> - S0 unchanged: USMCA 2024 baseline × 2024 weights.
+> - **S1 now uses `rate_h2avg`** (USMCA H2-2025 baseline) × 2024 weights
+>   (was `rate_2024` × monthly weights).
+> - **S2 now uses `rate_h2avg`** × monthly weights (was monthly empirical
+>   USMCA shares × monthly weights).
+> - S3 unchanged in concept; uses `rate_all_pref = max(0, rate_h2avg − delta)`
+>   instead of the old monthly-USMCA-based version.
+> - **S0→S1 renamed "USMCA adjustment"** (was "trade diversion"). Treated as
+>   explainable backstory; main analysis now lives between S1 and T.
+> - **S1→S2 renamed "trade diversion"** (was "USMCA surge"). The Shapley
+>   between/within decomposition now applies here.
+>
+> The math derivations below (sections 5–6) are still mostly correct but
+> with the rate-panel relabeling above. Sign-bearing channel discussion in
+> §5a still applies. This doc will be rewritten end-to-end in a follow-up.
+
 **Companions**:
 - `tracker_miss_report.md` — Round 3 motivates the Annex II claim-rate channel that becomes part of S3.
 - `tracker_over_report.md` — companion diagnostic (over-statement direction).

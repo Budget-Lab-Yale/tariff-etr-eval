@@ -50,20 +50,22 @@ Output: `counterfactual_ladder.dta` (overall) + `counterfactual_by_country.dta` 
 Step 3 runs two scripts back-to-back. **03** is the framework decomposition; **03b** is the TBL-judgment paper-output figures using a separate methodology.
 
 **`03_etr_analysis.do`** — Six-tier decomposition. Section A reads S0/S1/S2/S3 + T from `counterfactual_ladder.dta` and adds S4 (Census collected ETR):
-- **S0**: Statutory @ 2024 USMCA shares × 2024 weights
-- **S1**: Statutory @ 2024 USMCA shares × monthly weights
-- **S2**: Statutory @ monthly USMCA shares × monthly weights
-- **S3**: + non-USMCA preferences (Annex II / ITA / Ch98 / KORUS / GSP / FTAs)
+- **S0**: Statutory @ USMCA 2024 baseline shares × 2024 weights (`rate_2024 × imports`)
+- **S1**: Statutory @ USMCA H2-2025 baseline shares × 2024 weights (`rate_h2avg × imports`)
+- **S2**: Statutory @ USMCA H2-2025 baseline shares × monthly weights (`rate_h2avg × con_val_mo`)
+- **S3**: + non-USMCA preferences × monthly weights (`rate_all_pref × con_val_mo`)
 - **S4**: Census collected ETR (cal_dut / con_val at HS10 × country, summed)
 - **T**: Treasury actual ETR
 
-Gap channels: S0→S1 = trade diversion, S1→S2 = USMCA surge, S2→S3 = all-other preferences, S3→S4 = residual, S4→T = timing/enforcement. **`gap_diversion` and `gap_usmca` are bidirectional** (negative country-period averages for CA/MX = "reverse diversion"; negative early-period months for USMCA = pre-ramp claim-rate dip). `gap_others` is structurally non-negative by the delta math. See `docs/six_tier_framework_plan.md` §5a.
+Gap channels: **S0→S1 = USMCA adjustment** (claim-rate normalization 2024 → H2-2025; weights frozen — mostly retrospective, paperwork caught up after July 2025 reporting changes), **S1→S2 = trade diversion** (composition shift in monthly weights with USMCA stable at h2avg — main analysis channel), S2→S3 = all-other preferences, S3→S4 = residual, S4→T = timing/enforcement. `gap_adjustment` is mostly one-signed; `gap_diversion` is bidirectional. `gap_others` is structurally non-negative. Most paper analysis lives between S1 and T; the S0→S1 step is shown as backstory in 03b's USMCA explainer figures.
 
-Section B does the Shapley two-way decomposition of S0→S1 into between-group + within-group, twice — once partitioning by partner_group (country lens), once by product_group (product lens). Both lenses sum to the same `gap_diversion` and each gives a complementary view (country: who shifted; product: what shifted). Outputs `diversion_by_country.dta`, `diversion_by_product.dta`, and the corresponding `_avg.csv` summaries; figs D1 (aggregate decomp time series), D2 (country stacked-bar contributions), D3 (product stacked-bar contributions).
+The framework's S1 panel (`rate_h2avg × imports`) **equals the tracker's daily ETR collapsed to monthly** by construction — so the paper's headline §4.1 "baseline statutory" line in `figure_baseline_etr.png` is also S1. Framework backbone aligns with paper's headline figure.
 
-Section D (figs 4–6) uses `compute_tier` on `rate_usmca_monthly` so its statutory line is identical-by-construction to S2. Section D7 mirrors D2 with `product_group` and adds a `heatplot`-based figure P3 (S2−S4 gap on the product × partner grid).
+Section B does the Shapley two-way decomposition of **S1→S2** (trade diversion) into between-group + within-group, twice — once partitioning by partner_group (country lens), once by product_group (product lens). Both lenses sum to the same `gap_diversion`. Outputs `diversion_by_country.dta`, `diversion_by_product.dta`, and the `_avg.csv` summaries; figs D1 (aggregate decomp time series), D2 (country stacked-bar contributions), D3 (product stacked-bar contributions).
 
-**`03b_baseline_figures.do`** — TBL-judgment paper figures using a separate aggregation methodology (tracker daily series, h2avg USMCA, 2024 weights). These are intended for ECONOMIC portrayal of the statutory schedule — they are NOT framework tiers and should not be conflated with S0–S3. Outputs: `figure_baseline_etr.png` (paper §4.1), `figure_daily_overlay.png` (paper §4.5), and `monthly_summary.xlsx` (supplementary table that gathers all six statutory ETRs × {2024, monthly} weights alongside T3/T4/S3 in one sheet).
+Section D (figs 4–6) uses `compute_tier` on `rate_h2avg` so its statutory line is identical-by-construction to S2. Section D7 mirrors D2 with `product_group` and adds a `heatplot`-based figure P3 (S2−S4 gap on the product × partner grid).
+
+**`03b_baseline_figures.do`** — paper figures: §4.1 baseline (= framework S1), §4.5 daily overlay, supplementary monthly summary table, **§3 USMCA adjustment explainer**. Section D produces `figure_u1_usmca_adjustment.png` (CA + MX statutory ETR under three USMCA scenarios — 2024 baseline, monthly empirical, H2-2025 baseline; the empirical line moves between the two reference lines mid-2025) and `figure_u2_adjustment_by_country.png` (period-averaged S0−S1 gap by partner group, dominated by CA and MX). Plus `adjustment_by_country.csv`.
 
 ### Step 4 — FTA decomposition (`code/04_fta_decomposition.do`)
 
@@ -131,22 +133,24 @@ Both must be at the same directory level as this repo:
 - `report_merge "<label>"` — reports match / master-only / using-only counts after `merge`
 - `build_month_rev_map, saving(...)` — produces ym → revision crosswalk
 - `compute_tier, ratevar() weightvar() outfile() outvar() [byvar() percent]` — tier ETR aggregation; operates on the in-memory dataset (caller `preserve`s/`restore`s). Used by 02's ladder, 03 Section D, and 06.
-- `compute_diversion_decomp, byvar() outfile() outvar_prefix()` — Shapley two-way decomposition of the S0→S1 trade-diversion gap into between-group + within-group components. Group is partner_group (country lens) or product_group (product lens). Both lenses sum to the same `gap_diversion`; positive contribution = positive contribution to the gap. Used by 03 Section B.
+- `compute_diversion_decomp, ratevar() byvar() outfile() outvar_prefix()` — Shapley two-way decomposition of a fixed-rate-weights-shift gap into between-group + within-group components. In the framework this is called against `rate_h2avg` to decompose S1→S2 trade diversion. Group is partner_group (country lens) or product_group (product lens). Both lenses sum to the same `gap_diversion`. Used by 03 Section B and 03b's USMCA adjustment explainer.
 - `classify_pref_channel <subco> <rateprov> <cty>` — bins IMDB entries into 9 preference / rate-provision channels (mirrored in R section 3f). Used by 04 and 05a/05b.
 - HS2 chapter labels (99 chapters)
 
 ## Aggregation methodology
 
-All ETR tiers are computed via single-stage row-level value-weighted averages over the (HS10 × country × month) cells of `merged_analysis.dta`: `Sum(rate × weight) / Sum(weight)`. Rate columns (`rate_2024`, `rate_usmca_monthly`, `rate_all_pref`, `total_rate`) and weight columns (`imports` for 2024, `con_val_mo` for monthly) sit on the same row, so `compute_tier` collapses are uniform across tiers and figures. No HS2 bridging — that older description was inaccurate.
+All ETR tiers are computed via single-stage row-level value-weighted averages over the (HS10 × country × month) cells of `merged_analysis.dta`: `Sum(rate × weight) / Sum(weight)`. Rate columns (`rate_2024`, `rate_h2avg` ≡ `total_rate`, `rate_usmca_monthly`, `rate_all_pref`) and weight columns (`imports` for 2024, `con_val_mo` for monthly) sit on the same row, so `compute_tier` collapses are uniform across tiers and figures. No HS2 bridging.
 
 Zero-tariff products **must be included** in the denominator. Dropping them inflates the ETR from ~3.4% to ~27%. See `docs/weighting_note.md`.
 
+`rate_h2avg` is the framework alias for the tracker's production `total_rate` column — built in the `tariff-rate-tracker` sibling at `src/06_calculate_rates.R` with USMCA scaled by **H2 2025 average claim rates** (~89% for CA/MX). `rate_2024` swaps that to **2024-baseline claim rates** (~38% CA / ~50% MX); `rate_usmca_monthly` swaps to **monthly empirical rates** (USITC DataWeb). Same authority stacking, MFN exemptions, and IEEPA floor logic in all three; only the USMCA layer differs.
+
 ## Six-tier framework (Steps 2 + 3)
 
-The waterfall decomposes the statutory-actual ETR gap into five sequential channels:
+The waterfall decomposes the statutory-actual ETR gap into five sequential channels. The S0→S1 step is treated as "explainable backstory" and shown via the USMCA adjustment explainer figures in `03b`; main analysis lives between S1 and T.
 
-1. **Trade diversion (S0 → S1)**: hold USMCA at 2024 baseline, shift from 2024 to actual monthly import weights. Composition shift in trade flows. Sign-bearing — negative ("reverse diversion") for CA/MX/China/ROW because their imports are concentrated in inelastic high-tariff categories.
-2. **USMCA surge (S1 → S2)**: hold monthly weights fixed, shift USMCA from 2024 shares to actual monthly shares. CA/MX claim-rate dynamics (~38% → ~89% for CA, ~50% → ~89% for MX by late 2025). Sign-bearing — negative in 2025m1–m2 (claim rates briefly below baseline before the ramp).
+1. **USMCA adjustment (S0 → S1)**: hold weights at 2024, shift USMCA from 2024 baseline (~38% CA / ~50% MX) to H2-2025 baseline (~89% both). Mostly retrospective — firms filed USMCA claims late, and a July 2025 reporting change made the underlying utilization visible in the data. Mostly one-signed.
+2. **Trade diversion (S1 → S2)**: hold USMCA at H2-2025, shift weights from 2024 to actual monthly. Composition shift in trade flows. Sign-bearing — negative ("reverse diversion") for CA/MX/China/ROW because their imports are concentrated in inelastic high-tariff categories. Decomposed Shapley two-way in 03 Section B (figs D1–D3).
 3. **All-other preferences (S2 → S3)**: apply non-USMCA preference claim shares (Annex II / ITA / Ch98 / KORUS / GSP / other_fta) from IMDB. Per-authority math: `delta_base = (s_duty_free + s_korus + s_gsp + s_other_fta) × base_rate_pre`, `delta_recip = s_duty_free × recip_rate_pre`. Structurally non-negative.
 4. **Residual (S3 → S4)**: remaining gap between statutory (with all preferences applied) and Census collected. Captures specific-duty AVE failures, AD/CVD, tracker error not yet corrected, behavioral noise within HS10 × cty cells.
 5. **Timing/enforcement (S4 → T)**: Treasury vs Census aggregation. Refunds, post-entry adjustments, FTZ deferrals, cash-vs-accrual timing.
