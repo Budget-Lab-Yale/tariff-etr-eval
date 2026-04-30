@@ -337,6 +337,89 @@ end
 
 
 * ==============================================================================
+* PROGRAM: compute_per_group_attribution
+*
+* Per-group dollar contribution to a (S_left - S_right) gap, where both
+* aggregates use the same weight column. Handles two framework cases:
+*
+*   Rate shift (e.g. S2 -> S3): ratevar_left = rate_h2avg,
+*                               ratevar_right = rate_all_pref,
+*                               weightvar = con_val_mo.
+*   Rate vs observed (e.g. S3 -> S4): ratevar_left = rate_all_pref,
+*                                     ratevar_right = census_etr,
+*                                     weightvar = con_val_mo.
+*                                     (census_etr * con_val_mo = cal_dut_mo by
+*                                      construction, so the right-hand sum
+*                                      becomes Census-collected duties.)
+*
+* Output column is the group's contribution to the overall (S_left - S_right)
+* gap in pp -- i.e. (sum_g rate_left*w - sum_g rate_right*w) / sum_total w.
+*
+* Note: this is NOT a Shapley two-way like compute_diversion_decomp. With
+* weights fixed, the Shapley between-group term is zero (s_g_left = s_g_right);
+* what's left is exactly this per-group dollar attribution.
+*
+* Operates on the in-memory dataset; caller `preserve` / `restore`s.
+*
+* Options:
+*   RATEvar_left()   Left-hand rate column (the higher tier in the gap)  [required]
+*   RATEvar_right()  Right-hand rate column (the lower tier in the gap)  [required]
+*   WEIGHTvar()      Weight column (same in both periods)                [required]
+*   OUTfile()        Path/tempfile for the (ym x byvar) panel            [required]
+*   OUTvar()         Name for the output contribution column             [required]
+*   BYvar()          Optional grouping (partner_group, product_group)
+*   PERCent          Multiply output by 100
+*
+* Usage:
+*   preserve
+*       compute_per_group_attribution, ratevar_left(rate_h2avg) ///
+*           ratevar_right(rate_all_pref) weightvar(con_val_mo) ///
+*           byvar(partner_group) outfile("$working/others_by_country.dta") ///
+*           outvar(others_pp) percent
+*   restore
+* ==============================================================================
+
+capture program drop compute_per_group_attribution
+program define compute_per_group_attribution
+    version 17.0
+    syntax , RATEvar_left(name) RATEvar_right(name) WEIGHTvar(name) ///
+             OUTfile(string) OUTvar(name) ///
+             [BYvar(name) PERCent]
+
+    confirm variable `ratevar_left'
+    confirm variable `ratevar_right'
+    confirm variable `weightvar'
+    confirm variable ym
+    if "`byvar'" != "" confirm variable `byvar'
+
+    tempvar num_left num_right
+    gen double `num_left'  = `ratevar_left'  * `weightvar'
+    gen double `num_right' = `ratevar_right' * `weightvar'
+
+    if "`byvar'" == "" {
+        collapse (sum) num_left=`num_left' num_right=`num_right' den=`weightvar', ///
+            by(ym)
+    }
+    else {
+        collapse (sum) num_left=`num_left' num_right=`num_right' den=`weightvar', ///
+            by(ym `byvar')
+    }
+
+    * Per-group contribution to overall (S_left - S_right) at total monthly weight.
+    bysort ym: egen double total_den = total(den)
+    gen double `outvar' = (num_left - num_right) / total_den
+    if "`percent'" != "" replace `outvar' = `outvar' * 100
+
+    label var `outvar' "Per-group contribution to (S_left - S_right)"
+
+    keep ym `byvar' `outvar'
+    sort ym `byvar'
+    compress
+    save `"`outfile'"', replace
+end
+
+
+* ==============================================================================
 * PROGRAM: classify_pref_channel
 *
 * Creates `pref_channel` from (cty_subco, rate_prov, cty_code). Bins each

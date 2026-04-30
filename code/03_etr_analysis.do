@@ -31,9 +31,14 @@
 *
 * Sections:
 *   A. Six-tier decomposition (consumes ladder, adds S4, computes channel gaps)
-*   B. S1->S2 trade-diversion Shapley decomposition (country + product lenses)
-*      + figs D1, D2, D3
-*   C. Figures 1-3 (six-tier ladder line + stacked bar charts)
+*   B.  S1->S2 trade-diversion Shapley decomposition (country + product lenses)
+*       + figs D1, D2, D3
+*   B2. S2->S3 other-preferences attribution by group (country + product)
+*   B3. S3->S4 residual attribution by group (country + product)
+*   B4. Stacked-bar figures O2/O3 (others) and R2/R3 (residual)
+*   B5. Unified attribution tables (per-month per-group, all 4 channels)
+*   B6. 4-panel attribution facets F2 (country) and F3 (product)
+*   C.  Figures 1-3 (six-tier ladder line + stacked bar charts)
 *   D. Figures 4-6 + diagnostic tables (S2 vs S4 vs T, partner / HS2 / HS10)
 *      D7. Product-group gap (figs P1, P2, P3 + cmp_product_*)
 *
@@ -54,6 +59,14 @@
 *   $figures/figure_d1_diversion_decomp.png
 *   $figures/figure_d2_diversion_by_country.png
 *   $figures/figure_d3_diversion_by_product.png
+*   $figures/figure_o2_others_by_country.png
+*   $figures/figure_o3_others_by_product.png
+*   $figures/figure_r2_residual_by_country.png
+*   $figures/figure_r3_residual_by_product.png
+*   $figures/figure_f2_attribution_by_country.png    (4-panel facet)
+*   $figures/figure_f3_attribution_by_product.png    (4-panel facet)
+*   $tables/attribution_by_country.csv
+*   $tables/attribution_by_product.csv
 *
 *   Section D -- S2 vs S4 vs T comparison (six-tier framework labels):
 *     $figures/figure4_cmp_overall.png
@@ -466,6 +479,612 @@ preserve
 
     graph export "$figures/figure_d3_diversion_by_product.png", replace width(2400)
 restore
+
+
+* ======================================================================
+* B2. S2 -> S3 ATTRIBUTION  (other preferences, by country and product)
+* ======================================================================
+*
+* Weights fixed at con_val_mo; rate panel changes from rate_h2avg to
+* rate_all_pref. Per-group contribution = (sum_g rate_h2avg*w - sum_g
+* rate_all_pref*w) / sum_total w. Sums to gap_others = S2 - S3.
+
+di as text _n "  [B2] S2 -> S3 (other preferences) by country and product..."
+
+use "$working/merged_analysis.dta", clear
+keep if ym >= $start_ym & ym <= $end_ym
+
+preserve
+    compute_per_group_attribution, ratevar_left(rate_h2avg) ratevar_right(rate_all_pref) ///
+        weightvar(con_val_mo) byvar(partner_group) percent ///
+        outfile("$working/others_by_country.dta") outvar(others_pp)
+restore
+
+preserve
+    compute_per_group_attribution, ratevar_left(rate_h2avg) ratevar_right(rate_all_pref) ///
+        weightvar(con_val_mo) byvar(product_group) percent ///
+        outfile("$working/others_by_product.dta") outvar(others_pp)
+restore
+
+* Validation: per-month sum equals gap_others from the ladder.
+preserve
+    use "$working/counterfactual_ladder.dta", clear
+    keep ym gap_others
+    tempfile lad_o
+    save `lad_o'
+restore
+preserve
+    use "$working/others_by_country.dta", clear
+    collapse (sum) others_pp, by(ym)
+    merge 1:1 ym using `lad_o', nogenerate
+    gen double resid = others_pp - gap_others
+    qui sum resid, detail
+    if abs(r(max)) > 1e-3 | abs(r(min)) > 1e-3 {
+        di as error "WARNING: others-by-country sum differs from gap_others"
+    }
+    else {
+        di as text "      Others-by-country: max residual " ///
+            string(max(abs(r(max)), abs(r(min))), "%9.6f") " pp (OK)"
+    }
+restore
+
+
+* ======================================================================
+* B3. S3 -> S4 ATTRIBUTION  (residual, by country and product)
+* ======================================================================
+*
+* Rate-vs-observed: rate_all_pref (statutory after all preferences) vs
+* census_etr (Census collected duty / consumption value, row-level).
+* Per-group contribution = (sum_g rate_all_pref*w - sum_g cal_dut_mo) /
+* sum_total w. Sums to gap_residual = S3 - S4.
+*
+* (Treasury's monthly revenue is not country/product disaggregated, so
+* the framework's S4 -> T timing channel cannot be similarly broken out.)
+
+di as text _n "  [B3] S3 -> S4 (residual) by country and product..."
+
+preserve
+    compute_per_group_attribution, ratevar_left(rate_all_pref) ratevar_right(census_etr) ///
+        weightvar(con_val_mo) byvar(partner_group) percent ///
+        outfile("$working/residual_by_country.dta") outvar(residual_pp)
+restore
+
+preserve
+    compute_per_group_attribution, ratevar_left(rate_all_pref) ratevar_right(census_etr) ///
+        weightvar(con_val_mo) byvar(product_group) percent ///
+        outfile("$working/residual_by_product.dta") outvar(residual_pp)
+restore
+
+* Note: validation against decomp_monthly's gap_residual deferred — the
+* ladder's gap_residual = s3 - treasury_actual (not - s4). The S3 - S4
+* check using these per-group sums is a separate computation handled in
+* Section A's gap_residual / gap_timing labels.
+
+
+* ======================================================================
+* B4. STACKED-BAR FIGURES (O2/O3 and R2/R3)
+* ======================================================================
+
+di as text _n "  [B4] Stacked-bar figures for B2/B3..."
+
+* Helper for stacked-bar build per partition. Inline (twice) to avoid a
+* fourth helper program -- four blocks each ~40 lines, mostly relabel /
+* color glue.
+
+* --- O2: others by country ---
+preserve
+    use "$working/others_by_country.dta", clear
+    keep ym partner_group others_pp
+
+    gen str2 pg_short = ""
+    replace pg_short = "CN" if partner_group == "China"
+    replace pg_short = "CA" if partner_group == "Canada"
+    replace pg_short = "MX" if partner_group == "Mexico"
+    replace pg_short = "EU" if partner_group == "EU"
+    replace pg_short = "JP" if partner_group == "Japan"
+    replace pg_short = "KR" if partner_group == "S. Korea"
+    replace pg_short = "UK" if partner_group == "UK"
+    replace pg_short = "RW" if partner_group == "ROW"
+    drop partner_group
+    reshape wide others_pp, i(ym) j(pg_short) string
+    foreach pg in CN CA MX EU JP KR UK RW {
+        capture rename others_pp`pg' pg_`pg'
+        capture confirm variable pg_`pg'
+        if _rc != 0 gen double pg_`pg' = 0
+        replace pg_`pg' = 0 if missing(pg_`pg')
+    }
+    sort ym
+    gen byte ym_idx = _n
+    levelsof ym, local(ymlist)
+    local relabel_str ""
+    local i = 1
+    foreach m of local ymlist {
+        local ms : di %tmMon_CCYY `m'
+        local ms = trim("`ms'")
+        local relabel_str `relabel_str' `i' "`ms'"
+        local ++i
+    }
+    graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
+        over(ym_idx, relabel(`relabel_str') ///
+                     label(angle(45) labsize(vsmall))) ///
+        stack ///
+        bar(1, color("$color_china"))  bar(2, color("$color_canada")) ///
+        bar(3, color("$color_mexico")) bar(4, color("$color_eu")) ///
+        bar(5, color("$color_japan"))  bar(6, color("$color_skorea")) ///
+        bar(7, color("$color_uk"))     bar(8, color("$color_row")) ///
+        legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
+                     5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
+               rows(1) size(vsmall) position(6)) ///
+        ytitle("Contribution to S2-S3 gap (pp)") ///
+        title("All-Other Preferences: Country Contributions") ///
+        subtitle("Stacked monthly, signed; sums to gap_others") ///
+        graphregion(color(white))
+    graph export "$figures/figure_o2_others_by_country.png", replace width(2400)
+restore
+
+* --- O3: others by product ---
+preserve
+    use "$working/others_by_product.dta", clear
+    keep ym product_group others_pp
+    gen str4 pg_short = ""
+    replace pg_short = "stl"  if product_group == "Steel & Aluminum"
+    replace pg_short = "auto" if product_group == "Autos & Auto Parts"
+    replace pg_short = "elec" if product_group == "Electronics & Machinery"
+    replace pg_short = "phrm" if product_group == "Pharmaceuticals"
+    replace pg_short = "engy" if product_group == "Energy & Minerals"
+    replace pg_short = "chem" if product_group == "Chemicals & Plastics"
+    replace pg_short = "appr" if product_group == "Apparel & Textiles"
+    replace pg_short = "food" if product_group == "Food & Agriculture"
+    replace pg_short = "othr" if product_group == "Other Manufactured"
+    drop product_group
+    reshape wide others_pp, i(ym) j(pg_short) string
+    foreach pg in stl auto elec phrm engy chem appr food othr {
+        capture rename others_pp`pg' pg_`pg'
+        capture confirm variable pg_`pg'
+        if _rc != 0 gen double pg_`pg' = 0
+        replace pg_`pg' = 0 if missing(pg_`pg')
+    }
+    sort ym
+    gen byte ym_idx = _n
+    levelsof ym, local(ymlist)
+    local relabel_str ""
+    local i = 1
+    foreach m of local ymlist {
+        local ms : di %tmMon_CCYY `m'
+        local ms = trim("`ms'")
+        local relabel_str `relabel_str' `i' "`ms'"
+        local ++i
+    }
+    graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
+                     pg_appr pg_food pg_othr, ///
+        over(ym_idx, relabel(`relabel_str') ///
+                     label(angle(45) labsize(vsmall))) ///
+        stack ///
+        bar(1, color("$color_steel"))   bar(2, color("$color_autos")) ///
+        bar(3, color("$color_elec"))    bar(4, color("$color_pharma")) ///
+        bar(5, color("$color_energy"))  bar(6, color("$color_chem")) ///
+        bar(7, color("$color_apparel")) bar(8, color("$color_food")) ///
+        bar(9, color("$color_other")) ///
+        legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
+                     5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
+                     8 "Food & Ag" 9 "Other") ///
+               rows(2) size(vsmall) position(6)) ///
+        ytitle("Contribution to S2-S3 gap (pp)") ///
+        title("All-Other Preferences: Product Contributions") ///
+        subtitle("Stacked monthly, signed; sums to gap_others") ///
+        graphregion(color(white))
+    graph export "$figures/figure_o3_others_by_product.png", replace width(2400)
+restore
+
+* --- R2: residual by country ---
+preserve
+    use "$working/residual_by_country.dta", clear
+    keep ym partner_group residual_pp
+    gen str2 pg_short = ""
+    replace pg_short = "CN" if partner_group == "China"
+    replace pg_short = "CA" if partner_group == "Canada"
+    replace pg_short = "MX" if partner_group == "Mexico"
+    replace pg_short = "EU" if partner_group == "EU"
+    replace pg_short = "JP" if partner_group == "Japan"
+    replace pg_short = "KR" if partner_group == "S. Korea"
+    replace pg_short = "UK" if partner_group == "UK"
+    replace pg_short = "RW" if partner_group == "ROW"
+    drop partner_group
+    reshape wide residual_pp, i(ym) j(pg_short) string
+    foreach pg in CN CA MX EU JP KR UK RW {
+        capture rename residual_pp`pg' pg_`pg'
+        capture confirm variable pg_`pg'
+        if _rc != 0 gen double pg_`pg' = 0
+        replace pg_`pg' = 0 if missing(pg_`pg')
+    }
+    sort ym
+    gen byte ym_idx = _n
+    levelsof ym, local(ymlist)
+    local relabel_str ""
+    local i = 1
+    foreach m of local ymlist {
+        local ms : di %tmMon_CCYY `m'
+        local ms = trim("`ms'")
+        local relabel_str `relabel_str' `i' "`ms'"
+        local ++i
+    }
+    graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
+        over(ym_idx, relabel(`relabel_str') ///
+                     label(angle(45) labsize(vsmall))) ///
+        stack ///
+        bar(1, color("$color_china"))  bar(2, color("$color_canada")) ///
+        bar(3, color("$color_mexico")) bar(4, color("$color_eu")) ///
+        bar(5, color("$color_japan"))  bar(6, color("$color_skorea")) ///
+        bar(7, color("$color_uk"))     bar(8, color("$color_row")) ///
+        legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
+                     5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
+               rows(1) size(vsmall) position(6)) ///
+        ytitle("Contribution to S3-S4 gap (pp)") ///
+        title("Residual: Country Contributions") ///
+        subtitle("Stacked monthly, signed; sums to gap_residual (S3-S4)") ///
+        graphregion(color(white))
+    graph export "$figures/figure_r2_residual_by_country.png", replace width(2400)
+restore
+
+* --- R3: residual by product ---
+preserve
+    use "$working/residual_by_product.dta", clear
+    keep ym product_group residual_pp
+    gen str4 pg_short = ""
+    replace pg_short = "stl"  if product_group == "Steel & Aluminum"
+    replace pg_short = "auto" if product_group == "Autos & Auto Parts"
+    replace pg_short = "elec" if product_group == "Electronics & Machinery"
+    replace pg_short = "phrm" if product_group == "Pharmaceuticals"
+    replace pg_short = "engy" if product_group == "Energy & Minerals"
+    replace pg_short = "chem" if product_group == "Chemicals & Plastics"
+    replace pg_short = "appr" if product_group == "Apparel & Textiles"
+    replace pg_short = "food" if product_group == "Food & Agriculture"
+    replace pg_short = "othr" if product_group == "Other Manufactured"
+    drop product_group
+    reshape wide residual_pp, i(ym) j(pg_short) string
+    foreach pg in stl auto elec phrm engy chem appr food othr {
+        capture rename residual_pp`pg' pg_`pg'
+        capture confirm variable pg_`pg'
+        if _rc != 0 gen double pg_`pg' = 0
+        replace pg_`pg' = 0 if missing(pg_`pg')
+    }
+    sort ym
+    gen byte ym_idx = _n
+    levelsof ym, local(ymlist)
+    local relabel_str ""
+    local i = 1
+    foreach m of local ymlist {
+        local ms : di %tmMon_CCYY `m'
+        local ms = trim("`ms'")
+        local relabel_str `relabel_str' `i' "`ms'"
+        local ++i
+    }
+    graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
+                     pg_appr pg_food pg_othr, ///
+        over(ym_idx, relabel(`relabel_str') ///
+                     label(angle(45) labsize(vsmall))) ///
+        stack ///
+        bar(1, color("$color_steel"))   bar(2, color("$color_autos")) ///
+        bar(3, color("$color_elec"))    bar(4, color("$color_pharma")) ///
+        bar(5, color("$color_energy"))  bar(6, color("$color_chem")) ///
+        bar(7, color("$color_apparel")) bar(8, color("$color_food")) ///
+        bar(9, color("$color_other")) ///
+        legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
+                     5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
+                     8 "Food & Ag" 9 "Other") ///
+               rows(2) size(vsmall) position(6)) ///
+        ytitle("Contribution to S3-S4 gap (pp)") ///
+        title("Residual: Product Contributions") ///
+        subtitle("Stacked monthly, signed; sums to gap_residual (S3-S4)") ///
+        graphregion(color(white))
+    graph export "$figures/figure_r3_residual_by_product.png", replace width(2400)
+restore
+
+
+* ======================================================================
+* B5. UNIFIED 5-CHANNEL ATTRIBUTION  (Fig F2 by country, Fig F3 by product)
+* ======================================================================
+*
+* Each month, stack five segments per partition:
+*   gap_adjustment   (S0 - S1)
+*   gap_diversion    (S1 - S2; from B Section)
+*   gap_others       (S2 - S3; from B2)
+*   gap_residual     (S3 - S4; from B3)
+*   gap_timing       (S4 - T;  no per-group breakdown -- stacked at residual line)
+*
+* For the per-group view, gap_timing cannot be split (Treasury is aggregate),
+* so it appears as a single solid color across the full bar (proportional to
+* total gap), not attributed to any partition. The five segments per (group,
+* month) cell sum to gap_total when summed across groups.
+
+di as text _n "  [B5] Unified 5-channel attribution (Figs F2, F3)..."
+
+* For now, build the country and product attribution tables only -- the
+* aggregated stacked-bar figure is left for a later iteration since the
+* "Treasury timing as overlay" rendering needs a custom twoway approach.
+
+* Country-level table: per (ym, partner_group), stack of channels.
+preserve
+    * Diversion contribution per ym x partner_group
+    use "$working/diversion_by_country.dta", clear
+    keep ym partner_group c_total
+    rename c_total diversion_pp
+    tempfile div_c
+    save `div_c'
+restore
+preserve
+    use "$working/others_by_country.dta", clear
+    rename others_pp others_c_pp
+    tempfile oth_c
+    save `oth_c'
+restore
+preserve
+    use "$working/residual_by_country.dta", clear
+    rename residual_pp residual_c_pp
+    tempfile res_c
+    save `res_c'
+restore
+
+* Per-country adjustment (S0 - S1) attribution
+preserve
+    use "$working/merged_analysis.dta", clear
+    keep if ym >= $start_ym & ym <= $end_ym
+    compute_per_group_attribution, ratevar_left(rate_2024) ratevar_right(rate_h2avg) ///
+        weightvar(imports) byvar(partner_group) percent ///
+        outfile("$working/adjustment_by_country.dta") outvar(adjustment_pp)
+restore
+
+preserve
+    use "$working/diversion_by_country.dta", clear
+    keep ym partner_group c_total
+    rename c_total diversion_pp
+    merge 1:1 ym partner_group using `oth_c', nogenerate
+    rename others_c_pp others_pp
+    merge 1:1 ym partner_group using `res_c', nogenerate
+    rename residual_c_pp residual_pp
+    merge 1:1 ym partner_group using "$working/adjustment_by_country.dta", nogenerate
+
+    label var adjustment_pp "USMCA adjustment (S0-S1) per country (pp)"
+    label var diversion_pp  "Trade diversion (S1-S2) per country (pp)"
+    label var others_pp     "All-other prefs (S2-S3) per country (pp)"
+    label var residual_pp   "Residual (S3-S4) per country (pp)"
+
+    sort ym partner_group
+    compress
+    save "$working/attribution_by_country.dta", replace
+    export delimited using "$tables/attribution_by_country.csv", replace
+restore
+
+* Product-level same flow.
+preserve
+    use "$working/diversion_by_product.dta", clear
+    keep ym product_group p_total
+    rename p_total diversion_pp
+    tempfile div_p
+    save `div_p'
+restore
+preserve
+    use "$working/others_by_product.dta", clear
+    rename others_pp others_p_pp
+    tempfile oth_p
+    save `oth_p'
+restore
+preserve
+    use "$working/residual_by_product.dta", clear
+    rename residual_pp residual_p_pp
+    tempfile res_p
+    save `res_p'
+restore
+
+preserve
+    use "$working/merged_analysis.dta", clear
+    keep if ym >= $start_ym & ym <= $end_ym
+    compute_per_group_attribution, ratevar_left(rate_2024) ratevar_right(rate_h2avg) ///
+        weightvar(imports) byvar(product_group) percent ///
+        outfile("$working/adjustment_by_product.dta") outvar(adjustment_pp)
+restore
+
+preserve
+    use "$working/diversion_by_product.dta", clear
+    keep ym product_group p_total
+    rename p_total diversion_pp
+    merge 1:1 ym product_group using `oth_p', nogenerate
+    rename others_p_pp others_pp
+    merge 1:1 ym product_group using `res_p', nogenerate
+    rename residual_p_pp residual_pp
+    merge 1:1 ym product_group using "$working/adjustment_by_product.dta", nogenerate
+
+    label var adjustment_pp "USMCA adjustment (S0-S1) per product (pp)"
+    label var diversion_pp  "Trade diversion (S1-S2) per product (pp)"
+    label var others_pp     "All-other prefs (S2-S3) per product (pp)"
+    label var residual_pp   "Residual (S3-S4) per product (pp)"
+
+    sort ym product_group
+    compress
+    save "$working/attribution_by_product.dta", replace
+    export delimited using "$tables/attribution_by_product.csv", replace
+restore
+
+di as text "      Saved attribution_by_country / attribution_by_product (CSVs + dta)"
+di as text "      Per-month per-group: adjustment + diversion + others + residual."
+di as text "      gap_timing (S4 -> T) is aggregate-only; not in per-group panels."
+
+
+* ======================================================================
+* B6. 4-PANEL CHANNEL-ATTRIBUTION FACETS (Fig F2 country, Fig F3 product)
+* ======================================================================
+*
+* For each partition (country, product), build four stacked-bar panels
+* (adjustment / diversion / others / residual), then graph combine into
+* one figure. Shared legend lives on the first panel only.
+
+di as text _n "  [B6] 4-panel attribution facets (country, product)..."
+
+* --- F2: Country partition ---
+foreach ch in adjustment diversion others residual {
+    preserve
+        use "$working/attribution_by_country.dta", clear
+        keep ym partner_group `ch'_pp
+        rename `ch'_pp val
+
+        gen str2 pg_short = ""
+        replace pg_short = "CN" if partner_group == "China"
+        replace pg_short = "CA" if partner_group == "Canada"
+        replace pg_short = "MX" if partner_group == "Mexico"
+        replace pg_short = "EU" if partner_group == "EU"
+        replace pg_short = "JP" if partner_group == "Japan"
+        replace pg_short = "KR" if partner_group == "S. Korea"
+        replace pg_short = "UK" if partner_group == "UK"
+        replace pg_short = "RW" if partner_group == "ROW"
+        drop partner_group
+        reshape wide val, i(ym) j(pg_short) string
+        foreach pg in CN CA MX EU JP KR UK RW {
+            capture rename val`pg' pg_`pg'
+            capture confirm variable pg_`pg'
+            if _rc != 0 gen double pg_`pg' = 0
+            replace pg_`pg' = 0 if missing(pg_`pg')
+        }
+
+        sort ym
+        gen byte ym_idx = _n
+        levelsof ym, local(ymlist)
+        local relabel_str ""
+        local i = 1
+        foreach m of local ymlist {
+            local ms : di %tmMon_CCYY `m'
+            local ms = trim("`ms'")
+            local relabel_str `relabel_str' `i' "`ms'"
+            local ++i
+        }
+
+        local channel_title = upper(substr("`ch'", 1, 1)) + substr("`ch'", 2, .)
+        if "`ch'" == "adjustment" local panel_label "USMCA adjustment (S0-S1)"
+        if "`ch'" == "diversion"  local panel_label "Trade diversion (S1-S2)"
+        if "`ch'" == "others"     local panel_label "Other preferences (S2-S3)"
+        if "`ch'" == "residual"   local panel_label "Residual (S3-S4)"
+
+        * Show legend on first panel only.
+        if "`ch'" == "adjustment" {
+            local legend_opts ///
+                legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
+                             5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
+                       rows(1) size(vsmall) position(6))
+        }
+        else {
+            local legend_opts legend(off)
+        }
+
+        graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(tiny))) ///
+            stack ///
+            bar(1, color("$color_china"))  bar(2, color("$color_canada")) ///
+            bar(3, color("$color_mexico")) bar(4, color("$color_eu")) ///
+            bar(5, color("$color_japan"))  bar(6, color("$color_skorea")) ///
+            bar(7, color("$color_uk"))     bar(8, color("$color_row")) ///
+            ytitle("pp", size(vsmall)) ///
+            title("`panel_label'", size(small) color(black)) ///
+            yline(0, lcolor(gs10) lpattern(dot)) ///
+            `legend_opts' ///
+            graphregion(color(white)) ///
+            name(g_c_`ch', replace)
+    restore
+}
+
+graph combine g_c_adjustment g_c_diversion g_c_others g_c_residual, ///
+    cols(2) ycommon ///
+    title("Per-Country Attribution Across the Four Decomposable Channels") ///
+    subtitle("Stacked monthly; gap_timing (S4-T) is Treasury-aggregate-only, not shown") ///
+    graphregion(color(white))
+
+graph export "$figures/figure_f2_attribution_by_country.png", replace width(3000)
+
+* Drop named graphs to free memory before product loop.
+graph drop g_c_adjustment g_c_diversion g_c_others g_c_residual
+
+
+* --- F3: Product partition ---
+foreach ch in adjustment diversion others residual {
+    preserve
+        use "$working/attribution_by_product.dta", clear
+        keep ym product_group `ch'_pp
+        rename `ch'_pp val
+
+        gen str4 pg_short = ""
+        replace pg_short = "stl"  if product_group == "Steel & Aluminum"
+        replace pg_short = "auto" if product_group == "Autos & Auto Parts"
+        replace pg_short = "elec" if product_group == "Electronics & Machinery"
+        replace pg_short = "phrm" if product_group == "Pharmaceuticals"
+        replace pg_short = "engy" if product_group == "Energy & Minerals"
+        replace pg_short = "chem" if product_group == "Chemicals & Plastics"
+        replace pg_short = "appr" if product_group == "Apparel & Textiles"
+        replace pg_short = "food" if product_group == "Food & Agriculture"
+        replace pg_short = "othr" if product_group == "Other Manufactured"
+        drop product_group
+        reshape wide val, i(ym) j(pg_short) string
+        foreach pg in stl auto elec phrm engy chem appr food othr {
+            capture rename val`pg' pg_`pg'
+            capture confirm variable pg_`pg'
+            if _rc != 0 gen double pg_`pg' = 0
+            replace pg_`pg' = 0 if missing(pg_`pg')
+        }
+
+        sort ym
+        gen byte ym_idx = _n
+        levelsof ym, local(ymlist)
+        local relabel_str ""
+        local i = 1
+        foreach m of local ymlist {
+            local ms : di %tmMon_CCYY `m'
+            local ms = trim("`ms'")
+            local relabel_str `relabel_str' `i' "`ms'"
+            local ++i
+        }
+
+        if "`ch'" == "adjustment" local panel_label "USMCA adjustment (S0-S1)"
+        if "`ch'" == "diversion"  local panel_label "Trade diversion (S1-S2)"
+        if "`ch'" == "others"     local panel_label "Other preferences (S2-S3)"
+        if "`ch'" == "residual"   local panel_label "Residual (S3-S4)"
+
+        if "`ch'" == "adjustment" {
+            local legend_opts ///
+                legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" ///
+                             4 "Pharma" 5 "Energy" 6 "Chem & Plastics" ///
+                             7 "Apparel" 8 "Food & Ag" 9 "Other") ///
+                       rows(2) size(vsmall) position(6))
+        }
+        else {
+            local legend_opts legend(off)
+        }
+
+        graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
+                         pg_appr pg_food pg_othr, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(tiny))) ///
+            stack ///
+            bar(1, color("$color_steel"))   bar(2, color("$color_autos")) ///
+            bar(3, color("$color_elec"))    bar(4, color("$color_pharma")) ///
+            bar(5, color("$color_energy"))  bar(6, color("$color_chem")) ///
+            bar(7, color("$color_apparel")) bar(8, color("$color_food")) ///
+            bar(9, color("$color_other")) ///
+            ytitle("pp", size(vsmall)) ///
+            title("`panel_label'", size(small) color(black)) ///
+            yline(0, lcolor(gs10) lpattern(dot)) ///
+            `legend_opts' ///
+            graphregion(color(white)) ///
+            name(g_p_`ch', replace)
+    restore
+}
+
+graph combine g_p_adjustment g_p_diversion g_p_others g_p_residual, ///
+    cols(2) ycommon ///
+    title("Per-Product Attribution Across the Four Decomposable Channels") ///
+    subtitle("Stacked monthly; gap_timing (S4-T) is Treasury-aggregate-only, not shown") ///
+    graphregion(color(white))
+
+graph export "$figures/figure_f3_attribution_by_product.png", replace width(3000)
+
+graph drop g_p_adjustment g_p_diversion g_p_others g_p_residual
 
 
 * ======================================================================

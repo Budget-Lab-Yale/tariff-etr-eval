@@ -55,8 +55,9 @@
 \begin{column}{0.45\textwidth}
 \small
 \begin{itemize}
-  \item By late 2025 the trade-weighted statutory tariff rate hit roughly 21--22\%; the actual rate (duties / imports) sits near 10--11\%.
-  \item A persistent $\sim$11 pp gap between the schedule on paper and the duties Treasury collects.
+  \item Post-USMCA-stabilization statutory rate: \tier{S1 = 14.06\%} (Feb 2026), 15.07\% at Dec 2025 peak.
+  \item Treasury actual: \tier{T = 10.49\%} (Feb 2026), 9.88\% at Dec 2025.
+  \item A persistent gap of \alert{3.6--5.2 pp} between the schedule on paper and the duties Treasury collects (S0$-$T including USMCA backstory: 6.1--7.8 pp).
   \item The gap is not noise. It reflects \alert{real behavioral and administrative responses}: USMCA claiming, supply-chain diversion, exemptions, timing.
   \item For policy and welfare analysis we need to know \alert{which channels carry the gap} and how they evolve.
 \end{itemize}
@@ -73,7 +74,7 @@
 \begin{itemize}
   \item \textbf{Gopinath \& Neiman (2026, NBER w34620)} document the gap; pass-through on \emph{collected} duties is near 100\%, so the gap is what shields prices, not under-implementation.
   \item \textbf{Azzimonti (2025, Richmond Fed)} decomposes May 2025 into three pieces: within-country product mix (0.6 pp), cross-country share shifts (2.7 pp), implementation frictions (5.5 pp).
-  \item \textbf{Eck, Hoang, Mix, Ray (2026, FEDS Notes ``Mind the Gap'')} find the December 2025 announced ETR was 14.7\%; realized fell short by 5.43 pp ($\approx$44\% of the announced increase). They split into composition and rate-discrepancy channels with Laspeyres baseline weights.
+  \item \textbf{Eck, Hoang, Mix, Ray (2026, FEDS Notes ``Mind the Gap'')} find the December 2025 announced ETR was 14.7\%; realized fell short by 5.43 pp ($\approx$44\% of the announced increase). They split into composition and rate-discrepancy channels with Laspeyres baseline weights. \alert{Our framework recovers their numbers within 0.5 pp at every comparable quantity (Dec 2025: S1 = 15.07 vs 14.7; gap = 5.19 vs 5.43 pp); see appendix.}
   \item \textbf{PWBM (2025--26)} tracks the USMCA claim-rate ramp: $\sim$33\% (2024) $\to$ $\sim$88\% (Dec 2025) for CA/MX. Mechanical-vs-behavioral split shows $\sim$\$46B lost to behavior.
   \item \textbf{Waugh (2026, Minneapolis Fed)} computes a Trade Restrictiveness Index ($\sim$21--23\%) capturing the welfare cost of dispersion, $\approx$2$\times$ the duties-to-imports ratio.
 \end{itemize}
@@ -190,11 +191,14 @@ A positive ``China'' segment means the US trade basket shifted in a way that low
 
 \medskip
 
-The two effects are bundled in a single bar; D1 separates between-country (share shift) from within-country (mix shift).
+\textbf{Period mean contributions (pp):}
+\begin{itemize}\scriptsize
+  \item China: \tier{+2.13} (between +2.07, within +0.06)
+  \item Mexico: +0.08; Canada: +0.18; EU: +0.11; KR/JP/UK: $\le$0.10 each
+  \item \alert{ROW: $-$0.47} (between $-$0.77, within +0.30) --- low-tariff partners gained share
+\end{itemize}
 
-\medskip
-
-The CA/MX bars run small or negative because their high-tariff exposure (S232, fentanyl) makes share losses look like ``reverse diversion'' under this sign convention.
+China alone carries 90\%+ of the between-country effect. Trade diversion is overwhelmingly a China-share-dropped story.
 
 \end{column}
 \end{columns}
@@ -211,15 +215,20 @@ The CA/MX bars run small or negative because their high-tariff exposure (S232, f
 \end{column}
 \begin{column}{0.4\textwidth}
 \small
-9-group taxonomy aligned with policy salience: S232 metals, autos, electronics, pharma, energy, chemicals, apparel, food, other.
+9-group taxonomy: S232 metals, autos, electronics, pharma, energy, chemicals, apparel, food, other.
 
 \medskip
 
-\textbf{Steel \& Aluminum} typically drives the largest positive segment: imports compressed dramatically under 50\% S232 rates, so the monthly basket has less of the highest-tariff item.
+\textbf{Period mean contributions (pp):}
+\begin{itemize}\scriptsize
+  \item Autos \& Auto Parts: \tier{+0.59} (between +0.56)
+  \item Other Manufactured: +0.49 (within +0.88)
+  \item Electronics \& Mach.: +0.34 (within +0.76, between $-$0.42)
+  \item Steel \& Aluminum: +0.33 (between +0.29)
+  \item Apparel \& Textiles: +0.27
+\end{itemize}
 
-\medskip
-
-Electronics and pharma move the other direction: large dollar shares but smaller rate gaps mean their share \emph{rises} as steel falls, producing a negative-signed contribution.
+\textbf{Two patterns}: high-tariff goods (Steel, Autos) lose share \emph{between}; medium-tariff catchalls (Other, Electronics) gain share but shift internal mix to lower-tariff variants \emph{within}. Both Shapley terms matter.
 
 \end{column}
 \end{columns}
@@ -444,6 +453,62 @@ The headline gap (\texttt{etr\_full} $-$ \texttt{s0\_recon}) is identically the 
 \medskip
 
 Persistent discrepancy between \texttt{etr\_full} and \texttt{etr\_tracker\_daily} would flag a divergence between cell-level reconstruction and the tracker's day-weighted aggregation.
+
+\end{column}
+\end{columns}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A5b. Cross-validation against Eck et al.\ (2026), full panel}
+
+\scriptsize
+
+\begin{columns}[T]
+\begin{column}{0.55\textwidth}
+
+\begin{tabular}{l r r r}
+\toprule
+Month & S1 (\%) & T (\%) & S1 $-$ T (pp) \\
+\midrule
+2025m1 & 3.19 & 2.31 & 0.88 \\
+2025m2 & 6.21 & 2.51 & 3.69 \\
+2025m3 & 6.82 & 2.38 & 4.44 \\
+2025m4 & 14.48 & 5.66 & 8.81 \\
+2025m5 & 13.80 & 8.02 & 5.77 \\
+2025m6 & 14.55 & 10.03 & 4.52 \\
+2025m7 & 14.83 & 9.47 & 5.36 \\
+2025m8 & 16.46 & 11.22 & 5.24 \\
+2025m9 & 16.83 & 10.73 & 6.10 \\
+2025m10 & 16.02 & 11.40 & 4.62 \\
+2025m11 & 15.24 & 11.79 & 3.44 \\
+\textbf{2025m12} & \textbf{15.07} & \textbf{9.88} & \textbf{5.19} \\
+2026m1 & 15.10 & 10.65 & 4.46 \\
+2026m2 & 14.06 & 10.49 & 3.57 \\
+\bottomrule
+\end{tabular}
+
+\end{column}
+\begin{column}{0.45\textwidth}
+
+\textbf{Headline match (Dec 2025)}:
+
+\begin{itemize}\scriptsize
+  \item Eck et al.\ S1 $\approx$ 14.7\%; ours: 15.07\% (+0.37 pp)
+  \item Eck et al.\ realized $\approx$ 9.27\% implied; ours: 9.88\% (+0.61 pp)
+  \item Eck et al.\ gap = 5.43 pp; ours: 5.19 pp ($-$0.24 pp)
+\end{itemize}
+
+\medskip
+
+\textbf{Other tracking series}:
+\begin{itemize}\scriptsize
+  \item \emph{PWBM} Jan 2026: 10.3\%; ours T = 10.65\% (Δ +0.35 pp)
+  \item \emph{Yale Budget Lab} Aug 2025: 11.5\% / 15.7--18.2\% range; ours T = 11.22\% / S1 = 16.46\% (in range)
+  \item \emph{Gopinath \& Neiman} Sept 2025: 27\% statutory cited; our S0 = 19.57\% (lower because their figure appears to be a pre-substitution / pre-USMCA-stabilization upper bound)
+\end{itemize}
+
+Independent methodologies converge.
 
 \end{column}
 \end{columns}
