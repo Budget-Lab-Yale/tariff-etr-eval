@@ -33,6 +33,8 @@ results/tables/
 
 # Rendered docs
 docs/*.html
+docs/*.pdf
+docs/slides/*.pdf
 
 # Literature PDFs
 lit/
