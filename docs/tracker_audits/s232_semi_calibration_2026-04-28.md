@@ -57,7 +57,7 @@ The Tariff-ETRs comparison should improve because Tariff-ETRs presumably handles
 
 The interim calibration uses a binary split from project guidance. The right answer is empirical: per HTS10, `qualifying_share` ≈ Census collection / (import value × heading rate), computed over a recent rolling window where the heading rate was active.
 
-This is a natural addition to the diagnostic refresh plan (`docs/diagnostic_refresh_plan.md`):
+This is a natural addition to the diagnostic refresh plan (`docs/archive/diagnostic_refresh_plan.md`, since archived May 2026):
 
 - New module: `code/utils/semi_calibration.do` (Stata) or `code/R/calibrate_semi_shares.R`.
 - Inputs: `merged_analysis.dta` (eval repo), `s232_semi_products.csv` (tracker).

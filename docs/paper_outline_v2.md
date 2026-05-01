@@ -4,13 +4,12 @@
 
 **Authors**: Abhi Gupta, John Iselin, John Ricco (The Budget Lab at Yale)
 
-**Status**: Draft outline post-framework-restructure (April 2026). Supersedes `paper_outline.md` (which used the older T1/T2/T3/T4 four-tier nomenclature).
+**Status**: Draft outline post-framework-restructure (April 2026). Supersedes `archive/paper_outline.md` (which used the older T1/T2/T3/T4 four-tier nomenclature).
 
 **Companion documents**:
 - `etr_divergence_slides.tex` — 10-minute presentation, same structure, less detail
 - `etr-literature-review.md` — full citation library (lift inline references from there)
-- `methodology_outline.md` — implementation detail; this paper outline cites from it
-- `six_tier_framework_plan.md` — original framework derivation (now stale on names; current canon in CLAUDE.md)
+- `six_tier_framework_plan.md` — framework math derivation (Shapley two-way, applicability matrix, sign-bearing channel discussion). Tier definitions kept in sync with `CLAUDE.md`.
 
 ---
 
@@ -607,13 +606,13 @@ Lifted from `etr-literature-review.md`. Full bibliography in the paper.
 
 | Document | Role |
 |---|---|
-| `paper_outline_v2.md` (this) | Current paper outline; supersedes `paper_outline.md` |
-| `paper_outline.md` | Pre-restructure outline (T1–T4 nomenclature; superseded) |
-| `methodology_outline.md` | Implementation reference (will need updating to current framework names) |
+| `paper_outline_v2.md` (this) | Current paper outline |
+| `methodology_outline.md` | Implementation-side methodology reference; predates the May 2026 framework restructure (some script names and tier labels are stale; treat as supplementary). |
 | `etr-literature-review.md` | Full citation library |
 | `etr_divergence_slides.tex` | 10-min presentation, parallel structure |
 | `weighting_note.md` | Aggregation note (single-stage row-level value-weighted; correctly described after the framework restructure) |
-| `six_tier_framework_plan.md` | Original framework derivation (stale on names; banner notes current canon in `CLAUDE.md`) |
+| `six_tier_framework_plan.md` | Framework math derivation (Shapley two-way, applicability matrix, sign-bearing channels). Tier definitions kept in sync with `CLAUDE.md` |
+| `archive/` | Superseded planning docs (`paper_outline.md`, `Outline.docx`, `dense_rate_export_plan_response.md`, `diagnostic_refresh_plan.md`, `todo.txt`). See `archive/README.md` for disposition |
 
 ---
 
@@ -622,5 +621,5 @@ Lifted from `etr-literature-review.md`. Full bibliography in the paper.
 1. **Headline scenario confirmation**: `usmca_h2avg` = S1/S2 anchor (current); `usmca_2024` = S0; `usmca_monthly` = explainer only. Confirm.
 2. **Channel naming**: "USMCA adjustment" for S0→S1 (current) vs. alternatives (normalization, recognition, backfill). Stick with adjustment unless paper editor pushes.
 3. **Ordering of §9 (diversion) vs §10 (other preferences)**: present-tier order (current) vs magnitude order (which is largest in the data).
-4. **Section 2 length**: keep policy taxonomy compact or expand into a self-contained chapter? Current draft compresses; existing `paper_outline.md` had a fuller version that could be revived.
+4. **Section 2 length**: keep policy taxonomy compact or expand into a self-contained chapter? Current draft compresses; the archived `archive/paper_outline.md` had a fuller version that could be revived.
 5. **Audience**: economics journal (full math + appendices) vs policy outlet (compress §5 to a methods box, expand §13)? The Beamer slide deck targets the latter; the paper outline above targets the former.

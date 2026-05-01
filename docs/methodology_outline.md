@@ -1,5 +1,7 @@
 # Actual vs Statutory ETR — Outline
 
+> **Status (May 2026)**: supplementary methodology reference. Predates the May 2026 framework restructure (h2avg-USMCA spine, S4 tier inserted, channel relabeling). Specific script references and tier labels below may not match current file numbering — see `paper_outline_v2.md`, `six_tier_framework_plan.md`, and `CLAUDE.md` for the current canon. Kept for the §6–§7 implementation docket and §5 derivations, which are still load-bearing.
+
 Single source of truth for the paper, the supporting code changes across this repo and `tariff-rate-tracker`, and the open questions still blocking prose. Subsumes the earlier sketch in `main.tex` and the tracker-side plan at `tariff-rate-tracker/docs/dense_rate_export_plan.md` (revised). Sections 1–4 map to the paper; §5 is the implementation plan; §6–7 are the working docket.
 
 ---

@@ -1,104 +1,76 @@
 # Six-tier framework plan: implementation scope + math
 
-**Authored**: 2026-04-28
-**Status**: Approved for implementation — R-side first.
+**Authored**: 2026-04-28. **Last refreshed**: 2026-05-01 (tier definitions and channel labels updated to match the post-restructure h2avg-USMCA spine; math derivations in §5–§6 unchanged).
 
-> ⚠️ **STALE — framework restructured 2026-04-29.** The S0/S1/S2 *rate panels*
-> changed when the framework was rebuilt around an h2avg-USMCA spine. Current
-> definitions live in `CLAUDE.md` ("Six-tier framework" section). Summary of
-> what changed:
-> - S0 unchanged: USMCA 2024 baseline × 2024 weights.
-> - **S1 now uses `rate_h2avg`** (USMCA H2-2025 baseline) × 2024 weights
->   (was `rate_2024` × monthly weights).
-> - **S2 now uses `rate_h2avg`** × monthly weights (was monthly empirical
->   USMCA shares × monthly weights).
-> - S3 unchanged in concept; uses `rate_all_pref = max(0, rate_h2avg − delta)`
->   instead of the old monthly-USMCA-based version.
-> - **S0→S1 renamed "USMCA adjustment"** (was "trade diversion"). Treated as
->   explainable backstory; main analysis now lives between S1 and T.
-> - **S1→S2 renamed "trade diversion"** (was "USMCA surge"). The Shapley
->   between/within decomposition now applies here.
->
-> The math derivations below (sections 5–6) are still mostly correct but
-> with the rate-panel relabeling above. Sign-bearing channel discussion in
-> §5a still applies. This doc will be rewritten end-to-end in a follow-up.
+This doc is the standalone derivation source for the framework's math: the Shapley two-way decomposition (§5–§5a), the channel-ordering rationale (§4–§5), and the per-authority applicability matrix for the non-USMCA preference delta (§6, §6.6). Tier definitions are kept synchronized with `CLAUDE.md`; if the two ever diverge, `CLAUDE.md` is canonical.
 
 **Companions**:
+- `paper_outline_v2.md` — paper exposition target (subsumes the older `methodology_outline.md`).
 - `tracker_miss_report.md` — Round 3 motivates the Annex II claim-rate channel that becomes part of S3.
 - `tracker_over_report.md` — companion diagnostic (over-statement direction).
-- `methodology_outline.md` — paper exposition target.
 
 ---
 
 ## 1. Motivation
 
-The current four-tier framework (T1 statutory @ 2024 weights; T2 statutory @ monthly weights; T3 Census collected; T4 Treasury) bundles the entire "exemptions" story into a single T2→T3 channel. At Feb 2026 that channel is ~6.4 percentage points (pp), and it confounds USMCA share dynamics with Annex II / ITA / Ch98 claims, KORUS / GSP / other-FTA preferences, and unmodeled residuals (specific-duty AVE failures, AD/CVD, tracker error, behavioral noise).
+The pre-restructure four-tier framework (T1 statutory @ 2024 weights; T2 statutory @ monthly weights; T3 Census collected; T4 Treasury) bundled the entire "exemptions" story into a single T2→T3 channel — at Feb 2026 ~6.4 pp, confounding USMCA share dynamics with Annex II / ITA / Ch98 claims, KORUS / GSP / other-FTA preferences, and unmodeled residuals (specific-duty AVE failures, AD/CVD, tracker error, behavioral noise).
 
-Step 1 of the analysis (in progress) is to correct tracker statutory ETR misses. Step 2 is to decompose the remaining gap into easily-identified USMCA and all-others channels. The six-tier framework below is the structural change that makes step 2 a clean, reusable result rather than a one-off analysis.
+The six-tier framework below decomposes that channel cleanly. After implementation, an additional tier (S4 = Census-collected) was inserted between S3 and Treasury, and the USMCA layer was rebuilt around an H2-2025 average claim-rate panel (`rate_h2avg`) so that S1 — the framework anchor — equals the tracker's daily ETR collapsed monthly by construction. The S0→S1 USMCA adjustment becomes "explainable backstory"; main analysis lives between S1 and Treasury.
 
 ## 2. Tier definitions
 
-| Tier | Definition | Source | Replaces |
-|---|---|---|---|
-| **S0** | Statutory @ 2024 USMCA shares × 2024 weights | tracker `usmca2024` × 2024 wts | T1 / current 05 S0 |
-| **S1** | Statutory @ 2024 USMCA shares × **monthly** weights | tracker `usmca2024` × monthly imports | T2 / current 05 S1 |
-| **S2** | + monthly USMCA shares applied | tracker `usmca_monthly` × monthly imports | current 05 S2 |
-| **S3** | + all-other preferences (Annex II / ITA / Ch98 / KORUS / GSP / other_fta) at monthly shares | NEW — IMDB-derived non-USMCA claim shares | (none) |
-| **S4** | Census collected ETR (HS10 × cty, summed) | IMDB `cal_dut_mo` / `con_val_mo` | T3 |
-| **T** | Treasury actual ETR (aggregate revenue / aggregate imports) | tariff revenue file | T4 |
+| Tier | Definition | Rate panel × Weight |
+|---|---|---|
+| **S0** | Statutory @ USMCA 2024 baseline × 2024 weights | `rate_2024` × `imports` |
+| **S1** | Statutory @ USMCA H2-2025 baseline × **2024** weights (framework anchor; equals tracker daily ETR collapsed monthly) | `rate_h2avg` × `imports` |
+| **S2** | Statutory @ USMCA H2-2025 baseline × **monthly** weights | `rate_h2avg` × `con_val_mo` |
+| **S3** | S2 minus non-USMCA preference Δ (Annex II / ITA / Ch98 / KORUS / GSP / other_fta) | `rate_all_pref` × `con_val_mo` |
+| **S4** | Census collected ETR (HS10 × cty, summed) | `cal_dut_mo / con_val_mo` |
+| **T** | Treasury actual ETR (aggregate revenue / aggregate imports) | tariff revenue file |
 
 ## 3. Channel decomposition
 
 | Channel | Definition | Interpretation |
 |---|---|---|
-| **diversion** | $S_0 - S_1$ | Composition shift in monthly weights |
-| **USMCA surge** | $S_1 - S_2$ | CA/MX claim-rate dynamics (~45% → ~89% mid-2025) |
-| **all-others** | $S_2 - S_3$ | Non-USMCA preference claiming: Annex II / ITA / Ch98 / KORUS / GSP / other FTAs |
-| **residual** | $S_3 - S_4$ | Within-cell unmodeled effects: specific-duty AVE failures, AD/CVD, tracker error not yet corrected, behavioral noise |
-| **timing** | $S_4 - T$ | Treasury vs Census aggregation, refunds, post-entry adjustments, FTZ deferral, cash-vs-accrual |
+| **USMCA adjustment** | $S_0 - S_1$ | CA/MX claim-rate normalization 2024 → H2-2025 baseline (~38% CA / ~50% MX → ~89% both); weights frozen at 2024. Mostly retrospective — paperwork caught up after July 2025 USITC reporting change. Backstory; main analysis is S1→T. |
+| **trade diversion** | $S_1 - S_2$ | Composition shift in monthly weights with USMCA stable at H2-2025 baseline. Decomposed Shapley two-way (between-group + within-group) in §5–§5a. |
+| **all-others** | $S_2 - S_3$ | Non-USMCA preference claiming: Annex II / ITA / Ch98 / KORUS / GSP / other FTAs. Structurally non-negative. |
+| **residual** | $S_3 - S_4$ | Within-cell unmodeled effects: specific-duty AVE failures, AD/CVD, tracker error not yet corrected, behavioral noise. |
+| **timing** | $S_4 - T$ | Treasury vs Census aggregation, refunds, post-entry adjustments, FTZ deferral, cash-vs-accrual. |
 
 ## 4. Channel-ordering rationale
 
-The ladder is sequential, so the magnitude of each rung depends on the order in which channels are applied. The chosen order — **diversion → USMCA → all-others → residual → timing** — places USMCA *before* all-others. Justification:
+The ladder is sequential, so the magnitude of each rung depends on the order in which channels are applied. The chosen order — **USMCA adjustment → trade diversion → all-others → residual → timing** — places USMCA before trade-diversion (composition). The S0→S1 USMCA adjustment "spends" the claim-rate ramp at fixed 2024 weights *before* the diversion channel re-weights to monthly composition. Justification:
 
-1. **Data confidence ordering.** USMCA shares are sourced from USITC DataWeb's SPI program codes — authoritative, audited, in the tracker. The all-others share is reconstructed from IMDB importer-declared `rate_prov` + `cty_subco`, which is good data but involves classification choices (the 9-channel taxonomy) and edge cases (a `rate_prov = 19` could reflect Annex II, ITA, Ch98, Berman — we collapse them). Putting the higher-confidence channel earlier means measurement error in the all-others reconstruction lands on its own rung magnitude rather than contaminating the USMCA estimate.
+1. **USMCA-as-backstory framing.** S0→S1 (USMCA adjustment) holds weights at 2024 and lets USMCA shares move from 2024 baseline to H2-2025 baseline. This isolates the claim-rate normalization from any composition story. The mid-2025 reporting-pattern shift becomes its own rung; the policy-relevant signal lives between S1 and Treasury. Aligning S1 with the tracker's daily ETR (collapsed monthly) makes S1 the framework anchor and lets the paper's headline figure double as the framework backbone.
 
-2. **Continuity with existing 05 framing.** The current 05 ladder already places USMCA at S2. Renaming S2→S2 (no change) and *appending* all-others as a new S3 rung is conceptually additive — reads cleanly in a paper / memo and avoids forcing a reviewer to reconcile two different orderings.
+2. **Data confidence ordering.** USMCA shares are sourced from USITC DataWeb's SPI program codes — authoritative, audited, in the tracker. The all-others share is reconstructed from IMDB importer-declared `rate_prov` + `cty_subco`, which is good data but involves classification choices (the 9-channel taxonomy) and edge cases (a `rate_prov = 19` could reflect Annex II, ITA, Ch98, Berman — we collapse them). Putting the higher-confidence USMCA channel first means measurement error in the all-others reconstruction lands on its own rung rather than contaminating the USMCA estimate.
 
-3. **Headline-channel pride of place.** USMCA is the cleanest, most-documented finding (~2pp aggregate, 4–7pp for CA/MX, the ~45→89% claim-rate doubling). It deserves to be the first incremental channel after diversion.
+3. **Mutual exclusivity at the entry level.** USMCA claim and Annex II / ITA / KORUS / GSP claim are mutually exclusive at the entry level (each entry has exactly one `cty_subco` / `rate_prov`). Shares partition imports, so the ladder magnitudes are order-invariant in the limit; small overlap effects in practice.
 
-4. **The math doesn't care.** USMCA claim and Annex II/ITA claim are *mutually exclusive* at the entry level (each entry has exactly one `cty_subco` / `rate_prov`). Shares partition imports rather than compound, so the ladder magnitudes are order-invariant in the limit and only differ by small overlap effects in practice.
-
-5. **Legal-priority objection is not load-bearing.** In the rate calculation, exemptions are applied before USMCA only because they are zero-rate paths — and zero × anything is zero, so order is irrelevant at the entry level. The legal-priority story matters for the *tracker code*, not for the *attribution ladder*.
+4. **Legal-priority objection is not load-bearing.** In the per-cell rate calculation, exemptions are applied before USMCA only because zero-rate paths short-circuit. The legal-priority story matters for the tracker code, not for the attribution ladder.
 
 ## 5. One consequence of the ordering
 
-Because USMCA and Annex II are mutually exclusive at the entry level, the all-others rung (S2→S3) only picks up preferences claimed on *non-USMCA-claimed* imports. For CA/MX, where USMCA captures ~89% of imports late-2025, the all-others rung will be small — most CA/MX preference activity is already in the USMCA rung. The all-others rung therefore concentrates on **non-USMCA partners** (Asia, EU, ROW), which is where the ITA / Annex II / GSP signal lives anyway. USMCA becomes the "Mexico/Canada story", all-others becomes the "everywhere-else story".
+Because USMCA and the all-others channels (Annex II / ITA / KORUS / GSP / other_fta) are mutually exclusive at the entry level, the S2→S3 all-others rung only picks up preferences claimed on *non-USMCA-claimed* imports. For CA/MX, where USMCA captures ~89% of imports late-2025, S2→S3 is structurally small — most CA/MX preference activity already sits in the S0→S1 USMCA adjustment. S2→S3 therefore concentrates on **non-USMCA partners** (Asia, EU, ROW), which is where the ITA / Annex II / GSP signal lives anyway. USMCA adjustment is the "Mexico/Canada story"; all-others is the "everywhere-else story".
 
 ## 5a. Channels can have either sign — and that is informative
 
-The ladder is sequential, but rung magnitudes are *not* required to be non-negative. In fact, two of the three "rate-applying" rungs (S0→S1 and S1→S2) routinely produce sign reversals at the country level:
+The ladder is sequential, but rung magnitudes are *not* required to be non-negative. The framework's S1→S2 trade-diversion channel routinely produces sign reversals at the country level, and the S4→T timing channel has flipped strongly negative since mid-2025.
 
-**S0 → S1 (`gap_diversion`)**: holds rates at the 2024 USMCA baseline and varies only the import-weight composition. Sign depends on whether monthly imports concentrated in higher-tariff cells (negative; "reverse diversion") or lower-tariff cells (positive; standard diversion). Empirically:
+**S1 → S2 (`gap_diversion`)**: holds rates at `rate_h2avg` (USMCA H2-2025 baseline) and varies only the import-weight composition (2024 → monthly). Sign depends on whether monthly imports concentrated in higher-tariff cells (negative; "reverse diversion") or lower-tariff cells (positive; standard diversion).
 
-| Country | period-avg gap_diversion (pp) | Sign |
-|---|---:|---|
-| EU | +1.25 | + (standard diversion) |
-| UK | +1.16 | + |
-| S. Korea | +0.97 | + |
-| Japan | +0.58 | + |
-| China | −0.15 | − (reverse diversion) |
-| ROW | −0.09 | − |
-| Canada | −0.42 | − |
-| Mexico | −0.81 | − |
+The bidirectional pattern is itself a finding: USMCA partners' exports to the U.S. are concentrated in autos / steel / energy / manufacturing — high-tariff categories with relatively inelastic short-run demand. Lower-tariff CA/MX exports (lumber, agriculture) dropped more sharply, leaving the within-country composition tilted toward higher-tariff cells. Non-USMCA partners (EU/UK/KR/JP) have more diverse baskets where consumer-goods substitution toward lower-tariff origins is feasible, so their composition shifted in the standard direction. China's contribution is dominantly *between-country* (share dropped from ~13% of imports to ~7%); ROW's between-term is large and negative (low-tariff partners gained share). See `figure_diversion_country.png` and `diversion_by_country_avg.csv` for current period means.
 
-The bidirectional pattern is itself a finding: USMCA partners' exports to the U.S. are concentrated in autos / steel / energy / manufacturing — high-tariff categories with relatively inelastic short-run demand (no quick domestic substitute, supply chains take years to relocate). Lower-tariff CA/MX exports (lumber, agriculture) dropped more sharply, leaving the within-country composition tilted toward higher-tariff cells. Non-USMCA partners (EU/UK/KR/JP) have more diverse baskets where consumer-goods substitution toward lower-tariff origins is feasible, so their composition shifted in the standard direction.
-
-**S1 → S2 (`gap_usmca`)**: holds monthly weights and varies USMCA shares from 2024 baseline (~38% CA, ~50% MX) to monthly. Negative early-period values appear in 2025m1–m2 because monthly claim rates were *lower* than the 2024 baseline (firms hadn't yet learned to claim under the new tariff regime). The mid-2025 ramp to ~85–89% then dominates the period average and produces the canonical USMCA-surge story.
+**S0 → S1 (`gap_adjustment`)**: holds weights at 2024 and varies USMCA from 2024 baseline (~38% CA, ~50% MX) to H2-2025 baseline (~89% CA/MX). Mostly one-signed: positive throughout the analysis window, dominated by CA and MX, ~2.4 pp window-average. Treated as backstory; the July 2025 USITC reporting change made the underlying utilization visible, but the legal entitlement was unchanged.
 
 **S2 → S3 (`gap_others`)**: structurally non-negative. Per the delta math (R section 3g), `delta_base ≥ 0` and `delta_recip ≥ 0` always; the floor `max(0, S2 − delta)` never binds because shares are bounded by mutual exclusivity (`Σ_q s_q ≤ 1`). The all-others rung can only reduce the realized ETR, never raise it. Empirically: zero S2 < S3 cells in the cross-section.
 
-**Implication for paper exposition**: report `gap_diversion` and `gap_usmca` with sign preserved. Don't take absolute values; don't reorder the channels to force monotonicity. Each sign-bearing channel tells a different story (composition shift direction; firm response lag), and the framework's value is in surfacing them, not hiding them.
+**S3 → S4 (`gap_residual`)**: structurally positive. Census-declared duties undershoot the cell-level reconstruction by 1.4–2.6 pp window-mean across W1–W5; *not* converging in the panel. Composition: specific-duty AVE failures, AD/CVD, tracker error not yet corrected, within-cell behavioral noise.
+
+**S4 → T (`gap_timing`)**: bidirectional. Trended strongly negative since mid-2025 (positive 2025m1–m6, negative starting around 2025m9), reaching −2.01 pp in February 2026. Cumulatively (Feb 2025–Feb 2026), Treasury has over-collected by ~$10.5B vs IMDB-declared duties (`figure_cumulative_duty_gap.png`). Plausible drivers: ACH lag catch-up, post-entry adjustments, refund reversals, FTZ-deferred duties being paid down.
+
+**Implication for paper exposition**: report `gap_diversion` and `gap_timing` with sign preserved; don't take absolute values; don't reorder the channels to force monotonicity. Each sign-bearing channel tells a different story (composition shift direction; cash-vs-accrual catch-up), and the framework's value is in surfacing them, not hiding them.
 
 ---
 
@@ -179,11 +151,13 @@ Each tier holds a different subset of preference shares fixed at zero or at chos
 | Tier | $s_{\text{usmca}}$ | $s_{\text{duty\_free}}$ | $s_{\text{korus}}$ | $s_{\text{gsp\_agoa}}$ | $s_{\text{other\_fta}}$ | weights |
 |---|---|---|---|---|---|---|
 | **S0** | 2024 annual | 0 | 0 | 0 | 0 | 2024 annual |
-| **S1** | 2024 annual | 0 | 0 | 0 | 0 | monthly $t$ |
-| **S2** | monthly $t$ | 0 | 0 | 0 | 0 | monthly $t$ |
-| **S3** | monthly $t$ | monthly $t$ | monthly $t$ | monthly $t$ | monthly $t$ | monthly $t$ |
+| **S1** | H2-2025 average | 0 | 0 | 0 | 0 | 2024 annual |
+| **S2** | H2-2025 average | 0 | 0 | 0 | 0 | monthly $t$ |
+| **S3** | H2-2025 average | monthly $t$ | monthly $t$ | monthly $t$ | monthly $t$ | monthly $t$ |
 | **S4** | (Census collected: $\sum_p$ cal_dut$_p$ / $\sum_p$ con_val$_p$ at HS10 × cty, aggregated) | monthly $t$ |
 | **T** | (Treasury actual: aggregate revenue / aggregate imports) | n/a |
+
+The H2-2025 USMCA panel (`rate_h2avg`) is the framework anchor: rebuilding the tracker's authority stack with H2-2025 average claim shares (~89% CA/MX) instead of 2024 baseline (~38% CA / ~50% MX) defines a stable USMCA layer that S1 and S2 inherit. The S0→S1 step is then a pure USMCA-share adjustment at fixed weights; the S1→S2 step is a pure weight composition shift at fixed rates. This is what makes the Shapley two-way decomposition (§5–§5a) attribute the diversion channel cleanly.
 
 ### 6.6 Implementation: $S_2 \to S_3$ as authority-component subtraction
 
@@ -212,94 +186,24 @@ The pre-preference component rates $r^{\text{base},\text{pre}}$ and $r^{\text{re
 
 ---
 
-## 7. Implementation scope
+## 7. Implementation (historical)
 
-### 7.1 R-side: `code/R/00_pull_raw_data.R` (~150 lines new)
+The framework was implemented as planned (April 2026), with one structural change after a post-implementation refactor (May 2026): the S1/S2 USMCA layer was rebuilt around the H2-2025 average claim-rate panel (`rate_h2avg`), making S1 the framework anchor and renaming the S0→S1 channel to "USMCA adjustment" (was "trade diversion") and S1→S2 to "trade diversion" (was "USMCA surge"). The implemented file map is:
 
-**Section 3f — Non-USMCA preference shares from IMDB**
-- Input: `data/raw/imdb_detail.csv` (already pulled in section 2).
-- Port the `classify_pref_channel` taxonomy from Stata (`code/utils/programs.do`) to an R function. Same 9 channels.
-- Aggregate by (hs10, cty_code, ym) → per cell compute `share_duty_free`, `share_korus`, `share_other_fta`, `share_gsp_agoa`, plus the combined `non_usmca_pref_share`.
-- Output: `data/raw/imdb_other_pref_shares_monthly.csv`.
+| Stage | File | What |
+|---|---|---|
+| R 3f | `code/R/00_pull_raw_data.R` | Non-USMCA preference shares from IMDB → `imdb_other_pref_shares_monthly.csv` |
+| R 3g | `code/R/00_pull_raw_data.R` | Per-cell preference Δ → `counterfactual_other_pref_delta_monthly.csv` |
+| Stata 02 | `code/02_counterfactual_ladder.do` | Six-tier waterfall (canonical tier values via `compute_tier`) |
+| Stata 03 | `code/03_etr_analysis.do` | Decomposition figures, Shapley two-way, attribution facets |
+| Stata 03b | `code/03b_baseline_figures.do` | Paper §4.1 baseline + USMCA adjustment explainer |
+| Stata 04 | `code/04_fta_decomposition.do` | Preference channel decomposition |
+| Validation | `scripts/validate_s3.do` | Monotonicity + share bounds + spot-checks |
 
-**Section 3g — Combined-preference counterfactual rate file**
-- Inputs: `counterfactual_usmca_monthly.csv` (3e output), `imdb_other_pref_shares_monthly.csv` (3f output), top-level snapshots (with `statutory_base_rate` and `statutory_rate_ieepa_recip`).
-- Day-weight pre-preference base + recip components to monthly using the same `mrw` table 3e builds.
-- Compute per cell: `rate_S3 = rate_S2 − (other_pref_total × base_rate) − (duty_free_share × recip_rate)`.
-- Output: `data/raw/counterfactual_all_pref_monthly.csv`.
+The validation gate (no monotonicity violations on $S_0 \ge S_1 \ge S_2 \ge S_3$, share bounds $\sum_q s_q^{pct} \le 1$, S2→S3 magnitude consistent with the FTA decomposition channel sums) is enforced at runtime in 03 Section B.
 
-**CLI flags**
-- Update `--only-counterfactual` to include 3f/3g (already does sections 3d-3e).
-- Add `--skip-other-pref` for opt-out (default: include).
+## 8. Out of scope for the original PR (status notes)
 
-### 7.2 Stata-side: `code/05_counterfactual_ladder.do` (~50 lines)
-
-- Section A: load new `counterfactual_all_pref_monthly.csv` alongside existing files.
-- Section B: add one `compute_tier` call for S3.
-- Section C: extend the combine block. New columns: `s3`, `gap_others = s2 − s3`, `gap_residual = s3 − s4`, `gap_timing = s4 − treasury`. Total: `gap_total = gap_diversion + gap_usmca + gap_others + gap_residual + gap_timing`.
-- Section D: country-level ladder gets the same S3 column.
-
-### 7.3 Stata-side: `code/02_etr_analysis.do` (~150–200 lines)
-
-- Section A: rename T1→S0, T2→S1, T3→S4, T4→T. Add new computations for S2, S3.
-- Section C: existing 4-tier line chart becomes 6-tier. Optional new waterfall figure.
-- Sections D, G: comparison tables and Excel summary updated.
-
-### 7.4 Validation script — `scripts/validate_s3.do` (NEW, ~80 lines)
-
-- **Monotonicity**: $S_0 \ge S_1 \ge S_2 \ge S_3 \ge S_4$ in every month and partner group.
-- **Cross-check vs 03**: at each month, the S2→S3 magnitude should approximately equal `gap_contrib_pp` summed over `{duty_free, korus, other_fta, gsp_agoa}` from `fta_decomp_monthly.csv`. Within ~10% relative.
-- **Share bounds**: any cell where $\sum_q s_q^{pct} > 1$ is reported. Should be zero by construction; non-zero indicates classifier bug.
-- **Spot-check**: HS10 8471.50.01.50 from Taiwan (`5830`) should show `share_duty_free ≥ 0.95` in every month.
-
-### 7.5 Documentation
-
-- `CLAUDE.md`: update pipeline description from four-tier to six-tier.
-- `docs/methodology_outline.md`: extend with new framework definition.
-- README: minor edits.
-
-## 8. Sequence
-
-```
-Day 1 morning:
-  1. Port classify_pref_channel to R (helpers in 00_pull_raw_data.R).
-  2. Write section 3f: aggregate IMDB to (hs10, cty, ym) shares.
-  3. Run 3f standalone, validate output (~5 min run, ~50 MB CSV).
-
-Day 1 afternoon:
-  4. Write section 3g: combined counterfactual rate.
-  5. Run 3e + 3g end-to-end (~20 min, two counterfactual CSVs).
-  6. Spot-check HS10 8471.50.01.50 cells against expected values.
-
-Day 2 morning:
-  7. Update 05 counterfactual ladder.
-  8. Run 05 alone (~3 min), inspect counterfactual_ladder.csv.
-  9. Write validate_s3.do, run it, fix any issues surfaced.
-
-Day 2 afternoon:
- 10. Update 02 etr_analysis (rename tiers, add S2/S3 columns, update figures).
- 11. Run 02 alone (~10 min).
- 12. Update CLAUDE.md, methodology doc.
- 13. Full pipeline re-run end-to-end (`do 00_etr_eval.do`, ~45 min).
- 14. Compare new figures vs old; sanity-check headline numbers.
-```
-
-## 9. Validation gate (must pass before merging)
-
-- `validate_s3.do` reports zero monotonicity violations.
-- S2→S3 channel cross-check vs 03 matches within 10% relative.
-- Aggregate ETR identity holds: $S_0 - T = $ sum of all gap channels to numerical precision.
-- Spot-check: HS10 8471.50.01.50 from Taiwan shows `share_duty_free ≥ 0.95` in all months.
-- Existing tests in 04, 05a, 05b, 06 all still pass.
-
-## 10. Out of scope for this PR
-
-- **Sub-channel split of S2→S3** (Annex II vs KORUS vs GSP). Data hooks exist in 3f's output (per-channel shares) but the ladder UI / figures stay aggregated.
-- **"Eligible-but-unclaimed" channel** (the importer-non-claim story from `tracker_miss_report.md` Round 3). That's a separate counterfactual against a hypothetical 100%-claim baseline.
-- **Shapley re-decomposition** to remove order dependence. Current ordering is interpretable and defensible; Shapley is a robustness check we can bolt on later if reviewers push back.
-
-## 11. Risks
-
-- **Classifier portability**: the Stata `classify_pref_channel` and the R port must stay in sync. Mitigation: write the R version with the same docstring; validate against a small shared fixture.
-- **R/Stata pipeline wall-clock**: 3f processes the 895 MB `imdb_detail.csv`. Should complete in ~5 min based on existing 03 patterns. 3g is light (~50 MB joins).
-- **Memory**: 3g joins `counterfactual_usmca_monthly.csv` (~1.3 GB after expansion) with monthly-aggregated base/recip components. May require streaming if it OOMs on the work machine.
+- **Sub-channel split of S2→S3** (Annex II vs KORUS vs GSP) — data hooks exist in `imdb_other_pref_shares_monthly.csv`'s per-channel shares; per-group attribution is implemented in 03 Section B2 but the in-paper exposition keeps S2→S3 aggregated.
+- **"Eligible-but-unclaimed" channel** (counterfactual against a hypothetical 100%-claim baseline) — not implemented; remains a future direction.
+- **Shapley re-decomposition** for trade diversion (S1→S2) — implemented (`compute_diversion_decomp` in `code/utils/programs.do`); see §5 of `paper_outline_v2.md` for the derivation and §5a above for the sign-bearing channel discussion.
