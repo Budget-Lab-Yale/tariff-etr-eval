@@ -2093,6 +2093,11 @@ preserve
     export delimited using "$tables/cmp_product_partner_avg.csv", replace
 
     ** heatplot is from SSC (ssc install heatplot palettes colrspace).
+    ** heatplot's i.<varname> factor syntax requires numeric vars; encode the
+    ** string group columns first so heatplot can pull value labels for axes.
+    encode product_group, gen(prod_id)
+    encode partner_group, gen(part_id)
+
     capture which heatplot
     if _rc == 0 {
         foreach v in titled clean {
@@ -2106,7 +2111,7 @@ preserve
                 local fig_st ""
                 local sfx ""
             }
-            heatplot gap_pp i.product_group i.partner_group, ///
+            heatplot gap_pp i.prod_id i.part_id, ///
                 color(RdBu, reverse) cuts(-30(5)30) ///
                 ramp(right space(5) suffix("pp")) ///
                 keylabels(, range(-30 30)) ///
