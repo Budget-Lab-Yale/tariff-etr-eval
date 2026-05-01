@@ -367,16 +367,30 @@ program define export_dual_titles
     if "`grname'" == "" local grname "Graph"
 
     if "`notitled'" == "" {
-        * Export current (titled) version.
+        * Save the current (titled) state to the _titled.png file.
         graph export "${figures}`base'_titled.png", replace width(`width')
 
-        * Redisplay with empty titles, then export clean version.
-        graph display `grname', title("") subtitle("")
-        graph export "${figures}`base'.png", replace width(`width')
+        * Try to redisplay the graph with cleared titles, then export the
+        * no-suffix version. `graph display, title("")` works for some
+        * graph types (twoway lines, by(), graph combine) but not for
+        * graph bar / graph hbar -- those return r(198) "option title()
+        * not allowed". For those types we fall back to copying the titled
+        * file so the pipeline doesn't crash; convert that site to the
+        * inline foreach v in titled clean { ... } pattern when you need
+        * a true clean version.
+        capture graph display `grname', title("") subtitle("")
+        if _rc == 0 {
+            graph export "${figures}`base'.png", replace width(`width')
+        }
+        else {
+            di as text "      [export_dual_titles] graph display title()" ///
+                " unsupported for `grname'; copying titled -> clean."
+            copy "${figures}`base'_titled.png" "${figures}`base'.png", replace
+        }
     }
     else {
         * Skip titled version; just export clean.
-        graph display `grname', title("") subtitle("")
+        capture graph display `grname', title("") subtitle("")
         graph export "${figures}`base'.png", replace width(`width')
     }
 end
