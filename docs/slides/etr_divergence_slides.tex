@@ -41,14 +41,18 @@
 \setbeamertemplate{logo}{}
 \titlegraphic{}
 
-% Bottom-left logo on every slide via tikz overlay anchored to page corner.
-% xshift/yshift give a small margin so the logo doesn't kiss the page edge.
-\addtobeamertemplate{background canvas}{}{%
-  \begin{tikzpicture}[remember picture,overlay]
-    \node[anchor=south west, xshift=4mm, yshift=4mm]
-      at (current page.south west)
-      {\includegraphics[height=6mm]{budget_lab_logo.png}};
-  \end{tikzpicture}%
+% Bottom strip: Budget Lab logo (left) + page number (right). Implementing
+% as a real footline (rather than a tikz background overlay) reserves the
+% bottom 11mm so frame content auto-flows above it instead of overlapping.
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \hbox{%
+    \begin{beamercolorbox}[wd=\paperwidth, ht=11mm, dp=0pt, leftskip=4mm, rightskip=8mm]{footline}%
+      \raisebox{1.5mm}{\includegraphics[height=8mm]{budget_lab_logo.png}}%
+      \hfill
+      \raisebox{4mm}{\usebeamerfont{page number in head/foot}\usebeamercolor[fg]{page number in head/foot}\insertframenumber}%
+    \end{beamercolorbox}%
+  }%
 }
 
 % Helper macros for inline tier and gap call-outs in slide body text.
@@ -147,7 +151,7 @@ $R^{k}_t$ is total duties (statutory at counterfactual rates / weights for $S_0$
 
 \medskip
 
-The tiers differ only in which inputs are held at counterfactual values:
+The tiers differ only in which inputs are held at counterfactual values: \hyperlink{appendix_rates}{\beamergotobutton{Authority stacking detail}}
 
 \begin{center}
 \begin{tabular}{l l l}
@@ -162,8 +166,6 @@ Tier & Rate $\tau^{k}_{pc}$        & Weight $w^{k}_{pc}$ \\
 \bottomrule
 \end{tabular}
 \end{center}
-
-\hyperlink{appendix_rates}{\beamergotobutton{Authority stacking detail}}
 
 \end{frame}
 
@@ -245,8 +247,8 @@ Comparing two tiers $0$ and $1$ that share a rate panel but differ in weights, t
 \medskip
 
 \begin{itemize}\small
-  \item \emph{Between-group}: how much of the gap comes from import shares moving across countries (or products).
-  \item \emph{Within-group}: how much comes from a group's own ETR shifting (e.g., its product mix re-weighting at fixed rates).
+  \item \emph{Between-group}: cross-group share shifts.
+  \item \emph{Within-group}: rate / mix changes inside each group.
 \end{itemize}
 
 \hyperlink{appendix_shapley}{\beamergotobutton{Full Shapley derivation}}
@@ -266,63 +268,30 @@ Comparing two tiers $0$ and $1$ that share a rate panel but differ in weights, t
   \item Shift weights from 2024 to monthly (real-time) trade.
 \end{itemize}
 
-\medskip
+\vspace{0.3em}
 
 \centering
-\includegraphics[width=0.65\linewidth]{figure_diversion_decomp.png}
+\includegraphics[width=0.55\linewidth]{figure_diversion_decomp.png}
 
 \end{frame}
 
 % ----------------------------------------------------------------------------
-% Slide 12: Two ways of decomposing by group (moved to after S1->S2)
+% Slide 12: Average-ETR view (companion to Shapley math on Slide 9/10)
 % ----------------------------------------------------------------------------
-\begin{frame}{Two ways of decomposing by group}
+\begin{frame}{Average ETR within each group}
 
 \small
 
-\begin{columns}[T]
-\begin{column}{0.5\textwidth}
-\textbf{(a) Shapley two-way decomposition}
+The Shapley two-way (slide 9) attributes a single $\Delta\tau$ to every group. As a complement, plot the per-group ETR series under each tier:
+\[
+R^{k}_g(t) = \frac{\sum_{i \in g} w^{k}_i\,\tau^{k}_i}{\sum_{i \in g} w^{k}_i}.
+\]
+
+Each facet panel below shows two lines per group; the visible spread is that group's contribution to the channel, side-by-side at each tier.
 
 \medskip
 
-For partition $g$ (partner or product),
-\[
-\Delta\tau = \sum_g \left[\tfrac{1}{2}(R^{0}_g + R^{1}_g)(s^{1}_g - s^{0}_g)\right]
-\]
-\vspace{-1em}
-\[
-+ \sum_g \left[\tfrac{1}{2}(s^{0}_g + s^{1}_g)(R^{1}_g - R^{0}_g)\right]
-\]
-
-Splits each channel into:
-\begin{itemize}\small
-  \item \emph{between-group} (composition shift)
-  \item \emph{within-group} (rate or mix shift inside the group)
-\end{itemize}
-
-\textbf{What it shows:} which groups carry how much of the channel \emph{after} share-weight adjustment.
-\end{column}
-\begin{column}{0.5\textwidth}
-\textbf{(b) Average ETR within each group}
-
-\medskip
-
-For each group $g$, plot the per-group ETR series under each tier:
-\[
-R^{k}_g(t) = \frac{\sum_{i \in g} w^{k}_i \tau^{k}_i}{\sum_{i \in g} w^{k}_i}
-\]
-
-Each panel shows two lines; the visible spread is the channel's contribution from that group.
-
-\textbf{What it shows:} the magnitude of each group's ETR \emph{within itself}, side-by-side at each tier.
-
-\end{column}
-\end{columns}
-
-\vspace{0.5em}
-
-\hyperlink{appendix_shapley}{\beamergotobutton{Shapley derivation}}
+\textbf{What it shows:} the magnitude of each group's ETR \emph{within itself}, not its share-weighted contribution to the aggregate.
 
 \end{frame}
 
@@ -365,18 +334,23 @@ Each panel shows two lines; the visible spread is the channel's contribution fro
 % ----------------------------------------------------------------------------
 \begin{frame}{Understanding the residual: Treasury versus Census Actual ETRs}
 
+\footnotesize
+
+\textbf{Goal:} attribute the S2$\to$T residual gap. Treasury duties are reported \emph{aggregate-only}; Census IMDB is the only granular collected-duty data we have, so we split S2$\to$T into S2$\to$S3$\to$S4$\to$T using S4 (Census) as the granular bridge to T (Treasury).
+
+\medskip
+
 \begin{columns}[T]
 \begin{column}{0.6\textwidth}
 \centering
 \includegraphics[width=\linewidth]{figure_s2s4_overall.png}
 \end{column}
 \begin{column}{0.4\textwidth}
-\small
-\textbf{S4 (Census)}: aggregate \texttt{cal\_dut\_mo} / \texttt{con\_val\_mo} from IMDB. Captures duties as importers \emph{declare them at entry}.
+\textbf{S4 (Census):} aggregate \texttt{cal\_dut\_mo} / \texttt{con\_val\_mo} from IMDB. Duties as importers \emph{declare at entry}.
 
 \medskip
 
-\textbf{T (Treasury)}: monthly customs duties / goods imports, from MTS / DTS. Captures actual \emph{cash collected}.
+\textbf{T (Treasury):} monthly customs duties / goods imports, from MTS / DTS. Actual \emph{cash collected}.
 
 \medskip
 
@@ -406,7 +380,7 @@ Each panel shows two lines; the visible spread is the channel's contribution fro
 \end{itemize}
 
 \centering
-\includegraphics[width=0.78\linewidth]{figure_others_channel_stack.png}
+\includegraphics[width=0.6\linewidth]{figure_others_channel_stack.png}
 
 \end{frame}
 
@@ -459,19 +433,7 @@ Each panel shows two lines; the visible spread is the channel's contribution fro
 % ----------------------------------------------------------------------------
 \begin{frame}{Open questions}
 
-\small
-
-\begin{itemize}\setlength{\itemsep}{0.6em}
-  \item \textbf{Convergence dynamics.} Eck et al.\ (2026) predict frictional gaps compress as frontloading depletes. Our Feb 2026 panel: \texttt{gap\_timing} (S4$\to$T) flipped strongly negative to \alert{$-2.01$ pp} -- Treasury collected \emph{more} than Census-declared duties imply -- while \texttt{gap\_residual} (S3$\to$S4) stayed positive at $+1.83$ pp. Cumulatively (Feb 2025--Feb 2026), Treasury has \emph{over-collected} by \alert{\$10.5B} relative to Census IMDB. \hyperlink{appendix_signflip}{\beamergotobutton{Detail}}
-
-  \item \textbf{Annex II quantification.} Largest single chunk of S2 $\to$ S3 likely sits in the IEEPA carve-out term. Decomposing further by HS2 inside Electronics $\times$ Pharma would attribute the carve-out story across product classes.
-
-  \item \textbf{2018--19 comparison.} 2018--19 had a 22\% gap fraction; 2025 has 44\%. Re-running the framework on 2017--19 data tests whether the channel mix has structurally changed.
-
-  \item \textbf{Tracker error itemization.} \texttt{05a} / \texttt{05b} diagnostics identify HS10s where Census duty exceeds (or falls short of) tracker rates. Bounds how much of the residual is measurement vs.\ behavior.
-
-  \item \textbf{Welfare framing.} Pair our duty-collection ETR with Waugh (2026) TRI. Per-cell rates are the inputs.
-\end{itemize}
+% Author to fill in.
 
 \end{frame}
 
@@ -485,12 +447,12 @@ Each panel shows two lines; the visible spread is the channel's contribution fro
 \vspace{1.5em}
 
 \large
-Code: \href{https://github.com/johniselin-budget-lab/tariff-etr-eval}{\texttt{johniselin-budget-lab/tariff-etr-eval}}
+\href{mailto:john.iselin@yale.edu}{john.iselin@yale.edu}
 
 \vspace{0.5em}
 
 \large
-Speaker notes: \texttt{docs/slides/etr\_divergence\_slides\_notes.md}
+Code: \href{https://github.com/johniselin-budget-lab/tariff-etr-eval}{\texttt{johniselin-budget-lab/tariff-etr-eval}}
 
 \end{frame}
 
