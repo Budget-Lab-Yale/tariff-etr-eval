@@ -46,7 +46,7 @@
 #   counterfactual_usmca_none.csv       -- HS10 x country x month (0% USMCA)
 #   counterfactual_usmca2024.csv        -- HS10 x country x month (USMCA 2024 baseline; S0)
 #   counterfactual_usmca_monthly.csv    -- HS10 x country x month (monthly USMCA empirical)
-#   counterfactual_h2avg.csv            -- HS10 x country x month (USMCA H2-2025; S1/S2)
+#   counterfactual_h2avg.csv            -- HS10 x country x month (Post-July 2025 USMCA; S1/S2)
 #   imdb_other_pref_shares_monthly.csv  -- HS10 x country x month preference shares
 #   counterfactual_other_pref_delta_monthly.csv -- HS10 x country x month
 #                                          rate-reduction delta from S2 to S3
@@ -852,7 +852,7 @@ if (file.exists(jan_2026) && !file.exists(feb_2026)) {
 #   counterfactual_usmca_none.csv      -- 0% utilization (upper bound)
 #   counterfactual_usmca2024.csv       -- 2024 annual shares (pre-tariff baseline; S0)
 #   counterfactual_usmca_monthly.csv   -- actual monthly 2025-2026 shares (explainer)
-#   counterfactual_h2avg.csv           -- H2-2025 average shares (tracker production
+#   counterfactual_h2avg.csv           -- post-July 2025 average shares (tracker production
 #                                         baseline; S1/S2 panel rate_h2avg). All four
 #                                         use the same day-weighting machinery so the
 #                                         scenarios are apples-to-apples comparable.

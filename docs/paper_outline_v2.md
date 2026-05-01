@@ -58,7 +58,7 @@
 
 ### 2.2 USMCA mechanics
 
-- Claim rates: ~38% CA / ~50% MX in 2024 → ~89% by H2 2025 [PWBM, 2025–26; USITC DataWeb].
+- Claim rates: ~38% CA / ~50% MX in 2024 → ~89% by post-July 2025 [PWBM, 2025–26; USITC DataWeb].
 - Claim-rate visibility shifted in **July 2025** when USITC reporting changed; pre-July claim rates were depressed both by genuine non-claiming and by reporting lag.
 - Auto/MHD parts exemption uses 0.40 US-content rule [tracker §7].
 
@@ -131,15 +131,15 @@
 | Tier | Rate panel | Weight | USMCA layer |
 |------|------------|--------|-------------|
 | S0 | `rate_2024` | `imports` (2024) | 2024 baseline (~38% CA / ~50% MX) |
-| S1 | `rate_h2avg` | `imports` (2024) | H2-2025 baseline (~89% CA/MX) |
-| S2 | `rate_h2avg` | `con_val_mo` | H2-2025 baseline |
-| S3 | `rate_all_pref` | `con_val_mo` | H2-2025 minus non-USMCA preference Δ |
+| S1 | `rate_h2avg` | `imports` (2024) | post-July 2025 baseline (~89% CA/MX) |
+| S2 | `rate_h2avg` | `con_val_mo` | post-July 2025 baseline |
+| S3 | `rate_all_pref` | `con_val_mo` | post-July 2025 minus non-USMCA preference Δ |
 | S4 | Census collected (cal_dut / con_val) | — | — |
 | T | Treasury actual | — | — |
 
 - **Channels** (sequential):
-  - S0 → S1: **USMCA adjustment** — claim-rate normalization 2024 → H2-2025 with weights frozen. Mostly retrospective; the data show it primarily because of the July 2025 USITC reporting change. Treated as backstory in the paper, not as a co-equal analytical channel.
-  - S1 → S2: **Trade diversion** — composition shift in monthly weights with USMCA stable at H2-2025. Main analysis channel.
+  - S0 → S1: **USMCA adjustment** — claim-rate normalization 2024 → post-July 2025 with weights frozen. Mostly retrospective; the data show it primarily because of the July 2025 USITC reporting change. Treated as backstory in the paper, not as a co-equal analytical channel.
+  - S1 → S2: **Trade diversion** — composition shift in monthly weights with USMCA stable at post-July 2025. Main analysis channel.
   - S2 → S3: **All-other preferences** — Annex II / ITA / Ch98 (Berman Amendment) / generic pharma / KORUS / GSP-AGOA / other bilateral FTAs.
   - S3 → S4: **Residual** — gap between statutory-with-all-preferences and Census-collected duties at the cell level. Captures specific-duty AVE failures, AD/CVD, tracker error, behavioral noise.
   - S4 → T: **Timing/enforcement** — Treasury vs Census aggregation. Refunds, post-entry adjustments, FTZ deferrals, cash-vs-accrual.
@@ -148,7 +148,7 @@
 
 - S1 = `rate_h2avg × imports (2024)` is identically the tracker's daily ETR collapsed to monthly by construction.
 - This is the line that anchors the paper's headline figure (§5 below) and TBL's public-facing "State of U.S. Tariffs" tracking.
-- Absorbing USMCA upfront (S0→S1) treats the 2024-to-H2-2025 claim-rate ramp as explainable backstory, not a co-equal analytical channel. Most of the paper's exposition lives between S1 and T.
+- Absorbing USMCA upfront (S0→S1) treats the 2024-to-post-July 2025 claim-rate ramp as explainable backstory, not a co-equal analytical channel. Most of the paper's exposition lives between S1 and T.
 
 ### 4.3 Mapping to existing decompositions
 
@@ -316,7 +316,7 @@ Spot-checks against other tracking series:
 ## 6. Data
 
 - **Census IMDB bulk** (HS10 × country × district × preference × rate provision × month): primary monthly trade source; pulled via R `00_pull_raw_data.R` §2.
-- **USITC DataWeb** (USMCA S/S+ program codes): source of USMCA claim-rate panels (2024 baseline, H2-2025 average, monthly empirical).
+- **USITC DataWeb** (USMCA S/S+ program codes): source of USMCA claim-rate panels (2024 baseline, post-July 2025 average, monthly empirical).
 - **Tariff Rate Tracker** (sibling repo `tariff-rate-tracker`): HTS10 × country statutory rates per revision; daily ETR; 2024 import weights; revision-date metadata.
 - **Tariff Impact Tracker** (sibling repo `tariff-impact-tracker`): Treasury customs duties / monthly imports = T.
 - **Window**: January 2025 – February 2026 (inclusive). Carry-forward used for 2026-Feb USMCA shares (DataWeb release lag).
@@ -327,7 +327,7 @@ Spot-checks against other tracking series:
 
 ### 7.1 The puzzle (Fig 1: figure_baseline)
 
-- Two-line monthly time series: S1 (statutory at H2-2025 USMCA × 2024 weights) and T (Treasury actual).
+- Two-line monthly time series: S1 (statutory at Post-July 2025 USMCA × 2024 weights) and T (Treasury actual).
 - Headline numbers (most recent month, Feb 2026): **S1 = 14.06%**, **T = 10.49%**, **gap = 3.57 pp**.
 - Trajectory: S1 jumps from 6.82 (March 2025) to 14.48 (April 2025, post-Liberation Day) → 16.83 (September 2025, peak) → 14.06 (February 2026, post-SCOTUS / Phase 3 partial unwind).
 - T trajectory: 2.38 (March 2025) → 5.66 (April 2025) → 11.40 (October 2025, peak) → 10.49 (February 2026).
@@ -355,8 +355,8 @@ Spot-checks against other tracking series:
 - Two-panel facet (CA, MX), three lines per panel:
   - 2024 USMCA baseline (purple, dashed): the rate the schedule would have produced if claim rates stayed at 2024 levels.
   - Empirical monthly (red, solid): the rate produced by the actual monthly claim share each month.
-  - H2-2025 USMCA baseline (navy, dashed): the rate the schedule produces at H2-2025 average claim shares.
-- Empirical line transitions from near the 2024 baseline (early 2025) toward the H2-2025 baseline (post-July 2025) — the July 2025 USITC reporting-change inflection is visible.
+  - Post-July 2025 USMCA baseline (navy, dashed): the rate the schedule produces at post-July 2025 average claim shares.
+- Empirical line transitions from near the 2024 baseline (early 2025) toward the post-July 2025 baseline (post-July 2025) — the July 2025 USITC reporting-change inflection is visible.
 
 ### 8.2 Per-country attribution (Fig U2: figure_adjustment_country)
 

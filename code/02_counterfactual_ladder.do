@@ -10,8 +10,8 @@
 *
 * Ladder steps (per the framework outline; see docs/six_tier_framework_plan.md):
 *   S0: rate_2024     x imports     (USMCA 2024 baseline x 2024 wts)
-*   S1: rate_h2avg    x imports     (USMCA H2-2025 baseline x 2024 wts)
-*   S2: rate_h2avg    x con_val_mo  (USMCA H2-2025 baseline x monthly wts)
+*   S1: rate_h2avg    x imports     (Post-July 2025 USMCA baseline x 2024 wts)
+*   S2: rate_h2avg    x con_val_mo  (Post-July 2025 USMCA baseline x monthly wts)
 *   S3: rate_all_pref x con_val_mo  (+ non-USMCA prefs x monthly wts)
 *   T:  Treasury actual ETR
 *
@@ -25,7 +25,7 @@
 *      -- Treasury not joined: revenue series isn't broken out by country.
 *
 * Gap channels:
-*   S0 -> S1 = USMCA adjustment (claim-rate normalization 2024 -> H2-2025;
+*   S0 -> S1 = USMCA adjustment (claim-rate normalization 2024 -> post-July 2025;
 *              weights frozen at 2024). Mostly retrospective: paperwork
 *              caught up after July 2025 reporting changes.
 *   S1 -> S2 = Trade diversion (composition shift in monthly weights with
@@ -80,13 +80,13 @@ preserve
 restore
 
 preserve
-    di as text "      S1: rate_h2avg x imports (USMCA H2-2025 x 2024 wts)"
+    di as text "      S1: rate_h2avg x imports (Post-July 2025 USMCA x 2024 wts)"
     compute_tier, ratevar(rate_h2avg) weightvar(imports) ///
         outfile(`tier_s1') outvar(s1) percent
 restore
 
 preserve
-    di as text "      S2: rate_h2avg x con_val_mo (USMCA H2-2025 x monthly wts)"
+    di as text "      S2: rate_h2avg x con_val_mo (Post-July 2025 USMCA x monthly wts)"
     compute_tier, ratevar(rate_h2avg) weightvar(con_val_mo) ///
         outfile(`tier_s2') outvar(s2) percent
 restore
@@ -131,8 +131,8 @@ gen double gap_total      = s0 - treasury_actual if !missing(treasury_actual)
 
 * Labels
 label var s0               "S0: Statutory (USMCA 2024 baseline), 2024 wts (%)"
-label var s1               "S1: Statutory (USMCA H2-2025), 2024 wts (%)"
-label var s2               "S2: Statutory (USMCA H2-2025), monthly wts (%)"
+label var s1               "S1: Statutory (Post-July 2025 USMCA), 2024 wts (%)"
+label var s2               "S2: Statutory (Post-July 2025 USMCA), monthly wts (%)"
 label var s3               "S3: + non-USMCA preferences, monthly wts (%)"
 label var treasury_actual  "T: Treasury actual ETR (%)"
 label var gap_adjustment   "USMCA adjustment gap S0-S1 (pp)"
@@ -210,8 +210,8 @@ gen double gap_others     = s2 - s3
 gen double gap_s0_s3      = s0 - s3
 
 label var s0             "S0: Statutory (USMCA 2024 baseline), 2024 wts (%)"
-label var s1             "S1: Statutory (USMCA H2-2025), 2024 wts (%)"
-label var s2             "S2: Statutory (USMCA H2-2025), monthly wts (%)"
+label var s1             "S1: Statutory (Post-July 2025 USMCA), 2024 wts (%)"
+label var s2             "S2: Statutory (Post-July 2025 USMCA), monthly wts (%)"
 label var s3             "S3: + non-USMCA preferences, monthly wts (%)"
 label var gap_adjustment "USMCA adjustment (pp)"
 label var gap_diversion  "Trade diversion (pp)"

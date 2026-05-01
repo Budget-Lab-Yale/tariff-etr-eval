@@ -388,17 +388,17 @@ save "$working/cf_usmca2024.dta", replace
 di as text "       `=_N' HS10 x country x month rows"
 
 
-* --- B7b. Counterfactual rates (USMCA at H2-2025 baseline, S1/S2 panel) ---
+* --- B7b. Counterfactual rates (Post-July 2025 USMCA baseline, S1/S2 panel) ---
 *
 * Day-weighted monthly statutory rate at HS10 x country x month with USMCA
-* held at the tracker's H2-2025 production baseline shares (~89% CA/MX).
+* held at the tracker's post-July 2025 production baseline shares (~89% CA/MX).
 * Same day-weighting machinery as B6 (cf_usmca_monthly) and B7 (cf_usmca2024)
 * so all three panels are apples-to-apples comparable across revisions.
 * Replaces the old `rate_h2avg = total_rate` alias, which used per-revision
 * tracker_snapshots and missed mid-month policy changes (e.g. Liberation Day
 * on Apr 2, 2025 was invisible at the April-1 revision lookup).
 
-di as text "  [B7b] Counterfactual rates (USMCA H2-2025 baseline, S1/S2 panel)..."
+di as text "  [B7b] Counterfactual rates (Post-July 2025 USMCA baseline, S1/S2 panel)..."
 
 import delimited using "$raw/counterfactual_h2avg.csv", ///
     clear stringcols(1 2 3)
@@ -609,7 +609,7 @@ if `cf24_pct' < 95 {
     di as error "         (expected to match cf_usmca_monthly universe)"
 }
 
-** Merge S1/S2 rate panel: USMCA at H2-2025 baseline (rate_h2avg)
+** Merge S1/S2 rate panel: Post-July 2025 USMCA baseline (rate_h2avg)
 merge 1:1 hs10 cty_code ym using "$working/cf_h2avg.dta", ///
     keep(match master) gen(_merge_h2avg)
 qui count if _merge_h2avg == 3
@@ -630,7 +630,7 @@ if `h2avg_pct' < 95 {
 **
 ** rate_all_pref subtracts the non-USMCA preference delta from rate_h2avg
 ** (the day-weighted h2avg-USMCA panel), so the framework's S2 -> S3 step
-** holds USMCA at the stable H2-2025 baseline; monthly USMCA noise is
+** holds USMCA at the stable post-July 2025 baseline; monthly USMCA noise is
 ** absorbed in S0 -> S1 instead.
 merge 1:1 hs10 cty_code ym using "$working/cf_pref_delta.dta", ///
     keep(match master) gen(_merge_delta)
@@ -696,7 +696,7 @@ label var tariff_revenue_statutory  "Implied statutory revenue (monthly wts)"
 label var tariff_revenue_2024       "Implied statutory revenue (2024 wts)"
 label var rate_usmca_monthly        "Empirical monthly USMCA rate (explainer; not a tier input)"
 label var rate_2024                 "Statutory rate, USMCA at 2024 baseline shares (S0 panel)"
-label var rate_h2avg                "Statutory rate, USMCA at H2-2025 average (S1/S2 panel; day-weighted)"
+label var rate_h2avg                "Statutory rate, Post-July 2025 USMCA average (S1/S2 panel; day-weighted)"
 label var rate_all_pref             "Statutory rate, h2avg USMCA + non-USMCA prefs (S3 panel)"
 label var tariff_revenue_usmca_mo   "Implied revenue (monthly-USMCA rate)"
 

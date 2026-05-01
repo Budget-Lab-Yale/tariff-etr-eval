@@ -51,13 +51,13 @@ Step 3 runs two scripts back-to-back. **03** is the framework decomposition; **0
 
 **`03_etr_analysis.do`** — Six-tier decomposition. Section A reads S0/S1/S2/S3 + T from `counterfactual_ladder.dta` and adds S4 (Census collected ETR):
 - **S0**: Statutory @ USMCA 2024 baseline shares × 2024 weights (`rate_2024 × imports`)
-- **S1**: Statutory @ USMCA H2-2025 baseline shares × 2024 weights (`rate_h2avg × imports`)
-- **S2**: Statutory @ USMCA H2-2025 baseline shares × monthly weights (`rate_h2avg × con_val_mo`)
+- **S1**: Statutory @ Post-July 2025 USMCA baseline shares × 2024 weights (`rate_h2avg × imports`)
+- **S2**: Statutory @ Post-July 2025 USMCA baseline shares × monthly weights (`rate_h2avg × con_val_mo`)
 - **S3**: + non-USMCA preferences × monthly weights (`rate_all_pref × con_val_mo`)
 - **S4**: Census collected ETR (cal_dut / con_val at HS10 × country, summed)
 - **T**: Treasury actual ETR
 
-Gap channels: **S0→S1 = USMCA adjustment** (claim-rate normalization 2024 → H2-2025; weights frozen — mostly retrospective, paperwork caught up after July 2025 reporting changes), **S1→S2 = trade diversion** (composition shift in monthly weights with USMCA stable at h2avg — main analysis channel), S2→S3 = all-other preferences, S3→S4 = residual, S4→T = timing/enforcement. `gap_adjustment` is mostly one-signed; `gap_diversion` is bidirectional. `gap_others` is structurally non-negative. Most paper analysis lives between S1 and T; the S0→S1 step is shown as backstory in 03b's USMCA explainer figures.
+Gap channels: **S0→S1 = USMCA adjustment** (claim-rate normalization 2024 → post-July 2025; weights frozen — mostly retrospective, paperwork caught up after July 2025 reporting changes), **S1→S2 = trade diversion** (composition shift in monthly weights with USMCA stable at h2avg — main analysis channel), S2→S3 = all-other preferences, S3→S4 = residual, S4→T = timing/enforcement. `gap_adjustment` is mostly one-signed; `gap_diversion` is bidirectional. `gap_others` is structurally non-negative. Most paper analysis lives between S1 and T; the S0→S1 step is shown as backstory in 03b's USMCA explainer figures.
 
 The framework's S1 panel (`rate_h2avg × imports`) **equals the tracker's daily ETR collapsed to monthly** by construction — so the paper's headline §4.1 "baseline statutory" line in `figure_baseline.png` is also S1. Framework backbone aligns with paper's headline figure.
 
@@ -65,7 +65,7 @@ Section B does the Shapley two-way decomposition of **S1→S2** (trade diversion
 
 Section D (figs 4–6) uses `compute_tier` on `rate_h2avg` so its statutory line is identical-by-construction to S2. Section D7 mirrors D2 with `product_group` and adds a `heatplot`-based figure P3 (S2−S4 gap on the product × partner grid).
 
-**`03b_baseline_figures.do`** — paper figures: §4.1 baseline (= framework S1), §4.5 daily overlay, supplementary monthly summary table, **§3 USMCA adjustment explainer**. Section D produces `figure_adjustment_explainer.png` (CA + MX statutory ETR under three USMCA scenarios — 2024 baseline, monthly empirical, H2-2025 baseline; the empirical line moves between the two reference lines mid-2025) and `figure_adjustment_country.png` (period-averaged S0−S1 gap by partner group, dominated by CA and MX). Plus `adjustment_by_country.csv`.
+**`03b_baseline_figures.do`** — paper figures: §4.1 baseline (= framework S1), §4.5 daily overlay, supplementary monthly summary table, **§3 USMCA adjustment explainer**. Section D produces `figure_adjustment_explainer.png` (CA + MX statutory ETR under three USMCA scenarios — 2024 baseline, monthly empirical, post-July 2025 baseline; the empirical line moves between the two reference lines mid-2025) and `figure_adjustment_country.png` (period-averaged S0−S1 gap by partner group, dominated by CA and MX). Plus `adjustment_by_country.csv`.
 
 **Figure naming convention:** every `figure_*.png` is exported in two versions — `figure_X.png` (no titles/subtitles, default for slides) and `figure_X_titled.png` (with titles/subtitles, for the paper draft). Every figure site uses the inline `foreach v in titled clean { ... }` pattern: define `local opt_title` and `local sfx` conditionally on `v`, then build the graph with `\`opt_title'` and export with `\`sfx'`. (`graph display, title("")` is not valid Stata syntax for any graph type, so post-hoc title clearing isn't an option.)
 
@@ -146,14 +146,14 @@ All ETR tiers are computed via single-stage row-level value-weighted averages ov
 
 Zero-tariff products **must be included** in the denominator. Dropping them inflates the ETR from ~3.4% to ~27%. See `docs/weighting_note.md`.
 
-`rate_h2avg` is the framework alias for the tracker's production `total_rate` column — built in the `tariff-rate-tracker` sibling at `src/06_calculate_rates.R` with USMCA scaled by **H2 2025 average claim rates** (~89% for CA/MX). `rate_2024` swaps that to **2024-baseline claim rates** (~38% CA / ~50% MX); `rate_usmca_monthly` swaps to **monthly empirical rates** (USITC DataWeb). Same authority stacking, MFN exemptions, and IEEPA floor logic in all three; only the USMCA layer differs.
+`rate_h2avg` is the framework alias for the tracker's production `total_rate` column — built in the `tariff-rate-tracker` sibling at `src/06_calculate_rates.R` with USMCA scaled by **post-July 2025 average claim rates** (~89% for CA/MX). `rate_2024` swaps that to **2024-baseline claim rates** (~38% CA / ~50% MX); `rate_usmca_monthly` swaps to **monthly empirical rates** (USITC DataWeb). Same authority stacking, MFN exemptions, and IEEPA floor logic in all three; only the USMCA layer differs.
 
 ## Six-tier framework (Steps 2 + 3)
 
 The waterfall decomposes the statutory-actual ETR gap into five sequential channels. The S0→S1 step is treated as "explainable backstory" and shown via the USMCA adjustment explainer figures in `03b`; main analysis lives between S1 and T.
 
-1. **USMCA adjustment (S0 → S1)**: hold weights at 2024, shift USMCA from 2024 baseline (~38% CA / ~50% MX) to H2-2025 baseline (~89% both). Mostly retrospective — firms filed USMCA claims late, and a July 2025 reporting change made the underlying utilization visible in the data. Mostly one-signed.
-2. **Trade diversion (S1 → S2)**: hold USMCA at H2-2025, shift weights from 2024 to actual monthly. Composition shift in trade flows. Sign-bearing — negative ("reverse diversion") for CA/MX/China/ROW because their imports are concentrated in inelastic high-tariff categories. Decomposed Shapley two-way in 03 Section B (figs D1–D3).
+1. **USMCA adjustment (S0 → S1)**: hold weights at 2024, shift USMCA from 2024 baseline (~38% CA / ~50% MX) to post-July 2025 baseline (~89% both). Mostly retrospective — firms filed USMCA claims late, and a July 2025 reporting change made the underlying utilization visible in the data. Mostly one-signed.
+2. **Trade diversion (S1 → S2)**: hold Post-July 2025 USMCA, shift weights from 2024 to actual monthly. Composition shift in trade flows. Sign-bearing — negative ("reverse diversion") for CA/MX/China/ROW because their imports are concentrated in inelastic high-tariff categories. Decomposed Shapley two-way in 03 Section B (figs D1–D3).
 3. **All-other preferences (S2 → S3)**: apply non-USMCA preference claim shares (Annex II / ITA / Ch98 / KORUS / GSP / other_fta) from IMDB. Per-authority math: `delta_base = (s_duty_free + s_korus + s_gsp + s_other_fta) × base_rate_pre`, `delta_recip = s_duty_free × recip_rate_pre`. Structurally non-negative.
 4. **Residual (S3 → S4)**: remaining gap between statutory (with all preferences applied) and Census collected. Captures specific-duty AVE failures, AD/CVD, tracker error not yet corrected, behavioral noise within HS10 × cty cells.
 5. **Timing/enforcement (S4 → T)**: Treasury vs Census aggregation. Refunds, post-entry adjustments, FTZ deferrals, cash-vs-accrual timing.

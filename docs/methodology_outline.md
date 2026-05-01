@@ -82,7 +82,7 @@ USMCA eligibility reduces $\tau^{s}_{cpt}$ on CA/MX-imported, USMCA-eligible pro
 | `usmca_none` | $s_{cp} \equiv 0$ | Upper bound on statutory — no one claims |
 | `usmca_2024` | Annual 2024 | Pre-tariff baseline claiming |
 | `usmca_monthly` | Actual monthly 2025+ | Realized claim rates; retrospective only |
-| `usmca_h2avg` | H2-2025 rolling average | Steady-state post-shock claim rate |
+| `usmca_h2avg` | post-July 2025 rolling average | Steady-state post-shock claim rate |
 
 **Baseline for headline results: `usmca_h2avg`**, because it most closely matches realized post-shock claim rates and is the tracker's production default. Note this is the *lowest* statutory among the four — so $T_1^{\text{h2avg}}$ is a conservative measure of statutory. The `usmca_none` series is reported alongside as the upper bound.
 

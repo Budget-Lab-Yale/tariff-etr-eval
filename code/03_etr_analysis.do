@@ -11,14 +11,14 @@
 *
 * Tiers (S0/S1/S2/S3 from 02_counterfactual_ladder.do; S4 + T computed here):
 *   S0: Statutory @ USMCA 2024 baseline x 2024 import weights
-*   S1: Statutory @ USMCA H2-2025 (rate_h2avg) x 2024 import weights
-*   S2: Statutory @ USMCA H2-2025 (rate_h2avg) x actual monthly weights
+*   S1: Statutory @ Post-July 2025 USMCA (rate_h2avg) x 2024 import weights
+*   S2: Statutory @ Post-July 2025 USMCA (rate_h2avg) x actual monthly weights
 *   S3: + non-USMCA preferences (Annex II / ITA / Ch98 / KORUS / GSP / FTAs)
 *   S4: Census calculated ETR (cal_dut / con_val at HS10 x country, summed)
 *   T:  Treasury actual ETR (customs duties / imports)
 *
 * Gap channels:
-*   S0 -> S1 = USMCA adjustment (claim-rate normalization 2024 -> H2-2025;
+*   S0 -> S1 = USMCA adjustment (claim-rate normalization 2024 -> post-July 2025;
 *              weights frozen). Mostly retrospective: paperwork caught up
 *              after July 2025 reporting changes. Explainer figs in 03b.
 *   S1 -> S2 = Trade diversion (composition shift in monthly weights with
@@ -169,7 +169,7 @@ if r(N) > 0 {
 di as text "      Combined `=_N' months, tiers S0-S4 + T"
 
 * Channel decomposition (pp). Sequential: each rung subtracts one channel.
-* gap_adjustment is mostly one-signed (USMCA claim rates rose 2024 -> H2-2025
+* gap_adjustment is mostly one-signed (USMCA claim rates rose 2024 -> post-July 2025
 * almost everywhere CA/MX trade existed). gap_diversion is bidirectional
 * (negative country-period averages = "reverse diversion"). gap_others is
 * structurally non-negative by the delta math in R section 3g. See
@@ -182,8 +182,8 @@ gen double gap_timing     = s4 - t  if !missing(s4) & !missing(t)
 gen double gap_total      = s0 - t  if !missing(t)
 
 label var s0  "S0: Statutory (USMCA 2024 baseline) x 2024 wts (%)"
-label var s1  "S1: Statutory (USMCA H2-2025) x 2024 wts (%)"
-label var s2  "S2: Statutory (USMCA H2-2025) x monthly wts (%)"
+label var s1  "S1: Statutory (Post-July 2025 USMCA) x 2024 wts (%)"
+label var s2  "S2: Statutory (Post-July 2025 USMCA) x monthly wts (%)"
 label var s3  "S3: + non-USMCA preferences x monthly wts (%)"
 label var s4  "S4: Census collected ETR (%)"
 label var t   "T:  Treasury actual ETR (%)"
@@ -213,7 +213,7 @@ export delimited using "$tables/decomp_monthly.csv", replace
 * B. S1 -> S2 TRADE-DIVERSION DECOMPOSITION  (between vs within)
 * ======================================================================
 *
-* S1 -> S2 holds rates fixed at rate_h2avg (USMCA stabilized at H2-2025
+* S1 -> S2 holds rates fixed at rate_h2avg (USMCA stabilized at post-July 2025
 * baseline) and shifts weights from 2024-annual to actual-monthly. The
 * entire gap is composition-driven, so Shapley splits it into between-group
 * and within-group along any partition. Two complementary lenses:
@@ -1264,8 +1264,8 @@ foreach v in titled clean {
         , ///
         legend(order( ///
             1 "S0 (USMCA 2024 baseline; backstory)" ///
-            2 "S1 (USMCA H2-2025, 2024 wts; framework anchor)" ///
-            3 "S2 (USMCA H2-2025, monthly wts)" ///
+            2 "S1 (Post-July 2025 USMCA, 2024 wts; framework anchor)" ///
+            3 "S2 (Post-July 2025 USMCA, monthly wts)" ///
             4 "S3 (+ all-other prefs, monthly wts)" ///
             5 "T (Treasury actual)") ///
             rows(5) size(small) position(6)) ///
@@ -1365,7 +1365,7 @@ foreach v in titled clean {
 *
 * Clean comparison between:
 *   S2 = rate_h2avg weighted by con_val_mo (statutory rate with USMCA at
-*        the H2-2025 stabilized baseline). Identical by construction to S2
+*        the post-July 2025 stabilized baseline). Identical by construction to S2
 *        in counterfactual_ladder.dta -- same panel, same row-level
 *        Sum(rate*val)/Sum(val) collapse.
 *   S4 = cal_dut_mo / con_val_mo (Census-collected duties)
@@ -1385,7 +1385,7 @@ foreach v in titled clean {
 *   Tbl 3a -- results/tables/cmp_hs2_ranking.csv
 *   Tbl 3b -- results/tables/cmp_top_hs10_anomalies.csv
 
-di as text _n "  [D] S2 (statutory, USMCA H2-2025) vs S4 (Census) vs T (Treasury)..."
+di as text _n "  [D] S2 (statutory, Post-July 2025 USMCA) vs S4 (Census) vs T (Treasury)..."
 
 use "$working/merged_analysis.dta", clear
 keep if ym >= $start_ym & ym <= $end_ym
@@ -1434,7 +1434,7 @@ preserve
     gen double gap_s4_t  = s4 - t
     gen double gap_s2_t  = s2 - t
 
-    label var s2        "S2: Statutory (USMCA H2-2025), monthly wts (%)"
+    label var s2        "S2: Statutory (Post-July 2025 USMCA), monthly wts (%)"
     label var s4        "S4: Census collected ETR (%)"
     label var t         "T: Treasury actual ETR (%)"
     label var gap_s2_s4 "S2 - S4 (pp)"
@@ -1470,7 +1470,7 @@ preserve
                 msymbol(triangle) msize(small) lwidth(medium) lpattern(dash)) ///
             , ///
             legend(order( ///
-                1 "S2: Statutory (USMCA H2-2025)" ///
+                1 "S2: Statutory (Post-July 2025 USMCA)" ///
                 2 "S4: Census (cal. duty / cons. value)" ///
                 3 "T: Treasury actual") ///
                 rows(1) size(small) position(6)) ///
@@ -1516,7 +1516,7 @@ preserve
     }
     gen double gap_pp = s2 - s4
 
-    label var s2     "S2: Statutory (USMCA H2-2025), monthly wts (%)"
+    label var s2     "S2: Statutory (Post-July 2025 USMCA), monthly wts (%)"
     label var s4     "S4: Census collected ETR (%)"
     label var gap_pp "S2 - S4 (pp)"
 
@@ -1539,7 +1539,7 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local fig_t "S2 (Statutory, USMCA H2-2025) vs. S4 (Census) by Partner"
+            local fig_t "S2 (Statutory, Post-July 2025 USMCA) vs. S4 (Census) by Partner"
             local fig_st "Monthly, Jan 2025 - Feb 2026"
             local sfx "_titled"
         }
@@ -1563,7 +1563,7 @@ preserve
                 note("") ///
                 graphregion(color(white))) ///
             legend(order( ///
-                1 "S2: Statutory (USMCA H2-2025)" ///
+                1 "S2: Statutory (Post-July 2025 USMCA)" ///
                 2 "S4: Census") rows(1) size(small) position(6)) ///
             ytitle("ETR (%)") xtitle("") ///
             xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
@@ -1663,7 +1663,7 @@ preserve
     ** Dollar-weighted contribution to overall gap (in USD)
     gen double gap_usd = stat_num - cens_num
 
-    label var s2         "S2: Statutory (USMCA H2-2025), monthly wts (%)"
+    label var s2         "S2: Statutory (Post-July 2025 USMCA), monthly wts (%)"
     label var s4         "S4: Census collected ETR (%)"
     label var gap_pp     "Chapter-level gap S2-S4 (pp)"
     label var gap_usd    "Chapter-level gap in $ (S2 - S4)"
@@ -1957,7 +1957,7 @@ preserve
     }
     gen double gap_pp = s2 - s4
 
-    label var s2     "S2: Statutory (USMCA H2-2025), monthly wts (%)"
+    label var s2     "S2: Statutory (Post-July 2025 USMCA), monthly wts (%)"
     label var s4     "S4: Census collected ETR (%)"
     label var gap_pp "S2 - S4 (pp)"
 
@@ -1981,7 +1981,7 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local fig_t "S2 (Statutory, USMCA H2-2025) vs. S4 (Census) by Product Group"
+            local fig_t "S2 (Statutory, Post-July 2025 USMCA) vs. S4 (Census) by Product Group"
             local fig_st "Monthly, Jan 2025 - Feb 2026"
             local sfx "_titled"
         }
@@ -2005,7 +2005,7 @@ preserve
                 note("") ///
                 graphregion(color(white))) ///
             legend(order( ///
-                1 "S2: Statutory (USMCA H2-2025)" ///
+                1 "S2: Statutory (Post-July 2025 USMCA)" ///
                 2 "S4: Census") rows(1) size(small) position(6)) ///
             ytitle("ETR (%)") xtitle("") ///
             xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///

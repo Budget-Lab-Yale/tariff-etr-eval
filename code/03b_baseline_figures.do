@@ -18,9 +18,9 @@
 *   C. Monthly summary table (Excel + CSV)               (Paper supplement)
 *   D. USMCA adjustment explainer                        (Paper §3, story figs)
 *       D1: Fig U1, monthly USMCA-applied statutory ETR for CA and MX vs the
-*           2024 baseline and H2-2025 baseline reference lines. Shows the
+*           2024 baseline and post-July 2025 baseline reference lines. Shows the
 *           July 2025 reporting-pattern shift directly: empirical line moves
-*           from near the 2024 baseline to near the H2-2025 baseline.
+*           from near the 2024 baseline to near the post-July 2025 baseline.
 *       D2: Fig U2, period-averaged S0->S1 gap by partner_group (CA and MX
 *           dominate; everyone else ~0).
 *
@@ -238,7 +238,7 @@ foreach v in titled clean {
 * USMCA scenarios:
 *   - "USMCA-2024":     2024 annual claim shares (counterfactual_usmca2024.csv)
 *   - "USMCA-monthly":  realized monthly claim shares (counterfactual_usmca_monthly.csv)
-*   - "USMCA-baseline": tracker production / H2 2025 average shares (h2avg)
+*   - "USMCA-baseline": tracker production / post-July 2025 average shares (h2avg)
 *
 * Implementation note: 2024-weighted ETRs other than baseline are computed over
 * the merged_analysis universe (HS10 x cty pairs with positive monthly trade
@@ -421,13 +421,13 @@ di as text "      Saved $tables/monthly_summary.xlsx (`=_N' months, Summary shee
 *
 * The framework absorbs USMCA claim-rate normalization upfront in S0 -> S1:
 * S0 holds USMCA at 2024 baseline shares (~38% CA, ~50% MX), S1 stabilizes
-* at H2-2025 shares (~89% both). Most of the movement is retrospective --
+* at post-July 2025 shares (~89% both). Most of the movement is retrospective --
 * firms filed USMCA claims late, and a July 2025 reporting change made the
 * underlying utilization visible. These figures explain that backstory
 * without burdening the main waterfall (S1 -> T) with claim-rate dynamics.
 *
 *   Fig U1 (D1): Monthly statutory ETR for CA and MX under three USMCA
-*                scenarios -- 2024 baseline (rate_2024), H2-2025 baseline
+*                scenarios -- 2024 baseline (rate_2024), post-July 2025 baseline
 *                (rate_h2avg), and empirical monthly (rate_usmca_monthly).
 *                The rate_usmca_monthly line drops sharply mid-2025 as
 *                claim rates ramp; the two reference lines bracket it.
@@ -465,7 +465,7 @@ merge 1:1 ym partner_group using `etr_h2avg',   nogenerate
 
 label var etr_2024    "USMCA 2024 baseline (%)"
 label var etr_monthly "USMCA monthly empirical (%)"
-label var etr_h2avg   "USMCA H2-2025 baseline (%)"
+label var etr_h2avg   "Post-July 2025 USMCA baseline (%)"
 
 format etr_* %9.2f
 sort partner_group ym
@@ -479,7 +479,7 @@ encode partner_group, gen(pg_id)
 foreach v in titled clean {
     if "`v'" == "titled" {
         local fig_t "USMCA Adjustment: CA and MX Statutory ETR by USMCA Scenario"
-        local fig_st "Empirical line shifts from 2024 baseline to H2-2025 baseline mid-2025"
+        local fig_st "Empirical line shifts from 2024 baseline to post-July 2025 baseline mid-2025"
         local sfx "_titled"
     }
     else {
@@ -556,7 +556,7 @@ export delimited using "$tables/adjustment_by_country.csv", replace
 
 foreach v in titled clean {
     if "`v'" == "titled" {
-        local opt_title `"title("USMCA Adjustment Gap by Partner Group") subtitle("Where the 2024 -> H2-2025 USMCA shift moves the statutory rate")"'
+        local opt_title `"title("USMCA Adjustment Gap by Partner Group") subtitle("Where the 2024 -> Post-July 2025 USMCA shift moves the statutory rate")"'
         local sfx "_titled"
     }
     else {

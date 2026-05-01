@@ -17,6 +17,7 @@
 \usepackage{array}
 \usepackage{xcolor}
 \usepackage{hyperref}
+\usepackage{tikz}
 
 % Wong colorblind-safe palette (matches code/utils/globals.do).
 \definecolor{wblue}{RGB}{0,114,178}        % statutory / framework anchor
@@ -26,8 +27,8 @@
 \definecolor{tblnavy}{RGB}{0,114,178}      % alias kept for backwards compat in macros
 \definecolor{tblred}{RGB}{213,94,0}
 
-% White background, plain frame titles. Logo on every non-title frame via
-% \logo (rendered top-right by metropolis), and on title slide via \titlegraphic.
+% White background, plain frame titles. Budget Lab logo bottom-left on
+% every slide (including title) via tikz overlay anchored to the page corner.
 \setbeamercolor{background canvas}{bg=white}
 \setbeamercolor{normal text}{bg=white, fg=black}
 \setbeamercolor{frametitle}{bg=white, fg=wblue}
@@ -36,9 +37,19 @@
 
 \graphicspath{{../../results/figures/}{./}}
 
-% Budget Lab logo (sits in docs/slides/ alongside this file)
-\titlegraphic{\vspace*{4em}\hfill\includegraphics[height=1.2cm]{budget_lab_logo.png}\hspace*{1em}}
-\logo{\includegraphics[height=0.6cm]{budget_lab_logo.png}}
+% Disable metropolis's top-right \logo slot; we render our own bottom-left.
+\setbeamertemplate{logo}{}
+\titlegraphic{}
+
+% Bottom-left logo on every slide via tikz overlay anchored to page corner.
+% xshift/yshift give a small margin so the logo doesn't kiss the page edge.
+\addtobeamertemplate{background canvas}{}{%
+  \begin{tikzpicture}[remember picture,overlay]
+    \node[anchor=south west, xshift=4mm, yshift=4mm]
+      at (current page.south west)
+      {\includegraphics[height=6mm]{budget_lab_logo.png}};
+  \end{tikzpicture}%
+}
 
 % Helper macros for inline tier and gap call-outs in slide body text.
 \newcommand{\tier}[1]{\textbf{\color{wblue}#1}}
@@ -90,7 +101,7 @@
 % ----------------------------------------------------------------------------
 % Slide 4: Five-channel ladder line figure
 % ----------------------------------------------------------------------------
-\begin{frame}{A five-channel ladder}
+\begin{frame}{The complete decomposition: four channels}
 \centering
 \includegraphics[width=0.85\linewidth]{figure_ladder.png}
 \end{frame}
@@ -98,14 +109,14 @@
 % ----------------------------------------------------------------------------
 % Slide 5: Our approach (text framing)
 % ----------------------------------------------------------------------------
-\begin{frame}{Our approach: what each step holds fixed}
+\begin{frame}{The complete decomposition: four channels}
 
 \small
 
 \begin{itemize}\setlength{\itemsep}{0.6em}
-  \item \tier{S0 $\to$ S1: USMCA adjustment.} Weights fixed at 2024; USMCA claim shares move from 2024 baseline to H2-2025 baseline. \emph{Backstory}, not main analysis.
+  \item \tier{S0 $\to$ S1: USMCA adjustment.} Weights fixed at 2024; USMCA claim shares move from 2024 baseline to post-July 2025 baseline. \emph{Backstory}, not main analysis.
 
-  \item \tier{S1 $\to$ S2: trade diversion.} USMCA at H2-2025; weights shift from 2024 to actual monthly. \emph{Main analysis channel.}
+  \item \tier{S1 $\to$ S2: trade diversion.} Post-July 2025 USMCA; weights shift from 2024 to actual monthly. \emph{Main analysis channel.}
 
   \item \tier{S2 $\to$ S3: all-other preferences.} Apply non-USMCA preference shares (Annex II / ITA / Ch98 / KORUS / GSP / FTAs).
 
@@ -127,34 +138,30 @@
 
 \small
 
-The realized ETR in month $t$ is
+For any tier $k \in \{S_0, S_1, S_2, S_3, T\}$, the ETR in month $t$ is
 \[
-\tau_t \;=\; \frac{R_t}{I_t}
+\tau^{k}_t \;=\; \frac{R^{k}_t}{I^{k}_t}
+\;=\; \frac{\sum_p \sum_c w^{k}_{pc}(t)\,\tau^{k}_{pc}(t)}{\sum_p \sum_c w^{k}_{pc}(t)}.
 \]
-where $R_t$ is total customs duties collected and $I_t$ is total import value.
+$R^{k}_t$ is total duties (statutory at counterfactual rates / weights for $S_0$--$S_3$; realized cash receipts for $T$). $I^{k}_t$ is total import value over products $p$ and partner countries $c$.
 
 \medskip
 
-For a counterfactual statutory rate, decompose by product $p$ and country $c$:
-\[
-\tau^{\text{stat}}_t \;=\; \frac{\sum_p \sum_c w_{pc}(t)\,\tau_{pc}(t)}{\sum_p \sum_c w_{pc}(t)}
-\]
+The tiers differ only in which inputs are held at counterfactual values:
 
-\medskip
-
-\textbf{Five tiers} are constructed by holding either the rates $\tau_{pc}$ or the weights $w_{pc}$ at counterfactual values:
-
+\begin{center}
 \begin{tabular}{l l l}
 \toprule
-Tier & Rate $\tau_{pc}$        & Weight $w_{pc}$ \\
+Tier & Rate $\tau^{k}_{pc}$        & Weight $w^{k}_{pc}$ \\
 \midrule
-\tier{S0} & USMCA at 2024 shares     & 2024 baseline \\
-\tier{S1} & USMCA at H2-2025 shares  & 2024 baseline \\
-\tier{S2} & USMCA at H2-2025 shares  & monthly $w_{pc}(t)$ \\
-\tier{S3} & H2-2025 + non-USMCA pref & monthly $w_{pc}(t)$ \\
-\tier{T}  & Treasury actual          & --- \\
+\tier{$S_0$} & USMCA at 2024 shares                  & 2024 baseline \\
+\tier{$S_1$} & USMCA at post-July 2025 shares        & 2024 baseline \\
+\tier{$S_2$} & USMCA at post-July 2025 shares        & monthly $w_{pc}(t)$ \\
+\tier{$S_3$} & post-July 2025 + non-USMCA prefs      & monthly $w_{pc}(t)$ \\
+\tier{$T$}   & Treasury actual                       & --- \\
 \bottomrule
 \end{tabular}
+\end{center}
 
 \hyperlink{appendix_rates}{\beamergotobutton{Authority stacking detail}}
 
@@ -174,16 +181,16 @@ Tier & Rate $\tau_{pc}$        & Weight $w_{pc}$ \\
       \item \texttt{cal\_dut\_mo}: calculated duties (importer-declared duty amount at entry).
     \end{itemize}
 
-  \item[\textbf{USITC DataWeb}] Per-(HS10 $\times$ country) USMCA program codes (S/S+). Source of the three USMCA claim-rate scenarios that scale $\tau_{pc}$.
+  \item[\textbf{Tariff Rate Tracker}] (Budget Lab sibling repo): produces the cell-level rates $\tau^{k}_{pc}(t)$ from HTSUS + Chapter 99 parsing, with authority stacking and day-weighting across HTS revisions within the month.
 
-  \item[\textbf{Tariff Rate Tracker}] (Budget Lab sibling repo): produces the cell-level rates $\tau_{pc}(t)$ from HTSUS + Chapter 99 parsing, with authority stacking and day-weighting across HTS revisions within the month.
+  \item[\textbf{USITC DataWeb}] Per-(HS10 $\times$ country) USMCA program codes (S/S+), available through \emph{February 2026}. Source of the three USMCA claim-rate scenarios that scale $\tau^{k}_{pc}$.
 
   \item[\textbf{U.S. Treasury}] Monthly customs duties from the Monthly Treasury Statement / Daily Treasury Statement series. \alert{Reported aggregate-only -- not disaggregated by country or product.}
 \end{description}
 
 \vspace{0.3em}
 
-\textbf{Connection to the formal model}: weights $w_{pc}$ from Census; rates $\tau_{pc}$ from Tariff Rate Tracker scaled by USMCA shares from DataWeb; realized $\tau_t = R_t/I_t$ from Treasury.
+\textbf{Connection to the formal model}: weights $w^{k}_{pc}$ from Census; rates $\tau^{k}_{pc}$ from Tariff Rate Tracker scaled by USMCA shares from DataWeb; realized $\tau^{T}_t = R^{T}_t/I^{T}_t$ from Treasury.
 
 \end{frame}
 
@@ -216,7 +223,58 @@ Tier & Rate $\tau_{pc}$        & Weight $w_{pc}$ \\
 \end{frame}
 
 % ----------------------------------------------------------------------------
-% Slide 10: Decomposition methodology
+% Slide 10: Between/within math (Shapley two-way derivation, intro)
+% ----------------------------------------------------------------------------
+\begin{frame}{Decomposing trade diversion: between- and within-group}
+
+\small
+
+For partition $g$ (partner or product), the aggregate ETR at tier $k$ in month $t$ is
+\[
+\tau^{k}_t = \sum_g s^{k}_g\,R^{k}_g,
+\]
+where $s^{k}_g$ is group $g$'s share of total imports and $R^{k}_g$ is its value-weighted ETR.
+
+\medskip
+
+Comparing two tiers $0$ and $1$ that share a rate panel but differ in weights, the symmetric Shapley two-way splits $\Delta\tau = \tau^{1} - \tau^{0}$ into:
+\[
+\Delta\tau = \underbrace{\sum_g \tfrac{1}{2}(R^{0}_g+R^{1}_g)(s^{1}_g - s^{0}_g)}_{\text{between-group: composition}} + \underbrace{\sum_g \tfrac{1}{2}(s^{0}_g+s^{1}_g)(R^{1}_g - R^{0}_g)}_{\text{within-group: mix inside}}.
+\]
+
+\medskip
+
+\begin{itemize}\small
+  \item \emph{Between-group}: how much of the gap comes from import shares moving across countries (or products).
+  \item \emph{Within-group}: how much comes from a group's own ETR shifting (e.g., its product mix re-weighting at fixed rates).
+\end{itemize}
+
+\hyperlink{appendix_shapley}{\beamergotobutton{Full Shapley derivation}}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+% Slide 11: S1 -> S2 trade diversion
+% ----------------------------------------------------------------------------
+\begin{frame}{S1 $\to$ S2: trade diversion}
+
+\small
+
+\textbf{In this step:}
+\begin{itemize}\small
+  \item Hold ETRs fixed -- including USMCA claim rates, at the post-July 2025 baseline.
+  \item Shift weights from 2024 to monthly (real-time) trade.
+\end{itemize}
+
+\medskip
+
+\centering
+\includegraphics[width=0.65\linewidth]{figure_diversion_decomp.png}
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+% Slide 12: Two ways of decomposing by group (moved to after S1->S2)
 % ----------------------------------------------------------------------------
 \begin{frame}{Two ways of decomposing by group}
 
@@ -230,11 +288,11 @@ Tier & Rate $\tau_{pc}$        & Weight $w_{pc}$ \\
 
 For partition $g$ (partner or product),
 \[
-\Delta S = \sum_g \left[\tfrac{1}{2}(R^0_g + R^1_g)(s^0_g - s^1_g)\right]
+\Delta\tau = \sum_g \left[\tfrac{1}{2}(R^{0}_g + R^{1}_g)(s^{1}_g - s^{0}_g)\right]
 \]
 \vspace{-1em}
 \[
-+ \sum_g \left[\tfrac{1}{2}(s^0_g + s^1_g)(R^0_g - R^1_g)\right]
++ \sum_g \left[\tfrac{1}{2}(s^{0}_g + s^{1}_g)(R^{1}_g - R^{0}_g)\right]
 \]
 
 Splits each channel into:
@@ -252,7 +310,7 @@ Splits each channel into:
 
 For each group $g$, plot the per-group ETR series under each tier:
 \[
-R_g^{\text{tier}}(t) = \frac{\sum_{i \in g} w^{\text{tier}}_i \tau^{\text{tier}}_i}{\sum_{i \in g} w^{\text{tier}}_i}
+R^{k}_g(t) = \frac{\sum_{i \in g} w^{k}_i \tau^{k}_i}{\sum_{i \in g} w^{k}_i}
 \]
 
 Each panel shows two lines; the visible spread is the channel's contribution from that group.
@@ -269,35 +327,7 @@ Each panel shows two lines; the visible spread is the channel's contribution fro
 \end{frame}
 
 % ----------------------------------------------------------------------------
-% Slide 11: S1 -> S2 trade diversion
-% ----------------------------------------------------------------------------
-\begin{frame}{S1 $\to$ S2: trade diversion}
-
-\small
-
-\textbf{In this step:}
-\begin{itemize}\small
-  \item Hold ETRs fixed -- including USMCA claim rates, at the H2-2025 baseline.
-  \item Shift weights from 2024 to monthly (real-time) trade.
-\end{itemize}
-
-\medskip
-
-\centering
-\includegraphics[width=0.65\linewidth]{figure_diversion_decomp.png}
-
-\end{frame}
-
-% ----------------------------------------------------------------------------
-% Slide 12: S1 -> S2 by country (Shapley)
-% ----------------------------------------------------------------------------
-\begin{frame}{S1 $\to$ S2: trade diversion, by country (Shapley)}
-\centering
-\includegraphics[width=0.85\linewidth]{figure_diversion_country.png}
-\end{frame}
-
-% ----------------------------------------------------------------------------
-% Slide 13: S1 -> S2 by country (Avg ETR)
+% Slide 13: S1 -> S2 by country (Avg ETR) [shown before Shapley]
 % ----------------------------------------------------------------------------
 \begin{frame}{S1 $\to$ S2: trade diversion, by country (Avg ETR)}
 \centering
@@ -305,7 +335,23 @@ Each panel shows two lines; the visible spread is the channel's contribution fro
 \end{frame}
 
 % ----------------------------------------------------------------------------
-% Slide 14: S1 -> S2 by product (Shapley)
+% Slide 14: S1 -> S2 by country (Shapley)
+% ----------------------------------------------------------------------------
+\begin{frame}{S1 $\to$ S2: trade diversion, by country (Shapley)}
+\centering
+\includegraphics[width=0.85\linewidth]{figure_diversion_country.png}
+\end{frame}
+
+% ----------------------------------------------------------------------------
+% Slide 15: S1 -> S2 by product (Avg ETR) [shown before Shapley]
+% ----------------------------------------------------------------------------
+\begin{frame}{S1 $\to$ S2: trade diversion, by product (Avg ETR)}
+\centering
+\includegraphics[width=0.85\linewidth]{figure_s1s2_facets_product.png}
+\end{frame}
+
+% ----------------------------------------------------------------------------
+% Slide 16: S1 -> S2 by product (Shapley)
 % ----------------------------------------------------------------------------
 \begin{frame}{S1 $\to$ S2: trade diversion, by product (Shapley)}
 \centering
@@ -315,36 +361,9 @@ Each panel shows two lines; the visible spread is the channel's contribution fro
 \end{frame}
 
 % ----------------------------------------------------------------------------
-% Slide 15: S1 -> S2 by product (Avg ETR)
+% Slide 17: Understanding the residual: Treasury vs Census
 % ----------------------------------------------------------------------------
-\begin{frame}{S1 $\to$ S2: trade diversion, by product (Avg ETR)}
-\centering
-\includegraphics[width=0.85\linewidth]{figure_s1s2_facets_product.png}
-\end{frame}
-
-% ----------------------------------------------------------------------------
-% Slide 16: S2 -> S3 other preferences
-% ----------------------------------------------------------------------------
-\begin{frame}{S2 $\to$ S3: all-other preferences}
-
-\small
-
-Three groups of non-USMCA preferences (importer-declared in IMDB):
-\begin{itemize}\small
-  \item \textbf{Major IEEPA carve-outs} -- Annex II, ITA, Ch98 (Berman Amendment), generic pharma. Reduces \emph{both} MFN base \emph{and} IEEPA reciprocal rate.
-  \item \textbf{Bilateral FTAs} -- KORUS, AU, IL, SG, CL, CO, etc.
-  \item \textbf{GSP / AGOA} -- Generalized System of Preferences.
-\end{itemize}
-
-\centering
-\includegraphics[width=0.7\linewidth]{figure_others_channel_stack.png}
-
-\end{frame}
-
-% ----------------------------------------------------------------------------
-% Slide 17: Treasury vs Census Actual ETRs
-% ----------------------------------------------------------------------------
-\begin{frame}{Treasury versus Census Actual ETRs}
+\begin{frame}{Understanding the residual: Treasury versus Census Actual ETRs}
 
 \begin{columns}[T]
 \begin{column}{0.6\textwidth}
@@ -374,15 +393,25 @@ Three groups of non-USMCA preferences (importer-declared in IMDB):
 \end{frame}
 
 % ----------------------------------------------------------------------------
-% Slide 18: S2 -> S4 by country (Shapley)
+% Slide 18: S2 -> S3 all-other preferences (moved to after Treasury vs Census)
 % ----------------------------------------------------------------------------
-\begin{frame}{S2 $\to$ S4: residual gap, by country (Shapley)}
+\begin{frame}{S2 $\to$ S3: all-other preferences}
+
+\small
+
+\begin{itemize}\small
+  \item \textbf{Major IEEPA carve-outs} -- Annex II / ITA / Ch98 / generic pharma; reduce both MFN base and IEEPA reciprocal.
+  \item \textbf{Bilateral FTAs} -- KORUS, AU, IL, SG, CL, CO, etc.; reduce MFN only.
+  \item \textbf{GSP / AGOA} -- Generalized System of Preferences; reduce MFN only.
+\end{itemize}
+
 \centering
-\includegraphics[width=0.85\linewidth]{figure_s2s4_gap_country.png}
+\includegraphics[width=0.78\linewidth]{figure_others_channel_stack.png}
+
 \end{frame}
 
 % ----------------------------------------------------------------------------
-% Slide 19: S2 -> S4 by country (Avg ETR)
+% Slide 19: S2 -> S4 by country (Avg ETR) [shown before Shapley]
 % ----------------------------------------------------------------------------
 \begin{frame}{S2 $\to$ S4: residual gap, by country (Avg ETR)}
 \centering
@@ -392,19 +421,27 @@ Three groups of non-USMCA preferences (importer-declared in IMDB):
 \end{frame}
 
 % ----------------------------------------------------------------------------
-% Slide 20: S2 -> S4 by product (Shapley)
+% Slide 20: S2 -> S4 by country (Shapley)
 % ----------------------------------------------------------------------------
-\begin{frame}{S2 $\to$ S4: residual gap, by product (Shapley)}
+\begin{frame}{S2 $\to$ S4: residual gap, by country (Shapley)}
 \centering
-\includegraphics[width=0.85\linewidth]{figure_s2s4_gap_product.png}
+\includegraphics[width=0.85\linewidth]{figure_s2s4_gap_country.png}
 \end{frame}
 
 % ----------------------------------------------------------------------------
-% Slide 21: S2 -> S4 by product (Avg ETR)
+% Slide 21: S2 -> S4 by product (Avg ETR) [shown before Shapley]
 % ----------------------------------------------------------------------------
 \begin{frame}{S2 $\to$ S4: residual gap, by product (Avg ETR)}
 \centering
 \includegraphics[width=0.85\linewidth]{figure_s2s4_facets_product.png}
+\end{frame}
+
+% ----------------------------------------------------------------------------
+% Slide 22: S2 -> S4 by product (Shapley)
+% ----------------------------------------------------------------------------
+\begin{frame}{S2 $\to$ S4: residual gap, by product (Shapley)}
+\centering
+\includegraphics[width=0.85\linewidth]{figure_s2s4_gap_product.png}
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -482,9 +519,9 @@ Speaker notes: \texttt{docs/slides/etr\_divergence\_slides\_notes.md}
 Tier & Rate panel & Weight & USMCA layer \\
 \midrule
 S0 & \texttt{rate\_2024}      & \texttt{imports} (2024)    & 2024 baseline ($\sim$38\% CA / $\sim$50\% MX) \\
-S1 & \texttt{rate\_h2avg}     & \texttt{imports} (2024)    & H2-2025 baseline ($\sim$89\% CA/MX) \\
-S2 & \texttt{rate\_h2avg}     & \texttt{con\_val\_mo}      & H2-2025 baseline \\
-S3 & \texttt{rate\_all\_pref} & \texttt{con\_val\_mo}      & H2-2025, $-$ non-USMCA preference $\Delta$ \\
+S1 & \texttt{rate\_h2avg}     & \texttt{imports} (2024)    & post-July 2025 baseline ($\sim$89\% CA/MX) \\
+S2 & \texttt{rate\_h2avg}     & \texttt{con\_val\_mo}      & post-July 2025 baseline \\
+S3 & \texttt{rate\_all\_pref} & \texttt{con\_val\_mo}      & post-July 2025, $-$ non-USMCA preference $\Delta$ \\
 S4 & Census collected         & ---                        & --- \\
 T  & Treasury actual          & ---                        & --- \\
 \bottomrule
@@ -533,7 +570,7 @@ Per (HS10 $\times$ country) cell, the tariff-rate-tracker (\texttt{src/06\_calcu
   \item Authority components from HTSUS / Chapter 99 text: \texttt{rate\_232}, \texttt{rate\_ieepa\_recip}, \texttt{rate\_fent}, \texttt{rate\_301}, \texttt{rate\_s122}, base MFN.
   \item Metal-content scaling (S232): rate scaled by per-type metal share; IEEPA recip / S122 apply to the non-metal portion.
   \item Authority stacking: China-with-232 = $232 + \text{recip} \cdot \text{nonmetal} + \text{fent} + 301 + \text{s122} \cdot \text{nonmetal}$; CA/MX-with-232 = $232 + (\text{recip} + \text{fent} + \text{s122}) \cdot \text{nonmetal}$; without-232 = all authorities full.
-  \item USMCA scaling at the H2-2025 average (or 2024 baseline / monthly empirical, depending on scenario). Auto/MHD parts use a 0.40 US-content rule.
+  \item USMCA scaling at the post-July 2025 average (or 2024 baseline / monthly empirical, depending on scenario). Auto/MHD parts use a 0.40 US-content rule.
   \item MFN exemption shares (HS2 $\times$ country) and IEEPA floor adjustments (10\% minimum for EU/JP/KR/CH).
 \end{enumerate}
 
@@ -553,9 +590,9 @@ Per-revision rates are then \alert{day-weighted across revisions within each mon
 Panel & USMCA layer & Used for \\
 \midrule
 \texttt{rate\_2024}            & 2024 annual claim shares ($\sim$38\% CA / $\sim$50\% MX) & S0 (anchor of USMCA adjustment) \\
-\texttt{rate\_h2avg}           & H2-2025 average claim shares ($\sim$89\% CA/MX); the tracker's production baseline & S1, S2 (framework anchor) \\
+\texttt{rate\_h2avg}           & post-July 2025 average claim shares ($\sim$89\% CA/MX); the tracker's production baseline & S1, S2 (framework anchor) \\
 \texttt{rate\_usmca\_monthly}  & Actual month-by-month USITC DataWeb shares & USMCA adjustment explainer fig (U1); not a tier input \\
-\texttt{rate\_all\_pref}       & H2-2025 USMCA, then $-$ non-USMCA preference $\Delta$ from IMDB & S3 \\
+\texttt{rate\_all\_pref}       & Post-July 2025 USMCA, then $-$ non-USMCA preference $\Delta$ from IMDB & S3 \\
 \bottomrule
 \end{tabular}
 
@@ -718,7 +755,7 @@ Defined in \texttt{code/utils/product\_groups.csv}; merged onto \texttt{merged\_
 \toprule
 \textbf{Our channel} & \textbf{Azzimonti (2025)} & \textbf{Eck et al.\ (2026)} \\
 \midrule
-S0 $\to$ S1 USMCA adjustment & --- (their period predates the H2-2025 ramp) & subset of ``rate discrepancies'' \\[0.4em]
+S0 $\to$ S1 USMCA adjustment & --- (their period predates the post-July 2025 ramp) & subset of ``rate discrepancies'' \\[0.4em]
 S1 $\to$ S2 between-country & cross-country share shifts (2.7 pp) & ``composition'': cross-country \\[0.4em]
 S1 $\to$ S2 within-country  & within-country product mix (0.6 pp) & ``composition'': within-country product reclassification / engineering \\[0.4em]
 S2 $\to$ S3 other prefs     & part of ``frictions'' (5.5 pp) & part of ``rate discrepancies'' \\[0.4em]
@@ -740,7 +777,7 @@ Our framework's contribution: separates the (large) USMCA piece, isolates non-US
 \small
 
 \begin{itemize}
-  \item \textbf{H2-2025 baseline is a stylized choice.} If USMCA claim rates continue to evolve post-Feb 2026, the S1/S2 panel anchors may need updating. The framework structure tolerates this — just rebuild \texttt{rate\_h2avg} from new tracker scenario snapshots.
+  \item \textbf{post-July 2025 baseline is a stylized choice.} If USMCA claim rates continue to evolve post-Feb 2026, the S1/S2 panel anchors may need updating. The framework structure tolerates this — just rebuild \texttt{rate\_h2avg} from new tracker scenario snapshots.
   \item \textbf{Product groupings are policy-salient, not exhaustive.} The 9-group split groups copper (Ch 74) into ``Other Manufactured'' even though it became S232-relevant in June 2025. A finer split is straightforward.
   \item \textbf{Treasury timing.} The S4 $\to$ T gap mixes cash-vs-accrual, refunds, FTZ deferrals, and post-entry adjustments. Our framework does not separately attribute these; further work would require Treasury microdata.
   \item \textbf{S2 $\to$ S3 by-group decomposition is in development.} The country/product Shapley currently runs only for S1 $\to$ S2. Extending to other rungs is mechanical given the same helper infrastructure.
@@ -767,18 +804,21 @@ Our framework's contribution: separates the (large) USMCA piece, isolates non-US
 
 \scriptsize
 
+\setlength{\tabcolsep}{4pt}
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{l r r r r r r r r r r r}
 \toprule
 Window & S0 & S1 & S2 & S3 & S4 & T & adj. & div. & oth. & res. & tim. \\
 \midrule
-Overall (2025m1--2026m2)            & 15.46 & 13.05 & 10.81 & 10.26 &  8.07 &  8.33 & 2.42 & 2.24 & 0.54 &  2.19 & $-$0.25 \\
-W1: Pre-Liberation (2025m1--m3)     &  7.12 &  5.41 &  4.21 &  4.16 &  2.78 &  2.40 & 1.71 & 1.20 & 0.05 &  1.38 &  0.37 \\
-W2: Liberation $\to$ Phase 2 (m4--m6)& 16.67 & 14.27 & 11.40 & 10.79 &  8.35 &  7.90 & 2.40 & 2.88 & 0.61 &  2.43 &  0.45 \\
-W3: Phase 2 $\to$ Phase 2 Recip (m7) & 17.59 & 14.83 & 12.72 & 12.37 &  9.75 &  9.47 & 2.76 & 2.11 & 0.34 &  2.63 &  0.28 \\
-W4: P2 Recip $\to$ SCOTUS (m8--2026m1)& 18.50 & 15.79 & 13.48 & 12.69 & 10.23 & 10.95 & 2.71 & 2.30 & 0.79 &  2.46 & $-$0.72 \\
-\textbf{W5: Post-SCOTUS (2026m2)}    &\textbf{16.56}&\textbf{14.06}&\textbf{10.85}&\textbf{10.31}&\textbf{8.48}&\textbf{10.49}&\textbf{2.49}&\textbf{3.22}&\textbf{0.54}&\textbf{1.83}&\textbf{$-$2.01}\\
+Overall (m1--26m2)               & 15.46 & 13.05 & 10.81 & 10.26 &  8.07 &  8.33 & 2.42 & 2.24 & 0.54 &  2.19 & $-$0.25 \\
+W1: Pre-Liberation (m1--m3)      &  7.12 &  5.41 &  4.21 &  4.16 &  2.78 &  2.40 & 1.71 & 1.20 & 0.05 &  1.38 &  0.37 \\
+W2: Lib.\ $\to$ Phase~2 (m4--m6) & 16.67 & 14.27 & 11.40 & 10.79 &  8.35 &  7.90 & 2.40 & 2.88 & 0.61 &  2.43 &  0.45 \\
+W3: Ph.~2 $\to$ Ph.~2 Recip (m7) & 17.59 & 14.83 & 12.72 & 12.37 &  9.75 &  9.47 & 2.76 & 2.11 & 0.34 &  2.63 &  0.28 \\
+W4: Recip $\to$ SCOTUS (m8--26m1)& 18.50 & 15.79 & 13.48 & 12.69 & 10.23 & 10.95 & 2.71 & 2.30 & 0.79 &  2.46 & $-$0.72 \\
+\textbf{W5: Post-SCOTUS (26m2)}  &\textbf{16.56}&\textbf{14.06}&\textbf{10.85}&\textbf{10.31}&\textbf{8.48}&\textbf{10.49}&\textbf{2.49}&\textbf{3.22}&\textbf{0.54}&\textbf{1.83}&\textbf{$-$2.01}\\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 
 \vspace{0.6em}
 

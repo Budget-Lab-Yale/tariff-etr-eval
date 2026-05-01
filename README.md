@@ -47,14 +47,14 @@ Both sibling repos must be at the same directory level as this repo.
 | Tier | Definition |
 |------|------------|
 | S0 | Statutory @ USMCA 2024 baseline shares × 2024 import weights |
-| S1 | Statutory @ USMCA H2-2025 baseline shares × 2024 import weights (= the paper's headline statutory line) |
-| S2 | Statutory @ USMCA H2-2025 baseline shares × monthly weights |
+| S1 | Statutory @ Post-July 2025 USMCA baseline shares × 2024 import weights (= the paper's headline statutory line) |
+| S2 | Statutory @ Post-July 2025 USMCA baseline shares × monthly weights |
 | S3 | + non-USMCA preferences (Annex II / ITA / Ch98 / KORUS / GSP / FTAs), monthly IMDB-derived shares |
 | S4 | Census collected ETR (cal_dut / con_val at HS10 × cty, summed) |
 | T | Treasury actual ETR |
 
 **Gap channels**:
-- **S0 → S1**: USMCA adjustment (claim-rate normalization 2024 → H2-2025; weights frozen). Mostly retrospective — firms filed USMCA claims late, and a July 2025 reporting change made the utilization visible. Shown as backstory in 03b's USMCA explainer figures, not part of the main analytic waterfall.
+- **S0 → S1**: USMCA adjustment (claim-rate normalization 2024 → post-July 2025; weights frozen). Mostly retrospective — firms filed USMCA claims late, and a July 2025 reporting change made the utilization visible. Shown as backstory in 03b's USMCA explainer figures, not part of the main analytic waterfall.
 - **S1 → S2**: trade diversion (composition shift in monthly weights with USMCA stable at h2avg). Main analysis channel.
 - **S2 → S3**: all-other preferences (Annex II / ITA / Ch98 / KORUS / GSP / other FTAs).
 - **S3 → S4**: residual (specific-duty AVE failures, AD/CVD, tracker error, behavioral noise).

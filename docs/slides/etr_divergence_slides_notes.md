@@ -2,6 +2,8 @@
 
 Speaker notes paralleling `etr_divergence_slides.tex`. One section per main slide, in deck order. Prose intended as full-sentence speaking content; not literally read but available as a fallback.
 
+> **Note (May 2026)**: the slide deck was reordered to put Avg-ETR plots before Shapley plots within each pair, to insert a new between/within math slide before S1→S2, to move "Two ways of decomposing" after S1→S2 trade diversion, and to move S2→S3 (all-other preferences) to after the Treasury-vs-Census slide. The section titles below reflect the *intended* deck order after these changes; not all sub-section prose has been re-synced to the new positions yet — fall back to the slides themselves when in doubt.
+
 ---
 
 ## Slide 1 — Title
@@ -14,9 +16,9 @@ Brief introduction:
 
 ## Slide 2 — The puzzle
 
-By late 2025 the trade-weighted statutory tariff rate that the U.S. has announced sits in the mid-teens — our preferred summary measure (S1, statutory rate at H2-2025 USMCA shares × 2024 import weights) was **15.07% in December 2025** and **14.06% in February 2026**. Treasury actually collected duties at a rate of **9.88% in December 2025** and **10.49% in February 2026**.
+By late 2025 the trade-weighted statutory tariff rate that the U.S. has announced sits in the mid-teens — our preferred summary measure (S1, statutory rate at Post-July 2025 USMCA shares × 2024 import weights) was **15.07% in December 2025** and **14.06% in February 2026**. Treasury actually collected duties at a rate of **9.88% in December 2025** and **10.49% in February 2026**.
 
-The gap between the two — about 3.6 to 5.2 percentage points after USMCA stabilization, or 6.1 to 7.8 percentage points if we include the 2024-to-H2-2025 USMCA claim-rate ramp — is real. It's not measurement noise. It reflects a combination of behavioral and administrative responses: USMCA claiming, supply-chain composition shifts, statutory exemptions like Annex II / ITA / Chapter 98, and timing or enforcement frictions.
+The gap between the two — about 3.6 to 5.2 percentage points after USMCA stabilization, or 6.1 to 7.8 percentage points if we include the 2024-to-Post-July 2025 USMCA claim-rate ramp — is real. It's not measurement noise. It reflects a combination of behavioral and administrative responses: USMCA claiming, supply-chain composition shifts, statutory exemptions like Annex II / ITA / Chapter 98, and timing or enforcement frictions.
 
 For policy and welfare analysis we want to know which of these channels carry the gap and how they evolve over the 14-month policy episode. The rest of this talk is the framework we use to answer that.
 
@@ -38,12 +40,12 @@ What our framework adds: a unified five-channel decomposition that cleanly separ
 
 ---
 
-## Slide 4 — A five-channel ladder (line figure)
+## Slide 4 — The complete decomposition: four channels (line figure)
 
 This is the visual anchor for the whole talk. Five sequential ETR series:
 
 - **S0** (top, dashed gray): the most-static counterfactual — USMCA at 2024 baseline shares applied to 2024 import weights. Effectively, "what would the ETR be if claim rates and trade composition had not moved at all from 2024."
-- **S1** (solid blue, thick — the framework anchor): USMCA stabilized at the H2-2025 average (~89% for CA/MX) applied to 2024 weights. This is also the line that the tracker daily ETR collapsed to monthly produces by construction. S1 is our preferred summary of the announced statutory ETR.
+- **S1** (solid blue, thick — the framework anchor): USMCA stabilized at the post-July 2025 average (~89% for CA/MX) applied to 2024 weights. This is also the line that the tracker daily ETR collapsed to monthly produces by construction. S1 is our preferred summary of the announced statutory ETR.
 - **S2** (blue dashed): same rates as S1, but actual monthly trade weights. The S1→S2 step is "trade diversion."
 - **S3** (green dot-dash): subtracts non-USMCA preferences (Annex II, ITA, Ch98, KORUS, GSP, etc.) at IMDB-observed claim shares.
 - **T** (vermillion solid): Treasury actual.
@@ -52,13 +54,13 @@ The point of the line plot is to show that S1, S2, S3 are tightly bunched after 
 
 ---
 
-## Slide 5 — Our approach: what each step holds fixed
+## Slide 5 — The complete decomposition: four channels (text framing)
 
 The verbal framework. Each rung "turns one channel on":
 
-- S0 → S1 holds weights at 2024 fixed and changes USMCA claim shares from the 2024 baseline (~38% CA, ~50% MX) to the H2-2025 baseline (~89% both). This step captures the USMCA adjustment.
-- S1 → S2 holds USMCA claim rates at H2-2025 fixed and shifts weights from 2024 to actual monthly. This step captures trade diversion.
-- S2 → S3 holds USMCA at H2-2025 and monthly weights and applies non-USMCA preference shares. This step captures all-other preferences.
+- S0 → S1 holds weights at 2024 fixed and changes USMCA claim shares from the 2024 baseline (~38% CA, ~50% MX) to the post-July 2025 baseline (~89% both). This step captures the USMCA adjustment.
+- S1 → S2 holds USMCA claim rates at post-July 2025 fixed and shifts weights from 2024 to actual monthly. This step captures trade diversion.
+- S2 → S3 holds Post-July 2025 USMCA and monthly weights and applies non-USMCA preference shares. This step captures all-other preferences.
 - S3 → S4 → T captures the residual: the gap between cell-level statutory-with-all-preferences-applied and Census-collected duties (S3→S4), plus the gap between Census and Treasury (S4→T).
 
 Most of our analysis lives between **S1 and T**. The S0→S1 step is treated as backstory because the underlying claim-rate normalization was largely retrospective (firms filed late; July 2025 USITC reporting changes made the underlying utilization visible).
@@ -99,7 +101,7 @@ where $\tau_{pc}(t)$ is the cell-level statutory rate (a function of the policy 
 We construct **five tiers** by holding either rates or weights at counterfactual values:
 
 - $S_0 = \sum_{p,c} \tau^{2024}_{pc} \cdot \overline{w}^{2024}_{pc} / \sum \overline{w}^{2024}_{pc}$ — USMCA at 2024 claim rates, weights at 2024 baseline.
-- $S_1$: same weights, rates at $\tau^{\text{h2avg}}_{pc}$ (USMCA at H2-2025 claim rates).
+- $S_1$: same weights, rates at $\tau^{\text{h2avg}}_{pc}$ (Post-July 2025 USMCA claim rates).
 - $S_2$: same rates as S1, weights at actual monthly $w_{pc}(t)$.
 - $S_3$: same weights as S2, rates with non-USMCA preferences applied.
 - $T$: Treasury actual.
@@ -115,7 +117,7 @@ Defer the partition (Shapley between/within) to slide 10.
 Map each data source back to the formal model:
 
 - **Census IMDB bulk** (HS10 × country × month): the source of monthly trade data and Census-collected duties. Available through **February 2026**. Two columns matter for us: `con_val_mo` (consumption value — what U.S. importers brought in for consumption that month) and `cal_dut_mo` (calculated duties — Census's reported per-cell duty). The first feeds the monthly weight $w_{pc}(t)$; the second underlies our S4 anchor.
-- **USITC DataWeb** (HS10 × country × month, USMCA program codes S/S+): provides the USMCA claim shares that scale the per-cell rates. We use three derived scenarios — 2024 baseline (for S0), H2-2025 average (for S1, S2 — the framework anchor), and monthly empirical (for the explainer figure only).
+- **USITC DataWeb** (HS10 × country × month, USMCA program codes S/S+): provides the USMCA claim shares that scale the per-cell rates. We use three derived scenarios — 2024 baseline (for S0), post-July 2025 average (for S1, S2 — the framework anchor), and monthly empirical (for the explainer figure only).
 - **Tariff Rate Tracker** (Yale Budget Lab sibling repo): produces the per-(HS10 × country × revision) statutory rates by parsing HTSUS and Chapter 99 text. Authority stacking, MFN exemptions, IEEPA floors all live here. Day-weighted within months gives us $\tau^{\text{tier}}_{pc}(t)$.
 - **U.S. Treasury monthly customs duties** (direct cite to the Treasury Monthly Treasury Statement / Daily Treasury Statement series): provides $T$. Reported aggregate-only — **not disaggregated by country or product**. This is why our S4→T channel cannot be split per partner or product group.
 
@@ -127,11 +129,11 @@ The Census ↔ Treasury distinction matters: Census reports calculated duties fr
 
 (The bullets that previously appeared on this slide, expanded into prose.)
 
-The USMCA claim rate for Canadian and Mexican imports moved from roughly 38% (CA) and 50% (MX) in 2024 to ~89% by H2 2025. This is one of the largest single-channel movements in the entire panel — averaging ~2.6 pp across our window — but most of it is **retrospective**. Two factors drove it:
+The USMCA claim rate for Canadian and Mexican imports moved from roughly 38% (CA) and 50% (MX) in 2024 to ~89% by post-July 2025. This is one of the largest single-channel movements in the entire panel — averaging ~2.6 pp across our window — but most of it is **retrospective**. Two factors drove it:
 
 First, firms filed USMCA claims late in 2024–early 2025; once tariffs ramped up at Liberation Day, the incentive to retroactively claim USMCA increased materially. Second, in **July 2025** USITC's reporting framework changed and the underlying USMCA utilization became visible in DataWeb. So part of the apparent ramp is paperwork catching up with reality, not a real-time behavioral response.
 
-We treat this as backstory and absorb it upfront so the policy-relevant trade-diversion channel (S1→S2) is uncontaminated by the claim-rate normalization. The two figures on the slide make this concrete: the left panel shows USMCA pulling away from the rest of the gap stack over time; the right panel shows Canadian and Mexican statutory ETRs under three USMCA assumptions converge from the 2024 baseline to the H2-2025 baseline mid-2025.
+We treat this as backstory and absorb it upfront so the policy-relevant trade-diversion channel (S1→S2) is uncontaminated by the claim-rate normalization. The two figures on the slide make this concrete: the left panel shows USMCA pulling away from the rest of the gap stack over time; the right panel shows Canadian and Mexican statutory ETRs under three USMCA assumptions converge from the 2024 baseline to the post-July 2025 baseline mid-2025.
 
 The S0→S1 step is mostly one-signed (USMCA gained share); it is the only channel where this is the case.
 
@@ -169,7 +171,7 @@ Both views answer the same question (where does the channel concentrate?) but wi
 
 This is the policy-relevant trade-diversion step. In this step:
 
-- Hold all ETRs fixed (rates, including USMCA claim shares at H2-2025).
+- Hold all ETRs fixed (rates, including USMCA claim shares at post-July 2025).
 - Shift weights from 2024 import-share baseline to actual monthly real-time trade weights.
 
 Whatever moves in the aggregate ETR between S1 and S2 is, by construction, attributable to changes in the import basket — which countries are sending us how much, and what they're sending. The next four slides break this out by country and by product, both via the Shapley decomposition and via per-group average ETR.
@@ -247,7 +249,7 @@ The figure on the slide is an aggregate stacked bar of S2−S3 contribution by p
 
 ---
 
-## Slide 17 — Treasury versus Census Actual ETRs
+## Slide 17 — Understanding the residual: Treasury versus Census Actual ETRs
 
 Definitions:
 - **Census ETR (S4)**: aggregate calculated duty / aggregate import value, computed at the cell level from IMDB and summed. Captures duties as importers *report them at entry*, before refunds and post-entry adjustments.
