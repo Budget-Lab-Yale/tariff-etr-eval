@@ -251,37 +251,46 @@ export delimited using "$tables/baseline_etr_diagnostic.csv", replace
 
 di as text _n "  [F] Figure..."
 
-twoway ///
-    (connected etr_full          ym, mcolor("$color_statutory") ///
-        lcolor("$color_statutory") msymbol(circle) lwidth(medthick)) ///
-    (connected s0_recon          ym, mcolor("$color_canada") ///
-        lcolor("$color_canada") msymbol(diamond) lwidth(medium) ///
-        lpattern(shortdash)) ///
-    (connected etr_nonzero       ym, mcolor("$color_gap") ///
-        lcolor("$color_gap") msymbol(square) lwidth(medthick) ///
-        lpattern(dash)) ///
-    (connected etr_tracker_daily ym, mcolor("$color_actual") ///
-        lcolor("$color_actual") msymbol(triangle) lwidth(medthick) ///
-        lpattern(solid)) ///
-    , ///
-    legend(order( ///
-        1 "2024 wts, full universe (S1: tracker total_rate)" ///
-        2 "2024 wts, full universe (S0: USMCA 2024 baseline)" ///
-        3 "2024 wts, nonzero-rate products only" ///
-        4 "Tracker daily ETR (actual wts, monthly avg)") ///
-        rows(4) size(small) position(6)) ///
-    ytitle("Effective Tariff Rate (%)") ///
-    xtitle("") ///
-    title("Baseline Statutory ETR Diagnostic") ///
-    subtitle("Framework S1 vs S0 at 2024 weights; tracker daily benchmark") ///
-    xlabel(, format(%tmMon_CCYY) angle(45)) ///
-    ylabel(0(5)50, format(%9.0f)) ///
-    yscale(range(0)) ///
-    graphregion(color(white)) ///
-    plotregion(margin(small)) ///
-    name(g_diagnostic, replace)
-
-export_dual_titles, base("figure_diagnostic") grname(g_diagnostic)
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local opt_title `"title("Baseline Statutory ETR Diagnostic") subtitle("Framework S1 vs S0 at 2024 weights; tracker daily benchmark")"'
+        local sfx "_titled"
+    }
+    else {
+        local opt_title ""
+        local sfx ""
+    }
+    twoway ///
+        (connected etr_full          ym, mcolor("$color_statutory") ///
+            lcolor("$color_statutory") msymbol(circle) lwidth(medthick)) ///
+        (connected s0_recon          ym, mcolor("$color_canada") ///
+            lcolor("$color_canada") msymbol(diamond) lwidth(medium) ///
+            lpattern(shortdash)) ///
+        (connected etr_nonzero       ym, mcolor("$color_gap") ///
+            lcolor("$color_gap") msymbol(square) lwidth(medthick) ///
+            lpattern(dash)) ///
+        (connected etr_tracker_daily ym, mcolor("$color_actual") ///
+            lcolor("$color_actual") msymbol(triangle) lwidth(medthick) ///
+            lpattern(solid)) ///
+        , ///
+        legend(order( ///
+            1 "2024 wts, full universe (S1: tracker total_rate)" ///
+            2 "2024 wts, full universe (S0: USMCA 2024 baseline)" ///
+            3 "2024 wts, nonzero-rate products only" ///
+            4 "Tracker daily ETR (actual wts, monthly avg)") ///
+            rows(4) size(small) position(6)) ///
+        ytitle("Effective Tariff Rate (%)") ///
+        xtitle("") ///
+        `opt_title' ///
+        xlabel(, format(%tmMon_CCYY) angle(45)) ///
+        ylabel(0(5)50, format(%9.0f)) ///
+        yscale(range(0)) ///
+        graphregion(color(white)) ///
+        plotregion(margin(small)) ///
+        name(g_diagnostic, replace)
+    graph export "${figures}figure_diagnostic`sfx'.png", ///
+        replace width(2400)
+}
 
 
 di as text _n "  06_baseline_etr_diagnostic complete." _n

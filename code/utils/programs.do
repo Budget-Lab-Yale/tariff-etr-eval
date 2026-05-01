@@ -61,7 +61,14 @@ program define safe_divide
 
     if "`default'" == "" local default = .
 
-    capture drop `newvar'
+    * Use confirm + drop instead of `capture drop' to avoid Stata's varabbrev
+    * (default ON in Stata 19) treating `newvar' as a unique-prefix match for an
+    * existing longer variable name. e.g. `capture drop s1' silently drops
+    * `s1_num' if no exact `s1' exists, which then causes the gen below to fail
+    * with "s1_num not found".
+    capture confirm variable `newvar', exact
+    if _rc == 0 drop `newvar'
+
     gen double `newvar' = `num' / `den' if `den' != 0 & !missing(`den')
     replace `newvar' = `default' if missing(`newvar')
 end
@@ -333,66 +340,6 @@ program define compute_diversion_decomp
     sort ym `byvar'
     compress
     save `"`outfile'"', replace
-end
-
-
-* ==============================================================================
-* PROGRAM: export_dual_titles
-*
-* Exports two versions of the currently-displayed (or named) graph:
-*   ${figures}`base'_titled.png  -- current state (with whatever title/subtitle
-*                                   the graph was built with)
-*   ${figures}`base'.png         -- title and subtitle cleared via
-*                                   `graph display, title("") subtitle("")`
-*
-* The slides default to the no-suffix (clean) version; the paper draft uses
-* the _titled version. Build the graph once with title/subtitle/name, then
-* call this helper to export both.
-*
-* Options:
-*   BASE()    Filename stem (no extension), e.g. "figure_diversion_decomp" [required]
-*   GRname()  Saved graph name (defaults to "Graph", Stata's default).
-*             Pass an explicit name(g_X, replace) on the graph command and
-*             reference it here for safety, especially after graph combine.
-*   WIDTH()   Pixel width passed to graph export (default 2400).
-*   NOTitled  If set, only the no-title version is exported (used by figures
-*             where the slide-only version is sufficient).
-* ==============================================================================
-
-capture program drop export_dual_titles
-program define export_dual_titles
-    version 17.0
-    syntax , Base(string) [GRname(string) Width(integer 2400) NOTitled]
-
-    if "`grname'" == "" local grname "Graph"
-
-    if "`notitled'" == "" {
-        * Save the current (titled) state to the _titled.png file.
-        graph export "${figures}`base'_titled.png", replace width(`width')
-
-        * Try to redisplay the graph with cleared titles, then export the
-        * no-suffix version. `graph display, title("")` works for some
-        * graph types (twoway lines, by(), graph combine) but not for
-        * graph bar / graph hbar -- those return r(198) "option title()
-        * not allowed". For those types we fall back to copying the titled
-        * file so the pipeline doesn't crash; convert that site to the
-        * inline foreach v in titled clean { ... } pattern when you need
-        * a true clean version.
-        capture graph display `grname', title("") subtitle("")
-        if _rc == 0 {
-            graph export "${figures}`base'.png", replace width(`width')
-        }
-        else {
-            di as text "      [export_dual_titles] graph display title()" ///
-                " unsupported for `grname'; copying titled -> clean."
-            copy "${figures}`base'_titled.png" "${figures}`base'.png", replace
-        }
-    }
-    else {
-        * Skip titled version; just export clean.
-        capture graph display `grname', title("") subtitle("")
-        graph export "${figures}`base'.png", replace width(`width')
-    }
 end
 
 

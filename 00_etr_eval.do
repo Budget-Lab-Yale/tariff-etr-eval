@@ -43,6 +43,12 @@ set more off
 set maxvar 10000
 set seed 8675309
 
+* Disable variable-name abbreviation. Stata's default (`set varabbrev on') is a
+* foot-gun: `capture drop s1' will silently drop `s1_num' if no exact `s1'
+* exists, then a downstream gen referencing `s1_num' fails with "not found".
+* See safe_divide in code/utils/programs.do for the prior site of this bug.
+set varabbrev off
+
 timer clear
 timer on 1
 

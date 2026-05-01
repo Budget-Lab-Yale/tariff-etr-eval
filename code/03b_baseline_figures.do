@@ -107,33 +107,42 @@ export delimited using "$tables/baseline_etr.csv", replace
 * --- Figure ---
 di as text "      Figure baseline: Statutory vs Treasury actual"
 
-twoway ///
-    (connected t1_h2avg ym, ///
-        mcolor("$color_statutory") lcolor("$color_statutory") ///
-        msymbol(circle) msize(small) lwidth(medthick) ///
-        lpattern(solid)) ///
-    (connected t4 ym, ///
-        mcolor("$color_actual") lcolor("$color_actual") ///
-        msymbol(triangle) msize(small) lwidth(medthick) ///
-        lpattern(solid)) ///
-    , ///
-    legend(order( ///
-        1 "Statutory ETR (2024 wts, tracker production)" ///
-        2 "Actual ETR (Treasury)") ///
-        rows(2) size(small) position(6)) ///
-    ytitle("Effective Tariff Rate (%)") ///
-    xtitle("") ///
-    title("Statutory vs. Actual Effective Tariff Rates") ///
-    subtitle("Monthly, 2024 import weights, tracker production USMCA") ///
-    xlabel(`=ym(2025,1)' `=ym(2025,4)' `=ym(2025,7)' `=ym(2025,10)' ///
-           `=ym(2026,1)' `=ym(2026,2)', format(%tmMon_CCYY) angle(45)) ///
-    ylabel(, format(%9.0f)) ///
-    yscale(range(0)) ///
-    graphregion(color(white)) ///
-    plotregion(margin(small)) ///
-    name(g_baseline, replace)
-
-export_dual_titles, base("figure_baseline") grname(g_baseline)
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local opt_title `"title("Statutory vs. Actual Effective Tariff Rates") subtitle("Monthly, 2024 import weights, tracker production USMCA")"'
+        local sfx "_titled"
+    }
+    else {
+        local opt_title ""
+        local sfx ""
+    }
+    twoway ///
+        (connected t1_h2avg ym, ///
+            mcolor("$color_statutory") lcolor("$color_statutory") ///
+            msymbol(circle) msize(small) lwidth(medthick) ///
+            lpattern(solid)) ///
+        (connected t4 ym, ///
+            mcolor("$color_actual") lcolor("$color_actual") ///
+            msymbol(triangle) msize(small) lwidth(medthick) ///
+            lpattern(solid)) ///
+        , ///
+        legend(order( ///
+            1 "Statutory ETR (2024 wts, tracker production)" ///
+            2 "Actual ETR (Treasury)") ///
+            rows(2) size(small) position(6)) ///
+        ytitle("Effective Tariff Rate (%)") ///
+        xtitle("") ///
+        `opt_title' ///
+        xlabel(`=ym(2025,1)' `=ym(2025,4)' `=ym(2025,7)' `=ym(2025,10)' ///
+               `=ym(2026,1)' `=ym(2026,2)', format(%tmMon_CCYY) angle(45)) ///
+        ylabel(, format(%9.0f)) ///
+        yscale(range(0)) ///
+        graphregion(color(white)) ///
+        plotregion(margin(small)) ///
+        name(g_baseline, replace)
+    graph export "${figures}figure_baseline`sfx'.png", ///
+        replace width(2400)
+}
 
 
 * ======================================================================
@@ -174,32 +183,41 @@ sort daily_date
 * --- Figure ---
 di as text "      Figure daily overlay"
 
-twoway ///
-    (line daily_etr daily_date, ///
-        lcolor("$color_statutory") lwidth(thin) lpattern(solid)) ///
-    (scatter monthly_etr_mid daily_date if is_mid, ///
-        mcolor("$color_actual") msymbol(diamond) msize(medsmall)) ///
-    , ///
-    xline(`=$event_liberation', lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
-    xline(`=$event_phase2',     lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
-    xline(`=$event_phase2_recip', lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
-    xline(`=$event_scotus_s122', lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
-    legend(order( ///
-        1 "Daily statutory ETR" ///
-        2 "Monthly mean (mid-month marker)") ///
-        rows(2) size(small) position(6)) ///
-    ytitle("Effective Tariff Rate (%)") ///
-    xtitle("") ///
-    title("Within-Month Variation: Daily vs. Monthly Statutory ETR") ///
-    subtitle("Tracker production rates, 2024 import weights") ///
-    xlabel(, format(%tdMon_CCYY) angle(45)) ///
-    ylabel(, format(%9.0f)) ///
-    yscale(range(0)) ///
-    graphregion(color(white)) ///
-    plotregion(margin(small)) ///
-    name(g_daily_overlay, replace)
-
-export_dual_titles, base("figure_daily_overlay") grname(g_daily_overlay)
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local opt_title `"title("Within-Month Variation: Daily vs. Monthly Statutory ETR") subtitle("Tracker production rates, 2024 import weights")"'
+        local sfx "_titled"
+    }
+    else {
+        local opt_title ""
+        local sfx ""
+    }
+    twoway ///
+        (line daily_etr daily_date, ///
+            lcolor("$color_statutory") lwidth(thin) lpattern(solid)) ///
+        (scatter monthly_etr_mid daily_date if is_mid, ///
+            mcolor("$color_actual") msymbol(diamond) msize(medsmall)) ///
+        , ///
+        xline(`=$event_liberation', lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
+        xline(`=$event_phase2',     lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
+        xline(`=$event_phase2_recip', lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
+        xline(`=$event_scotus_s122', lcolor(gs10) lpattern(dash) lwidth(vthin)) ///
+        legend(order( ///
+            1 "Daily statutory ETR" ///
+            2 "Monthly mean (mid-month marker)") ///
+            rows(2) size(small) position(6)) ///
+        ytitle("Effective Tariff Rate (%)") ///
+        xtitle("") ///
+        `opt_title' ///
+        xlabel(, format(%tdMon_CCYY) angle(45)) ///
+        ylabel(, format(%9.0f)) ///
+        yscale(range(0)) ///
+        graphregion(color(white)) ///
+        plotregion(margin(small)) ///
+        name(g_daily_overlay, replace)
+    graph export "${figures}figure_daily_overlay`sfx'.png", ///
+        replace width(2400)
+}
 
 
 * ======================================================================
@@ -533,16 +551,25 @@ list partner_group s0 s1 gap_adjustment, clean noobs
 
 export delimited using "$tables/adjustment_by_country.csv", replace
 
-graph hbar (asis) gap_adjustment, ///
-    over(partner_group, sort(1) descending) ///
-    bar(1, color("$color_canada")) ///
-    ytitle("USMCA adjustment (pp; S0 - S1, period avg)") ///
-    title("USMCA Adjustment Gap by Partner Group") ///
-    subtitle("Where the 2024 -> H2-2025 USMCA shift moves the statutory rate") ///
-    graphregion(color(white)) ///
-    name(g_adj_country, replace)
-
-export_dual_titles, base("figure_adjustment_country") grname(g_adj_country)
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local opt_title `"title("USMCA Adjustment Gap by Partner Group") subtitle("Where the 2024 -> H2-2025 USMCA shift moves the statutory rate")"'
+        local sfx "_titled"
+    }
+    else {
+        local opt_title ""
+        local sfx ""
+    }
+    graph hbar (asis) gap_adjustment, ///
+        over(partner_group, sort(1) descending) ///
+        bar(1, color("$color_canada")) ///
+        ytitle("USMCA adjustment (pp; S0 - S1, period avg)") ///
+        `opt_title' ///
+        graphregion(color(white)) ///
+        name(g_adj_country, replace)
+    graph export "${figures}figure_adjustment_country`sfx'.png", ///
+        replace width(2400)
+}
 
 
 di as text _n "  03b_baseline_figures complete." _n

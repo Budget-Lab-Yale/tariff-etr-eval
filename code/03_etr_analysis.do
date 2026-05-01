@@ -351,24 +351,34 @@ preserve
         local ++i
     }
 
-    graph bar (asis) c_between c_within, ///
-        over(ym_idx, relabel(`relabel_str') ///
-                     label(angle(45) labsize(vsmall))) ///
-        stack ///
-        bar(1, color("$color_canada")) ///
-        bar(2, color("$color_gap")) ///
-        legend(order( ///
-            1 "Between-country (share shifts)" ///
-            2 "Within-country (product mix)") ///
-            rows(1) size(small) position(6)) ///
-        ytitle("Contribution to S1-S2 gap (pp)") ///
-        title("Trade Diversion Decomposition: Country Lens") ///
-        subtitle("Shapley two-way; segments sum to total S1-S2 gap") ///
-        yline(0, lcolor(gs10) lpattern(dot)) ///
-        graphregion(color(white)) plotregion(margin(small)) ///
-        name(g_div_decomp, replace)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local opt_title `"title("Trade Diversion Decomposition: Country Lens") subtitle("Shapley two-way; segments sum to total S1-S2 gap")"'
+            local sfx "_titled"
+        }
+        else {
+            local opt_title ""
+            local sfx ""
+        }
+        graph bar (asis) c_between c_within, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(vsmall))) ///
+            stack ///
+            bar(1, color("$color_canada")) ///
+            bar(2, color("$color_gap")) ///
+            legend(order( ///
+                1 "Between-country (share shifts)" ///
+                2 "Within-country (product mix)") ///
+                rows(1) size(small) position(6)) ///
+            ytitle("Contribution to S1-S2 gap (pp)") ///
+            `opt_title' ///
+            yline(0, lcolor(gs10) lpattern(dot)) ///
+            graphregion(color(white)) plotregion(margin(small)) ///
+            name(g_div_decomp, replace)
 
-    export_dual_titles, base("figure_diversion_decomp") grname(g_div_decomp)
+        graph export "${figures}figure_diversion_decomp`sfx'.png", ///
+            replace width(2400)
+    }
 restore
 
 * --- D2. Country contributions stacked over time ---
@@ -409,28 +419,38 @@ preserve
         local ++i
     }
 
-    graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
-        over(ym_idx, relabel(`relabel_str') ///
-                     label(angle(45) labsize(vsmall))) ///
-        stack ///
-        bar(1, color("$color_china"))  ///
-        bar(2, color("$color_canada")) ///
-        bar(3, color("$color_mexico")) ///
-        bar(4, color("$color_eu"))     ///
-        bar(5, color("$color_japan"))  ///
-        bar(6, color("$color_skorea")) ///
-        bar(7, color("$color_uk"))     ///
-        bar(8, color("$color_row"))    ///
-        legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
-                     5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
-               rows(1) size(vsmall) position(6)) ///
-        ytitle("Contribution to S1-S2 gap (pp)") ///
-        title("Trade Diversion: Country Contributions") ///
-        subtitle("Stacked monthly, signed (positive = adds to gap_diversion)") ///
-        graphregion(color(white)) ///
-        name(g_div_country, replace)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local opt_title `"title("Trade Diversion: Country Contributions") subtitle("Stacked monthly, signed (positive = adds to gap_diversion)")"'
+            local sfx "_titled"
+        }
+        else {
+            local opt_title ""
+            local sfx ""
+        }
+        graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(vsmall))) ///
+            stack ///
+            bar(1, color("$color_china"))  ///
+            bar(2, color("$color_canada")) ///
+            bar(3, color("$color_mexico")) ///
+            bar(4, color("$color_eu"))     ///
+            bar(5, color("$color_japan"))  ///
+            bar(6, color("$color_skorea")) ///
+            bar(7, color("$color_uk"))     ///
+            bar(8, color("$color_row"))    ///
+            legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
+                         5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
+                   rows(1) size(vsmall) position(6)) ///
+            ytitle("Contribution to S1-S2 gap (pp)") ///
+            `opt_title' ///
+            graphregion(color(white)) ///
+            name(g_div_country, replace)
 
-    export_dual_titles, base("figure_diversion_country") grname(g_div_country)
+        graph export "${figures}figure_diversion_country`sfx'.png", ///
+            replace width(2400)
+    }
 restore
 
 * --- D3. Product contributions stacked over time ---
@@ -472,31 +492,41 @@ preserve
         local ++i
     }
 
-    graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
-                     pg_appr pg_food pg_othr, ///
-        over(ym_idx, relabel(`relabel_str') ///
-                     label(angle(45) labsize(vsmall))) ///
-        stack ///
-        bar(1, color("$color_steel"))   ///
-        bar(2, color("$color_autos"))   ///
-        bar(3, color("$color_elec"))    ///
-        bar(4, color("$color_pharma"))  ///
-        bar(5, color("$color_energy"))  ///
-        bar(6, color("$color_chem"))    ///
-        bar(7, color("$color_apparel")) ///
-        bar(8, color("$color_food"))    ///
-        bar(9, color("$color_other"))   ///
-        legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
-                     5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
-                     8 "Food & Ag" 9 "Other") ///
-               rows(2) size(vsmall) position(6)) ///
-        ytitle("Contribution to S1-S2 gap (pp)") ///
-        title("Trade Diversion: Product Contributions") ///
-        subtitle("Stacked monthly, signed (positive = adds to gap_diversion)") ///
-        graphregion(color(white)) ///
-        name(g_div_product, replace)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local opt_title `"title("Trade Diversion: Product Contributions") subtitle("Stacked monthly, signed (positive = adds to gap_diversion)")"'
+            local sfx "_titled"
+        }
+        else {
+            local opt_title ""
+            local sfx ""
+        }
+        graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
+                         pg_appr pg_food pg_othr, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(vsmall))) ///
+            stack ///
+            bar(1, color("$color_steel"))   ///
+            bar(2, color("$color_autos"))   ///
+            bar(3, color("$color_elec"))    ///
+            bar(4, color("$color_pharma"))  ///
+            bar(5, color("$color_energy"))  ///
+            bar(6, color("$color_chem"))    ///
+            bar(7, color("$color_apparel")) ///
+            bar(8, color("$color_food"))    ///
+            bar(9, color("$color_other"))   ///
+            legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
+                         5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
+                         8 "Food & Ag" 9 "Other") ///
+                   rows(2) size(vsmall) position(6)) ///
+            ytitle("Contribution to S1-S2 gap (pp)") ///
+            `opt_title' ///
+            graphregion(color(white)) ///
+            name(g_div_product, replace)
 
-    export_dual_titles, base("figure_diversion_product") grname(g_div_product)
+        graph export "${figures}figure_diversion_product`sfx'.png", ///
+            replace width(2400)
+    }
 restore
 
 
@@ -623,23 +653,33 @@ preserve
         local relabel_str `relabel_str' `i' "`ms'"
         local ++i
     }
-    graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
-        over(ym_idx, relabel(`relabel_str') ///
-                     label(angle(45) labsize(vsmall))) ///
-        stack ///
-        bar(1, color("$color_china"))  bar(2, color("$color_canada")) ///
-        bar(3, color("$color_mexico")) bar(4, color("$color_eu")) ///
-        bar(5, color("$color_japan"))  bar(6, color("$color_skorea")) ///
-        bar(7, color("$color_uk"))     bar(8, color("$color_row")) ///
-        legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
-                     5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
-               rows(1) size(vsmall) position(6)) ///
-        ytitle("Contribution to S2-S3 gap (pp)") ///
-        title("All-Other Preferences: Country Contributions") ///
-        subtitle("Stacked monthly, signed; sums to gap_others") ///
-        graphregion(color(white)) ///
-        name(g_others_country, replace)
-    export_dual_titles, base("figure_others_country") grname(g_others_country)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local opt_title `"title("All-Other Preferences: Country Contributions") subtitle("Stacked monthly, signed; sums to gap_others")"'
+            local sfx "_titled"
+        }
+        else {
+            local opt_title ""
+            local sfx ""
+        }
+        graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(vsmall))) ///
+            stack ///
+            bar(1, color("$color_china"))  bar(2, color("$color_canada")) ///
+            bar(3, color("$color_mexico")) bar(4, color("$color_eu")) ///
+            bar(5, color("$color_japan"))  bar(6, color("$color_skorea")) ///
+            bar(7, color("$color_uk"))     bar(8, color("$color_row")) ///
+            legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
+                         5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
+                   rows(1) size(vsmall) position(6)) ///
+            ytitle("Contribution to S2-S3 gap (pp)") ///
+            `opt_title' ///
+            graphregion(color(white)) ///
+            name(g_others_country, replace)
+        graph export "${figures}figure_others_country`sfx'.png", ///
+            replace width(2400)
+    }
 restore
 
 * --- O3: others by product ---
@@ -675,26 +715,36 @@ preserve
         local relabel_str `relabel_str' `i' "`ms'"
         local ++i
     }
-    graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
-                     pg_appr pg_food pg_othr, ///
-        over(ym_idx, relabel(`relabel_str') ///
-                     label(angle(45) labsize(vsmall))) ///
-        stack ///
-        bar(1, color("$color_steel"))   bar(2, color("$color_autos")) ///
-        bar(3, color("$color_elec"))    bar(4, color("$color_pharma")) ///
-        bar(5, color("$color_energy"))  bar(6, color("$color_chem")) ///
-        bar(7, color("$color_apparel")) bar(8, color("$color_food")) ///
-        bar(9, color("$color_other")) ///
-        legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
-                     5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
-                     8 "Food & Ag" 9 "Other") ///
-               rows(2) size(vsmall) position(6)) ///
-        ytitle("Contribution to S2-S3 gap (pp)") ///
-        title("All-Other Preferences: Product Contributions") ///
-        subtitle("Stacked monthly, signed; sums to gap_others") ///
-        graphregion(color(white)) ///
-        name(g_others_product, replace)
-    export_dual_titles, base("figure_others_product") grname(g_others_product)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local opt_title `"title("All-Other Preferences: Product Contributions") subtitle("Stacked monthly, signed; sums to gap_others")"'
+            local sfx "_titled"
+        }
+        else {
+            local opt_title ""
+            local sfx ""
+        }
+        graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
+                         pg_appr pg_food pg_othr, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(vsmall))) ///
+            stack ///
+            bar(1, color("$color_steel"))   bar(2, color("$color_autos")) ///
+            bar(3, color("$color_elec"))    bar(4, color("$color_pharma")) ///
+            bar(5, color("$color_energy"))  bar(6, color("$color_chem")) ///
+            bar(7, color("$color_apparel")) bar(8, color("$color_food")) ///
+            bar(9, color("$color_other")) ///
+            legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
+                         5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
+                         8 "Food & Ag" 9 "Other") ///
+                   rows(2) size(vsmall) position(6)) ///
+            ytitle("Contribution to S2-S3 gap (pp)") ///
+            `opt_title' ///
+            graphregion(color(white)) ///
+            name(g_others_product, replace)
+        graph export "${figures}figure_others_product`sfx'.png", ///
+            replace width(2400)
+    }
 restore
 
 * --- R2: residual by country ---
@@ -729,23 +779,33 @@ preserve
         local relabel_str `relabel_str' `i' "`ms'"
         local ++i
     }
-    graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
-        over(ym_idx, relabel(`relabel_str') ///
-                     label(angle(45) labsize(vsmall))) ///
-        stack ///
-        bar(1, color("$color_china"))  bar(2, color("$color_canada")) ///
-        bar(3, color("$color_mexico")) bar(4, color("$color_eu")) ///
-        bar(5, color("$color_japan"))  bar(6, color("$color_skorea")) ///
-        bar(7, color("$color_uk"))     bar(8, color("$color_row")) ///
-        legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
-                     5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
-               rows(1) size(vsmall) position(6)) ///
-        ytitle("Contribution to S3-S4 gap (pp)") ///
-        title("Residual: Country Contributions") ///
-        subtitle("Stacked monthly, signed; sums to gap_residual (S3-S4)") ///
-        graphregion(color(white)) ///
-        name(g_resid_country, replace)
-    export_dual_titles, base("figure_residual_country") grname(g_resid_country)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local opt_title `"title("Residual: Country Contributions") subtitle("Stacked monthly, signed; sums to gap_residual (S3-S4)")"'
+            local sfx "_titled"
+        }
+        else {
+            local opt_title ""
+            local sfx ""
+        }
+        graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(vsmall))) ///
+            stack ///
+            bar(1, color("$color_china"))  bar(2, color("$color_canada")) ///
+            bar(3, color("$color_mexico")) bar(4, color("$color_eu")) ///
+            bar(5, color("$color_japan"))  bar(6, color("$color_skorea")) ///
+            bar(7, color("$color_uk"))     bar(8, color("$color_row")) ///
+            legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
+                         5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
+                   rows(1) size(vsmall) position(6)) ///
+            ytitle("Contribution to S3-S4 gap (pp)") ///
+            `opt_title' ///
+            graphregion(color(white)) ///
+            name(g_resid_country, replace)
+        graph export "${figures}figure_residual_country`sfx'.png", ///
+            replace width(2400)
+    }
 restore
 
 * --- R3: residual by product ---
@@ -781,26 +841,36 @@ preserve
         local relabel_str `relabel_str' `i' "`ms'"
         local ++i
     }
-    graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
-                     pg_appr pg_food pg_othr, ///
-        over(ym_idx, relabel(`relabel_str') ///
-                     label(angle(45) labsize(vsmall))) ///
-        stack ///
-        bar(1, color("$color_steel"))   bar(2, color("$color_autos")) ///
-        bar(3, color("$color_elec"))    bar(4, color("$color_pharma")) ///
-        bar(5, color("$color_energy"))  bar(6, color("$color_chem")) ///
-        bar(7, color("$color_apparel")) bar(8, color("$color_food")) ///
-        bar(9, color("$color_other")) ///
-        legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
-                     5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
-                     8 "Food & Ag" 9 "Other") ///
-               rows(2) size(vsmall) position(6)) ///
-        ytitle("Contribution to S3-S4 gap (pp)") ///
-        title("Residual: Product Contributions") ///
-        subtitle("Stacked monthly, signed; sums to gap_residual (S3-S4)") ///
-        graphregion(color(white)) ///
-        name(g_resid_product, replace)
-    export_dual_titles, base("figure_residual_product") grname(g_resid_product)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local opt_title `"title("Residual: Product Contributions") subtitle("Stacked monthly, signed; sums to gap_residual (S3-S4)")"'
+            local sfx "_titled"
+        }
+        else {
+            local opt_title ""
+            local sfx ""
+        }
+        graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
+                         pg_appr pg_food pg_othr, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(vsmall))) ///
+            stack ///
+            bar(1, color("$color_steel"))   bar(2, color("$color_autos")) ///
+            bar(3, color("$color_elec"))    bar(4, color("$color_pharma")) ///
+            bar(5, color("$color_energy"))  bar(6, color("$color_chem")) ///
+            bar(7, color("$color_apparel")) bar(8, color("$color_food")) ///
+            bar(9, color("$color_other")) ///
+            legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
+                         5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
+                         8 "Food & Ag" 9 "Other") ///
+                   rows(2) size(vsmall) position(6)) ///
+            ytitle("Contribution to S3-S4 gap (pp)") ///
+            `opt_title' ///
+            graphregion(color(white)) ///
+            name(g_resid_product, replace)
+        graph export "${figures}figure_residual_product`sfx'.png", ///
+            replace width(2400)
+    }
 restore
 
 
@@ -1014,14 +1084,23 @@ foreach ch in adjustment diversion others residual {
     restore
 }
 
-graph combine g_c_adjustment g_c_diversion g_c_others g_c_residual, ///
-    cols(2) ycommon ///
-    title("Per-Country Attribution Across the Four Decomposable Channels") ///
-    subtitle("Stacked monthly; gap_timing (S4-T) is Treasury-aggregate-only, not shown") ///
-    graphregion(color(white)) ///
-    name(g_attr_country, replace)
-
-export_dual_titles, base("figure_attribution_country") grname(g_attr_country) width(3000)
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local opt_title `"title("Per-Country Attribution Across the Four Decomposable Channels") subtitle("Stacked monthly; gap_timing (S4-T) is Treasury-aggregate-only, not shown")"'
+        local sfx "_titled"
+    }
+    else {
+        local opt_title ""
+        local sfx ""
+    }
+    graph combine g_c_adjustment g_c_diversion g_c_others g_c_residual, ///
+        cols(2) ycommon ///
+        `opt_title' ///
+        graphregion(color(white)) ///
+        name(g_attr_country, replace)
+    graph export "${figures}figure_attribution_country`sfx'.png", ///
+        replace width(3000)
+}
 
 * Drop named graphs to free memory before product loop.
 graph drop g_c_adjustment g_c_diversion g_c_others g_c_residual
@@ -1100,14 +1179,23 @@ foreach ch in adjustment diversion others residual {
     restore
 }
 
-graph combine g_p_adjustment g_p_diversion g_p_others g_p_residual, ///
-    cols(2) ycommon ///
-    title("Per-Product Attribution Across the Four Decomposable Channels") ///
-    subtitle("Stacked monthly; gap_timing (S4-T) is Treasury-aggregate-only, not shown") ///
-    graphregion(color(white)) ///
-    name(g_attr_product, replace)
-
-export_dual_titles, base("figure_attribution_product") grname(g_attr_product) width(3000)
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local opt_title `"title("Per-Product Attribution Across the Four Decomposable Channels") subtitle("Stacked monthly; gap_timing (S4-T) is Treasury-aggregate-only, not shown")"'
+        local sfx "_titled"
+    }
+    else {
+        local opt_title ""
+        local sfx ""
+    }
+    graph combine g_p_adjustment g_p_diversion g_p_others g_p_residual, ///
+        cols(2) ycommon ///
+        `opt_title' ///
+        graphregion(color(white)) ///
+        name(g_attr_product, replace)
+    graph export "${figures}figure_attribution_product`sfx'.png", ///
+        replace width(3000)
+}
 
 graph drop g_p_adjustment g_p_diversion g_p_others g_p_residual
 
@@ -1143,48 +1231,57 @@ list ym s0 s1 s2 s3 t gap_adjustment gap_diversion gap_others, clean noobs
 
 di as text _n "      Figure 1: ETR comparison"
 
-twoway ///
-    (connected s0 ym, ///
-        mcolor("$color_gray") lcolor("$color_gray") ///
-        msymbol(circle) msize(vsmall) lwidth(medium) ///
-        lpattern(dash)) ///
-    (connected s1 ym, ///
-        mcolor("$color_statutory") lcolor("$color_statutory") ///
-        msymbol(diamond) msize(small) lwidth(thick) ///
-        lpattern(solid)) ///
-    (connected s2 ym, ///
-        mcolor("$color_canada") lcolor("$color_canada") ///
-        msymbol(square) msize(small) lwidth(medium) ///
-        lpattern(shortdash)) ///
-    (connected s3 ym, ///
-        mcolor("$color_gap") lcolor("$color_gap") ///
-        msymbol(triangle) msize(small) lwidth(medium) ///
-        lpattern(longdash_dot)) ///
-    (connected t ym, ///
-        mcolor("$color_actual") lcolor("$color_actual") ///
-        msymbol(triangle) msize(small) lwidth(medthick) ///
-        lpattern(solid)) ///
-    , ///
-    legend(order( ///
-        1 "S0 (USMCA 2024 baseline; backstory)" ///
-        2 "S1 (USMCA H2-2025, 2024 wts; framework anchor)" ///
-        3 "S2 (USMCA H2-2025, monthly wts)" ///
-        4 "S3 (+ all-other prefs, monthly wts)" ///
-        5 "T (Treasury actual)") ///
-        rows(5) size(small) position(6)) ///
-    ytitle("Effective Tariff Rate (%)") ///
-    xtitle("") ///
-    title("Statutory vs. Actual Effective Tariff Rates") ///
-    subtitle("Six-tier ladder, Jan 2025 - Feb 2026") ///
-    xlabel(`=ym(2025,1)' `=ym(2025,4)' `=ym(2025,7)' `=ym(2025,10)' ///
-           `=ym(2026,1)' `=ym(2026,2)', format(%tmMon_CCYY) angle(45)) ///
-    ylabel(, format(%9.0f)) ///
-    yscale(range(0)) ///
-    graphregion(color(white)) ///
-    plotregion(margin(small)) ///
-    name(g_ladder, replace)
-
-export_dual_titles, base("figure_ladder") grname(g_ladder)
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local opt_title `"title("Statutory vs. Actual Effective Tariff Rates") subtitle("Six-tier ladder, Jan 2025 - Feb 2026")"'
+        local sfx "_titled"
+    }
+    else {
+        local opt_title ""
+        local sfx ""
+    }
+    twoway ///
+        (connected s0 ym, ///
+            mcolor("$color_gray") lcolor("$color_gray") ///
+            msymbol(circle) msize(vsmall) lwidth(medium) ///
+            lpattern(dash)) ///
+        (connected s1 ym, ///
+            mcolor("$color_statutory") lcolor("$color_statutory") ///
+            msymbol(diamond) msize(small) lwidth(thick) ///
+            lpattern(solid)) ///
+        (connected s2 ym, ///
+            mcolor("$color_canada") lcolor("$color_canada") ///
+            msymbol(square) msize(small) lwidth(medium) ///
+            lpattern(shortdash)) ///
+        (connected s3 ym, ///
+            mcolor("$color_gap") lcolor("$color_gap") ///
+            msymbol(triangle) msize(small) lwidth(medium) ///
+            lpattern(longdash_dot)) ///
+        (connected t ym, ///
+            mcolor("$color_actual") lcolor("$color_actual") ///
+            msymbol(triangle) msize(small) lwidth(medthick) ///
+            lpattern(solid)) ///
+        , ///
+        legend(order( ///
+            1 "S0 (USMCA 2024 baseline; backstory)" ///
+            2 "S1 (USMCA H2-2025, 2024 wts; framework anchor)" ///
+            3 "S2 (USMCA H2-2025, monthly wts)" ///
+            4 "S3 (+ all-other prefs, monthly wts)" ///
+            5 "T (Treasury actual)") ///
+            rows(5) size(small) position(6)) ///
+        ytitle("Effective Tariff Rate (%)") ///
+        xtitle("") ///
+        `opt_title' ///
+        xlabel(`=ym(2025,1)' `=ym(2025,4)' `=ym(2025,7)' `=ym(2025,10)' ///
+               `=ym(2026,1)' `=ym(2026,2)', format(%tmMon_CCYY) angle(45)) ///
+        ylabel(, format(%9.0f)) ///
+        yscale(range(0)) ///
+        graphregion(color(white)) ///
+        plotregion(margin(small)) ///
+        name(g_ladder, replace)
+    graph export "${figures}figure_ladder`sfx'.png", ///
+        replace width(2400)
+}
 
 
 * --- Figure 2: Gap decomposition stacked bar (S0->T, two stacks) ---
@@ -1192,56 +1289,74 @@ export_dual_titles, base("figure_ladder") grname(g_ladder)
 
 di as text "      Figure 2: Gap decomposition (USMCA adjustment vs main analytic)"
 
-graph bar (asis) gap_s1_t gap_adjustment, ///
-    over(ym, relabel( ///
-        1 `" "Jan" "2025" "' ///
-        2 "Feb" 3 "Mar" 4 "Apr" 5 "May" 6 "Jun" ///
-        7 "Jul" 8 "Aug" 9 "Sep" 10 "Oct" 11 "Nov" 12 "Dec" ///
-        13 `" "Jan" "2026" "' 14 "Feb") ///
-        label(angle(0) labsize(small))) ///
-    stack ///
-    bar(1, color("$color_gap") fintensity(70)) ///
-    bar(2, color("$color_statutory") fintensity(70)) ///
-    legend(order( ///
-        2 "USMCA adjustment (S0{&rarr}S1)" ///
-        1 "Main analytic gap (S1{&rarr}Treasury)") ///
-        rows(1) size(small) position(6)) ///
-    ytitle("Gap (percentage points)") ///
-    title("Statutory-Actual ETR Gap Decomposition") ///
-    subtitle("Stacked components, Jan 2025 - Feb 2026") ///
-    graphregion(color(white)) ///
-    name(g_gap_stacked, replace)
-
-export_dual_titles, base("figure_gap_stacked") grname(g_gap_stacked)
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local opt_title `"title("Statutory-Actual ETR Gap Decomposition") subtitle("Stacked components, Jan 2025 - Feb 2026")"'
+        local sfx "_titled"
+    }
+    else {
+        local opt_title ""
+        local sfx ""
+    }
+    graph bar (asis) gap_s1_t gap_adjustment, ///
+        over(ym, relabel( ///
+            1 `" "Jan" "2025" "' ///
+            2 "Feb" 3 "Mar" 4 "Apr" 5 "May" 6 "Jun" ///
+            7 "Jul" 8 "Aug" 9 "Sep" 10 "Oct" 11 "Nov" 12 "Dec" ///
+            13 `" "Jan" "2026" "' 14 "Feb") ///
+            label(angle(0) labsize(small))) ///
+        stack ///
+        bar(1, color("$color_gap") fintensity(70)) ///
+        bar(2, color("$color_statutory") fintensity(70)) ///
+        legend(order( ///
+            2 "USMCA adjustment (S0{&rarr}S1)" ///
+            1 "Main analytic gap (S1{&rarr}Treasury)") ///
+            rows(1) size(small) position(6)) ///
+        ytitle("Gap (percentage points)") ///
+        `opt_title' ///
+        graphregion(color(white)) ///
+        name(g_gap_stacked, replace)
+    graph export "${figures}figure_gap_stacked`sfx'.png", ///
+        replace width(2400)
+}
 
 
 * --- Figure 3: S1->Treasury decomposed into diversion / others / residual (3 stacks) ---
 
 di as text "      Figure 3: Trade diversion / all-others / residual decomposition"
 
-graph bar (asis) gap_diversion gap_others gap_s3_t, ///
-    over(ym, relabel( ///
-        1 `" "Jan" "2025" "' ///
-        2 "Feb" 3 "Mar" 4 "Apr" 5 "May" 6 "Jun" ///
-        7 "Jul" 8 "Aug" 9 "Sep" 10 "Oct" 11 "Nov" 12 "Dec" ///
-        13 `" "Jan" "2026" "' 14 "Feb") ///
-        label(angle(0) labsize(small))) ///
-    stack ///
-    bar(1, color("$color_canada") fintensity(80)) ///
-    bar(2, color("$color_eu")     fintensity(75)) ///
-    bar(3, color("$color_gray")   fintensity(70)) ///
-    legend(order( ///
-        1 "Trade diversion (S1{&rarr}S2)" ///
-        2 "All-other preferences (S2{&rarr}S3)" ///
-        3 "Residual + timing (S3{&rarr}Treasury)") ///
-        rows(2) size(small) position(6)) ///
-    ytitle("Gap (percentage points)") ///
-    title("Preferences Gap Decomposition") ///
-    subtitle("S1{&rarr}Treasury split into USMCA / all-others / residual") ///
-    graphregion(color(white)) ///
-    name(g_channel_stacked, replace)
-
-export_dual_titles, base("figure_channel_stacked") grname(g_channel_stacked)
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local opt_title `"title("Preferences Gap Decomposition") subtitle("S1{&rarr}Treasury split into USMCA / all-others / residual")"'
+        local sfx "_titled"
+    }
+    else {
+        local opt_title ""
+        local sfx ""
+    }
+    graph bar (asis) gap_diversion gap_others gap_s3_t, ///
+        over(ym, relabel( ///
+            1 `" "Jan" "2025" "' ///
+            2 "Feb" 3 "Mar" 4 "Apr" 5 "May" 6 "Jun" ///
+            7 "Jul" 8 "Aug" 9 "Sep" 10 "Oct" 11 "Nov" 12 "Dec" ///
+            13 `" "Jan" "2026" "' 14 "Feb") ///
+            label(angle(0) labsize(small))) ///
+        stack ///
+        bar(1, color("$color_canada") fintensity(80)) ///
+        bar(2, color("$color_eu")     fintensity(75)) ///
+        bar(3, color("$color_gray")   fintensity(70)) ///
+        legend(order( ///
+            1 "Trade diversion (S1{&rarr}S2)" ///
+            2 "All-other preferences (S2{&rarr}S3)" ///
+            3 "Residual + timing (S3{&rarr}Treasury)") ///
+            rows(2) size(small) position(6)) ///
+        ytitle("Gap (percentage points)") ///
+        `opt_title' ///
+        graphregion(color(white)) ///
+        name(g_channel_stacked, replace)
+    graph export "${figures}figure_channel_stacked`sfx'.png", ///
+        replace width(2400)
+}
 
 
 * ======================================================================
@@ -1334,33 +1449,42 @@ preserve
     export delimited using "$tables/cmp_overall_monthly.csv", replace
 
     ** --- Fig 4: overall line chart (S2 / S4 / T) ---
-    twoway ///
-        (connected s2 ym, ///
-            mcolor("$color_statutory") lcolor("$color_statutory") ///
-            msymbol(circle) msize(small) lwidth(medthick) lpattern(solid)) ///
-        (connected s4 ym, ///
-            mcolor("$color_gap") lcolor("$color_gap") ///
-            msymbol(diamond) msize(small) lwidth(medium) lpattern(solid)) ///
-        (connected t ym, ///
-            mcolor("$color_actual") lcolor("$color_actual") ///
-            msymbol(triangle) msize(small) lwidth(medium) lpattern(dash)) ///
-        , ///
-        legend(order( ///
-            1 "S2: Statutory (USMCA H2-2025)" ///
-            2 "S4: Census (cal. duty / cons. value)" ///
-            3 "T: Treasury actual") ///
-            rows(3) size(small) position(6)) ///
-        ytitle("Effective Tariff Rate (%)") ///
-        xtitle("") ///
-        title("S2 vs. S4 vs. T") ///
-        subtitle("Monthly, Jan 2025 - Feb 2026") ///
-        xlabel(, format(%tmMon_CCYY) angle(45)) ///
-        ylabel(, format(%9.0f)) ///
-        yscale(range(0)) ///
-        graphregion(color(white)) plotregion(margin(small)) ///
-        name(g_s2s4_overall, replace)
-
-    export_dual_titles, base("figure_s2s4_overall") grname(g_s2s4_overall)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local opt_title `"title("S2 vs. S4 vs. T") subtitle("Monthly, Jan 2025 - Feb 2026")"'
+            local sfx "_titled"
+        }
+        else {
+            local opt_title ""
+            local sfx ""
+        }
+        twoway ///
+            (connected s2 ym, ///
+                mcolor("$color_statutory") lcolor("$color_statutory") ///
+                msymbol(circle) msize(small) lwidth(medthick) lpattern(solid)) ///
+            (connected s4 ym, ///
+                mcolor("$color_gap") lcolor("$color_gap") ///
+                msymbol(diamond) msize(small) lwidth(medium) lpattern(solid)) ///
+            (connected t ym, ///
+                mcolor("$color_actual") lcolor("$color_actual") ///
+                msymbol(triangle) msize(small) lwidth(medium) lpattern(dash)) ///
+            , ///
+            legend(order( ///
+                1 "S2: Statutory (USMCA H2-2025)" ///
+                2 "S4: Census (cal. duty / cons. value)" ///
+                3 "T: Treasury actual") ///
+                rows(3) size(small) position(6)) ///
+            ytitle("Effective Tariff Rate (%)") ///
+            xtitle("") ///
+            `opt_title' ///
+            xlabel(, format(%tmMon_CCYY) angle(45)) ///
+            ylabel(, format(%9.0f)) ///
+            yscale(range(0)) ///
+            graphregion(color(white)) plotregion(margin(small)) ///
+            name(g_s2s4_overall, replace)
+        graph export "${figures}figure_s2s4_overall`sfx'.png", ///
+            replace width(2400)
+    }
 restore
 
 ** Reload merged_analysis for the remaining D2-D6 sections.
@@ -1479,28 +1603,37 @@ preserve
         local ++i
     }
 
-    graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
-        over(ym_idx, relabel(`relabel_str') ///
-                     label(angle(45) labsize(vsmall))) ///
-        stack ///
-        bar(1, color("$color_china"))  ///
-        bar(2, color("$color_canada")) ///
-        bar(3, color("$color_mexico")) ///
-        bar(4, color("$color_eu"))     ///
-        bar(5, color("$color_japan"))  ///
-        bar(6, color("$color_skorea")) ///
-        bar(7, color("$color_uk"))     ///
-        bar(8, color("$color_row"))    ///
-        legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
-                     5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
-               rows(1) size(vsmall) position(6)) ///
-        ytitle("Gap contribution (pp of overall ETR)") ///
-        title("Statutory - Census gap, by partner group") ///
-        subtitle("Monthly contribution to overall-ETR gap, pp") ///
-        graphregion(color(white)) ///
-        name(g_s2s4_gap_country, replace)
-
-    export_dual_titles, base("figure_s2s4_gap_country") grname(g_s2s4_gap_country)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local opt_title `"title("Statutory - Census gap, by partner group") subtitle("Monthly contribution to overall-ETR gap, pp")"'
+            local sfx "_titled"
+        }
+        else {
+            local opt_title ""
+            local sfx ""
+        }
+        graph bar (asis) pg_CN pg_CA pg_MX pg_EU pg_JP pg_KR pg_UK pg_RW, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(vsmall))) ///
+            stack ///
+            bar(1, color("$color_china"))  ///
+            bar(2, color("$color_canada")) ///
+            bar(3, color("$color_mexico")) ///
+            bar(4, color("$color_eu"))     ///
+            bar(5, color("$color_japan"))  ///
+            bar(6, color("$color_skorea")) ///
+            bar(7, color("$color_uk"))     ///
+            bar(8, color("$color_row"))    ///
+            legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
+                         5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
+                   rows(1) size(vsmall) position(6)) ///
+            ytitle("Gap contribution (pp of overall ETR)") ///
+            `opt_title' ///
+            graphregion(color(white)) ///
+            name(g_s2s4_gap_country, replace)
+        graph export "${figures}figure_s2s4_gap_country`sfx'.png", ///
+            replace width(2400)
+    }
 restore
 
 
@@ -1906,31 +2039,40 @@ preserve
         local ++i
     }
 
-    graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
-                     pg_appr pg_food pg_othr, ///
-        over(ym_idx, relabel(`relabel_str') ///
-                     label(angle(45) labsize(vsmall))) ///
-        stack ///
-        bar(1, color("$color_steel"))   ///
-        bar(2, color("$color_autos"))   ///
-        bar(3, color("$color_elec"))    ///
-        bar(4, color("$color_pharma"))  ///
-        bar(5, color("$color_energy"))  ///
-        bar(6, color("$color_chem"))    ///
-        bar(7, color("$color_apparel")) ///
-        bar(8, color("$color_food"))    ///
-        bar(9, color("$color_other"))   ///
-        legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
-                     5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
-                     8 "Food & Ag" 9 "Other") ///
-               rows(2) size(vsmall) position(6)) ///
-        ytitle("Gap contribution (pp of overall ETR)") ///
-        title("S2 - S4 Gap, by Product Group") ///
-        subtitle("Monthly contribution to overall-ETR gap, pp") ///
-        graphregion(color(white)) ///
-        name(g_s2s4_gap_product, replace)
-
-    export_dual_titles, base("figure_s2s4_gap_product") grname(g_s2s4_gap_product)
+    foreach v in titled clean {
+        if "`v'" == "titled" {
+            local opt_title `"title("S2 - S4 Gap, by Product Group") subtitle("Monthly contribution to overall-ETR gap, pp")"'
+            local sfx "_titled"
+        }
+        else {
+            local opt_title ""
+            local sfx ""
+        }
+        graph bar (asis) pg_stl pg_auto pg_elec pg_phrm pg_engy pg_chem ///
+                         pg_appr pg_food pg_othr, ///
+            over(ym_idx, relabel(`relabel_str') ///
+                         label(angle(45) labsize(vsmall))) ///
+            stack ///
+            bar(1, color("$color_steel"))   ///
+            bar(2, color("$color_autos"))   ///
+            bar(3, color("$color_elec"))    ///
+            bar(4, color("$color_pharma"))  ///
+            bar(5, color("$color_energy"))  ///
+            bar(6, color("$color_chem"))    ///
+            bar(7, color("$color_apparel")) ///
+            bar(8, color("$color_food"))    ///
+            bar(9, color("$color_other"))   ///
+            legend(order(1 "Steel & Al" 2 "Autos" 3 "Electronics" 4 "Pharma" ///
+                         5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
+                         8 "Food & Ag" 9 "Other") ///
+                   rows(2) size(vsmall) position(6)) ///
+            ytitle("Gap contribution (pp of overall ETR)") ///
+            `opt_title' ///
+            graphregion(color(white)) ///
+            name(g_s2s4_gap_product, replace)
+        graph export "${figures}figure_s2s4_gap_product`sfx'.png", ///
+            replace width(2400)
+    }
 restore
 
 ** --- Fig P3: product_group x partner_group heatmap (period-averaged S2-S4) ---
