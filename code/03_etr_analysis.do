@@ -2113,8 +2113,7 @@ preserve
             }
             heatplot gap_pp i.prod_id i.part_id, ///
                 color(RdBu, reverse) cuts(-30(5)30) ///
-                ramp(right space(5) suffix("pp")) ///
-                keylabels(, range(-30 30)) ///
+                ramp(right space(5) suffix("pp") range(-30 30)) ///
                 xtitle("") ytitle("") ///
                 title("`fig_t'") ///
                 subtitle("`fig_st'") ///
