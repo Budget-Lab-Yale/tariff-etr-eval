@@ -67,19 +67,20 @@ Most of our analysis lives between **S1 and T**. The S0→S1 step is treated as 
 
 Reference table for the 4-window (plus overall) breakdown:
 
-| Window | S0 | S1 | S2 | S3 | T | gap_adj | gap_div | gap_oth | gap_res | gap_total |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Overall (2025m1–2026m2) | 15.46 | 13.05 | 10.81 | 10.26 | 8.33 | 2.42 | 2.24 | 0.54 | 1.94 | 7.14 |
-| W1: Pre-Liberation (2025m1–m3) | 7.12 | 5.41 | 4.21 | 4.16 | 2.40 | 1.71 | 1.20 | 0.05 | 1.75 | 4.71 |
-| W2: Liberation→Phase 2 (2025m4–m6) | 16.67 | 14.27 | 11.40 | 10.79 | 7.90 | 2.40 | 2.88 | 0.61 | 2.88 | 8.77 |
-| W3: Phase 2→Phase 2 Recip (2025m7) | 17.59 | 14.83 | 12.72 | 12.37 | 9.47 | 2.76 | 2.11 | 0.34 | 2.90 | 8.12 |
-| W4: Phase 2 Recip→SCOTUS (2025m8–2026m1) | 18.50 | 15.79 | 13.48 | 12.69 | 10.95 | 2.71 | 2.30 | 0.79 | 1.75 | 7.55 |
-| W5: Post-SCOTUS (2026m2) | 16.56 | 14.06 | 10.85 | 10.31 | 10.49 | 2.49 | 3.22 | 0.54 | -0.18 | 6.07 |
+| Window | S0 | S1 | S2 | S3 | S4 | T | adj | div | oth | res | tim |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Overall (2025m1–2026m2) | 15.46 | 13.05 | 10.81 | 10.26 | 8.07 | 8.33 | 2.42 | 2.24 | 0.54 | 2.19 | -0.25 |
+| W1: Pre-Liberation (2025m1–m3) | 7.12 | 5.41 | 4.21 | 4.16 | 2.78 | 2.40 | 1.71 | 1.20 | 0.05 | 1.38 | 0.37 |
+| W2: Liberation→Phase 2 (2025m4–m6) | 16.67 | 14.27 | 11.40 | 10.79 | 8.35 | 7.90 | 2.40 | 2.88 | 0.61 | 2.43 | 0.45 |
+| W3: Phase 2→Phase 2 Recip (2025m7) | 17.59 | 14.83 | 12.72 | 12.37 | 9.75 | 9.47 | 2.76 | 2.11 | 0.34 | 2.63 | 0.28 |
+| W4: Phase 2 Recip→SCOTUS (2025m8–2026m1) | 18.50 | 15.79 | 13.48 | 12.69 | 10.23 | 10.95 | 2.71 | 2.30 | 0.79 | 2.46 | -0.72 |
+| W5: Post-SCOTUS (2026m2) | 16.56 | 14.06 | 10.85 | 10.31 | 8.48 | 10.49 | 2.49 | 3.22 | 0.54 | 1.83 | -2.01 |
 
-Two things stand out in the sub-period table beyond the trend:
+Three things stand out in the sub-period table beyond the trend:
 
-1. **W2 vs W3** (Liberation Day window vs Phase 2 onset): trade diversion gap is the same shape across the two periods (~2.1–2.9 pp), but the **residual** gap (S3→T) actually widens in W3 — the system was still digesting Liberation Day rates well into Phase 2.
-2. **W5 Post-SCOTUS** flips `gap_residual` to **negative** (−0.18 pp): for the first time in the panel, Treasury collects slightly *more* than the cell-level statutory reconstruction predicts. Frictions are unwinding. The dominant remaining channel becomes trade diversion (3.22 pp), not residual+timing.
+1. **W2 vs W3** (Liberation Day window vs Phase 2 onset): trade diversion gap is the same shape across the two periods (~2.1–2.9 pp), but the **residual** gap (S3→S4) actually widens in W3 — the system was still digesting Liberation Day rates well into Phase 2.
+2. **gap_timing flip mid-2025**: the S4→T channel turns negative starting around July 2025 (W3), accelerating through W4 (-0.72 pp avg) and W5 (**-2.01 pp**). Treasury collects *more* than Census IMDB declares. Cumulatively (Feb 2025–Feb 2026), Treasury has over-collected by ~$10.5B vs IMDB. Plausible drivers: ACH lag catch-up, post-entry adjustments, refund reversals, FTZ deferrals being paid down.
+3. **gap_residual stays positive throughout**: S3 still exceeds S4 in every window — the cell-level reconstruction is over-predicting what importers declare at entry. That's the structural residual: specific-duty AVE failures, AD/CVD, within-cell behavioral noise. *Not* converging in the panel.
 
 ---
 
@@ -308,7 +309,7 @@ Treasury timing (S4→T) is aggregate-only and not shown.
 
 Three open questions our framework opens but cannot fully close:
 
-1. **Convergence**. Does the gap continue to compress as frictions resolve? The Feb 2026 sign-flip in the residual+timing channel (gap_residual went from +2.19 in Dec 2025 to **−0.18 in Feb 2026** — Treasury collected slightly more than the cell-level reconstruction predicts) is the strongest single signal in our panel. Eck et al. (2026) predict frictional gaps compress as frontloading depletes; our panel supports that prediction directly.
+1. **Convergence**. Does the gap continue to compress as frictions resolve? The Feb 2026 sign-flip in the **timing** channel (gap_timing = S4−T turned to **−2.01 pp** — Treasury collected $2 of every 100 import dollars *more* than IMDB shows declared) is the strongest single signal in our panel. Cumulatively (Feb 2025–Feb 2026), Treasury has over-collected by **~$10.5B** relative to IMDB. The structural residual (S3−S4 = +1.83 pp) is *not* converging — Census-declared duties keep undershooting the cell-level reconstruction. Eck et al. (2026) predict frictional gaps compress as frontloading depletes; the timing channel matches that prediction; the residual channel does not.
 
 2. **Annex II quantification**. The largest single chunk of S2→S3 likely sits in the IEEPA carve-out term (duty_free with IEEPA recip exemption). Decomposing further by HS2 inside Electronics × Pharma would tell us how much of the Annex II story is which product class. Currently lumped at the channel level.
 

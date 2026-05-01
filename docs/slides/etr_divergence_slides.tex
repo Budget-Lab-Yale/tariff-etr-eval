@@ -388,7 +388,7 @@ Three groups of non-USMCA preferences (importer-declared in IMDB):
 \centering
 \includegraphics[width=0.85\linewidth]{figure_s2s4_facets_country.png}
 
-\hyperlink{appendix_heatmap}{\beamergotobutton{Heatmap: where the gap concentrates}}
+\hyperlink{appendix_heatmap}{\beamergotobutton{Cumulative \$ Census vs.\ Treasury}}
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -425,7 +425,7 @@ Three groups of non-USMCA preferences (importer-declared in IMDB):
 \small
 
 \begin{itemize}\setlength{\itemsep}{0.6em}
-  \item \textbf{Convergence dynamics.} Eck et al.\ (2026) predict frictional gaps compress as frontloading depletes. Our Feb 2026 panel: \texttt{gap\_residual} flipped to \alert{$-$0.18 pp} (Treasury collected slightly \emph{more} than the cell-level reconstruction). \hyperlink{appendix_signflip}{\beamergotobutton{Detail}}
+  \item \textbf{Convergence dynamics.} Eck et al.\ (2026) predict frictional gaps compress as frontloading depletes. Our Feb 2026 panel: \texttt{gap\_timing} (S4$\to$T) flipped strongly negative to \alert{$-2.01$ pp} -- Treasury collected \emph{more} than Census-declared duties imply -- while \texttt{gap\_residual} (S3$\to$S4) stayed positive at $+1.83$ pp. Cumulatively (Feb 2025--Feb 2026), Treasury has \emph{over-collected} by \alert{\$10.5B} relative to Census IMDB. \hyperlink{appendix_signflip}{\beamergotobutton{Detail}}
 
   \item \textbf{Annex II quantification.} Largest single chunk of S2 $\to$ S3 likely sits in the IEEPA carve-out term. Decomposing further by HS2 inside Electronics $\times$ Pharma would attribute the carve-out story across product classes.
 
@@ -750,15 +750,28 @@ Our framework's contribution: separates the (large) USMCA piece, isolates non-US
 \end{frame}
 
 % ----------------------------------------------------------------------------
-\begin{frame}{A10. Heatmap: where the gap concentrates}
+\begin{frame}{A10. Cumulative Census-vs-Treasury duty gap (\$)}
 \hypertarget{appendix_heatmap}{}
 
+\begin{columns}[T]
+\begin{column}{0.62\textwidth}
 \centering
-\includegraphics[width=0.7\linewidth]{figure_s2s4_heatmap.png}
+\includegraphics[width=\linewidth]{figure_cumulative_duty_gap.png}
+\end{column}
+\begin{column}{0.38\textwidth}
+\small
+Dollar-level analogue of \texttt{gap\_timing} (S4$\to$T). Census IMDB monthly customs duties vs Treasury MTS/DTS, cumulated from Feb 2025.
 
-\vspace{0.5em}
+\medskip
 
-\small Period-averaged $S2 - S4$ gap (pp) on the 9 (product) $\times$ 8 (partner) grid. Diverging palette around zero; high-magnitude cells flag where to drill down.
+\textbf{Through Feb 2026:} Treasury has cumulatively over-collected by \alert{\$10.5B} relative to IMDB-declared duties, with the gap widening sharply over the past four months.
+
+\medskip
+
+Strongly suggestive of catch-up payments, post-entry adjustments, and FTZ-deferred duties being paid down -- not measurement noise.
+\end{column}
+\end{columns}
+
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -767,47 +780,48 @@ Our framework's contribution: separates the (large) USMCA piece, isolates non-US
 
 \scriptsize
 
-\begin{tabular}{l r r r r r r r r r r}
+\begin{tabular}{l r r r r r r r r r r r}
 \toprule
-Window & S0 & S1 & S2 & S3 & T & adj. & div. & oth. & res. & total \\
+Window & S0 & S1 & S2 & S3 & S4 & T & adj. & div. & oth. & res. & tim. \\
 \midrule
-Overall (2025m1--2026m2)            & 15.46 & 13.05 & 10.81 & 10.26 &  8.33 & 2.42 & 2.24 & 0.54 &  1.94 & 7.14 \\
-W1: Pre-Liberation (2025m1--m3)     &  7.12 &  5.41 &  4.21 &  4.16 &  2.40 & 1.71 & 1.20 & 0.05 &  1.75 & 4.71 \\
-W2: Liberation $\to$ Phase 2 (m4--m6)& 16.67 & 14.27 & 11.40 & 10.79 &  7.90 & 2.40 & 2.88 & 0.61 &  2.88 & 8.77 \\
-W3: Phase 2 $\to$ Phase 2 Recip (m7) & 17.59 & 14.83 & 12.72 & 12.37 &  9.47 & 2.76 & 2.11 & 0.34 &  2.90 & 8.12 \\
-W4: P2 Recip $\to$ SCOTUS (m8--2026m1)& 18.50 & 15.79 & 13.48 & 12.69 & 10.95 & 2.71 & 2.30 & 0.79 &  1.75 & 7.55 \\
-\textbf{W5: Post-SCOTUS (2026m2)}    &\textbf{16.56}&\textbf{14.06}&\textbf{10.85}&\textbf{10.31}&\textbf{10.49}&\textbf{2.49}&\textbf{3.22}&\textbf{0.54}&\textbf{$-$0.18}&\textbf{6.07}\\
+Overall (2025m1--2026m2)            & 15.46 & 13.05 & 10.81 & 10.26 &  8.07 &  8.33 & 2.42 & 2.24 & 0.54 &  2.19 & $-$0.25 \\
+W1: Pre-Liberation (2025m1--m3)     &  7.12 &  5.41 &  4.21 &  4.16 &  2.78 &  2.40 & 1.71 & 1.20 & 0.05 &  1.38 &  0.37 \\
+W2: Liberation $\to$ Phase 2 (m4--m6)& 16.67 & 14.27 & 11.40 & 10.79 &  8.35 &  7.90 & 2.40 & 2.88 & 0.61 &  2.43 &  0.45 \\
+W3: Phase 2 $\to$ Phase 2 Recip (m7) & 17.59 & 14.83 & 12.72 & 12.37 &  9.75 &  9.47 & 2.76 & 2.11 & 0.34 &  2.63 &  0.28 \\
+W4: P2 Recip $\to$ SCOTUS (m8--2026m1)& 18.50 & 15.79 & 13.48 & 12.69 & 10.23 & 10.95 & 2.71 & 2.30 & 0.79 &  2.46 & $-$0.72 \\
+\textbf{W5: Post-SCOTUS (2026m2)}    &\textbf{16.56}&\textbf{14.06}&\textbf{10.85}&\textbf{10.31}&\textbf{8.48}&\textbf{10.49}&\textbf{2.49}&\textbf{3.22}&\textbf{0.54}&\textbf{1.83}&\textbf{$-$2.01}\\
 \bottomrule
 \end{tabular}
 
 \vspace{0.6em}
 
-\small Notable: in W5, \texttt{gap\_residual} flips negative ($-$0.18 pp) -- Treasury collected slightly \emph{more} than the cell-level reconstruction predicts. \hyperlink{appendix_signflip}{\beamergotobutton{Detail}}
+\small Notable: in W5, \texttt{gap\_residual} (S3$-$S4) stays positive while \texttt{gap\_timing} (S4$-$T) flips strongly negative ($-$2.01 pp) -- Treasury collected \emph{more} than Census-declared duties imply, suggesting catch-up payments and refund reversals. \hyperlink{appendix_signflip}{\beamergotobutton{Detail}}
 
 \end{frame}
 
 % ----------------------------------------------------------------------------
-\begin{frame}{A12. Feb 2026 residual sign-flip}
+\begin{frame}{A12. Feb 2026 timing sign-flip}
 \hypertarget{appendix_signflip}{}
 
 \small
 
-\textbf{Observation.} For most of 2025, Treasury collected \emph{less} than the cell-level statutory reconstruction predicted (positive \texttt{gap\_residual}). In February 2026 the sign flips.
+\textbf{Observation.} The S3$-$T gap (which combines \emph{residual} S3$-$S4 and \emph{timing} S4$-$T) flipped negative in Feb 2026. Splitting the two channels: the residual stays positive throughout, but the timing channel flipped strongly negative starting in mid-2025 and accelerates through 2026.
 
 \begin{center}
-\begin{tabular}{l r r r}
+\begin{tabular}{l r r r r r}
 \toprule
-Month & S3 (\%) & T (\%) & gap (pp) \\
+Month & S3 (\%) & S4 (\%) & T (\%) & res.\ (pp) & tim.\ (pp) \\
 \midrule
-2025m4  & 10.28 & 5.66  & $+4.61$ \\
-2025m9  & 12.78 & 10.73 & $+2.05$ \\
-2025m12 & 12.07 & 9.88  & $+2.19$ \\
-\textbf{2026m2}  & \textbf{10.31} & \textbf{10.49} & $\mathbf{-0.18}$ \\
+2025m4  & 10.28 &  7.07 &  5.66 & $+3.20$ & $+1.41$ \\
+2025m9  & 12.78 & 10.65 & 10.73 & $+2.13$ & $-0.08$ \\
+2025m11 & 12.47 &  9.99 & 11.79 & $+2.48$ & $-1.80$ \\
+2025m12 & 12.07 &  9.42 &  9.88 & $+2.66$ & $-0.47$ \\
+\textbf{2026m2}  & \textbf{10.31} & \textbf{8.48} & \textbf{10.49} & \textbf{$+1.83$} & \textbf{$-2.01$} \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\textbf{Interpretation.} Consistent with Eck et al.'s prediction that frictional gaps compress as frontloading depletes and shipping-timing lags resolve. Suggests the headline gap (S1$-$T) trajectory in 2026 will be dominated by structural channels (trade diversion + other prefs), not by timing.
+\textbf{Interpretation.} Census-declared duties (S4) keep \emph{below} the cell-level statutory reconstruction (S3) -- that is the structural ``residual'' from specific-duty AVE failures, AD/CVD, and within-cell behavioral noise. But Treasury cash receipts (T) now \emph{exceed} Census-declared duties by a widening margin. Cumulatively (Feb 2025--Feb 2026), Treasury has collected \alert{\$10.5B more} than IMDB shows declared. Plausible drivers: ACH lag catch-up, post-entry adjustments, refund reversals, and FTZ deferrals being paid down.
 
 \end{frame}
 
