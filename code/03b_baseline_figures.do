@@ -127,14 +127,17 @@ foreach v in titled clean {
             lpattern(solid)) ///
         , ///
         legend(order( ///
-            1 "Statutory ETR (2024 wts, tracker production)" ///
+            1 "Statutory ETR (TBL estimate)" ///
             2 "Actual ETR (Treasury)") ///
-            rows(2) size(small) position(6)) ///
+            rows(1) size(small) position(6)) ///
         ytitle("Effective Tariff Rate (%)") ///
         xtitle("") ///
         `opt_title' ///
-        xlabel(`=ym(2025,1)' `=ym(2025,4)' `=ym(2025,7)' `=ym(2025,10)' ///
-               `=ym(2026,1)' `=ym(2026,2)', format(%tmMon_CCYY) angle(45)) ///
+        xlabel(`=ym(2025,1)' `=ym(2025,2)' `=ym(2025,3)' `=ym(2025,4)' ///
+               `=ym(2025,5)' `=ym(2025,6)' `=ym(2025,7)' `=ym(2025,8)' ///
+               `=ym(2025,9)' `=ym(2025,10)' `=ym(2025,11)' `=ym(2025,12)' ///
+               `=ym(2026,1)' `=ym(2026,2)', ///
+               format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
         ylabel(, format(%9.0f)) ///
         yscale(range(0)) ///
         graphregion(color(white)) ///
@@ -502,10 +505,10 @@ foreach v in titled clean {
             note("") ///
             graphregion(color(white))) ///
         legend(order( ///
-            1 "USMCA 2024 baseline (S0 panel)" ///
-            2 "USMCA monthly empirical" ///
-            3 "USMCA H2-2025 baseline (S1/S2 panel)") ///
-            rows(3) size(small) position(6)) ///
+            1 "USMCA (2024) (S0)" ///
+            2 "USMCA monthly" ///
+            3 "USMCA post-July 2025 (S1+)") ///
+            rows(1) size(small) position(6)) ///
         ytitle("Statutory ETR (%)") xtitle("") ///
         xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
         ylabel(, labsize(vsmall))

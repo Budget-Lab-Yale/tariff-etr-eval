@@ -388,7 +388,7 @@ Three groups of non-USMCA preferences (importer-declared in IMDB):
 \centering
 \includegraphics[width=0.85\linewidth]{figure_s2s4_facets_country.png}
 
-\hyperlink{appendix_heatmap}{\beamergotobutton{Cumulative \$ Census vs.\ Treasury}}
+\hyperlink{appendix_heatmap}{\beamergotobutton{Heatmap: where the gap concentrates}}
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -750,28 +750,15 @@ Our framework's contribution: separates the (large) USMCA piece, isolates non-US
 \end{frame}
 
 % ----------------------------------------------------------------------------
-\begin{frame}{A10. Cumulative Census-vs-Treasury duty gap (\$)}
+\begin{frame}{A10. Heatmap: where the gap concentrates}
 \hypertarget{appendix_heatmap}{}
 
-\begin{columns}[T]
-\begin{column}{0.62\textwidth}
 \centering
-\includegraphics[width=\linewidth]{figure_cumulative_duty_gap.png}
-\end{column}
-\begin{column}{0.38\textwidth}
-\small
-Dollar-level analogue of \texttt{gap\_timing} (S4$\to$T). Census IMDB monthly customs duties vs Treasury MTS/DTS, cumulated from Feb 2025.
+\includegraphics[width=0.7\linewidth]{figure_s2s4_heatmap.png}
 
-\medskip
+\vspace{0.5em}
 
-\textbf{Through Feb 2026:} Treasury has cumulatively over-collected by \alert{\$10.5B} relative to IMDB-declared duties, with the gap widening sharply over the past four months.
-
-\medskip
-
-Strongly suggestive of catch-up payments, post-entry adjustments, and FTZ-deferred duties being paid down -- not measurement noise.
-\end{column}
-\end{columns}
-
+\small Period-averaged $S2 - S4$ gap (pp) on the 9 (product) $\times$ 8 (partner) grid. Diverging palette around zero; high-magnitude cells flag where to drill down.
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -821,7 +808,36 @@ Month & S3 (\%) & S4 (\%) & T (\%) & res.\ (pp) & tim.\ (pp) \\
 \end{tabular}
 \end{center}
 
-\textbf{Interpretation.} Census-declared duties (S4) keep \emph{below} the cell-level statutory reconstruction (S3) -- that is the structural ``residual'' from specific-duty AVE failures, AD/CVD, and within-cell behavioral noise. But Treasury cash receipts (T) now \emph{exceed} Census-declared duties by a widening margin. Cumulatively (Feb 2025--Feb 2026), Treasury has collected \alert{\$10.5B more} than IMDB shows declared. Plausible drivers: ACH lag catch-up, post-entry adjustments, refund reversals, and FTZ deferrals being paid down.
+\textbf{Interpretation.} Census-declared duties (S4) keep \emph{below} the cell-level statutory reconstruction (S3) -- that is the structural ``residual'' from specific-duty AVE failures, AD/CVD, and within-cell behavioral noise. But Treasury cash receipts (T) now \emph{exceed} Census-declared duties by a widening margin. Cumulatively (Feb 2025--Feb 2026), Treasury has collected \alert{\$10.5B more} than IMDB shows declared (\hyperlink{appendix_cumduty}{cumulative \$ figure}). Plausible drivers: ACH lag catch-up, post-entry adjustments, refund reversals, and FTZ deferrals being paid down.
+
+\end{frame}
+
+% ----------------------------------------------------------------------------
+\begin{frame}{A13. Cumulative Census-vs-Treasury duty gap (\$)}
+\hypertarget{appendix_cumduty}{}
+
+\begin{columns}[T]
+\begin{column}{0.62\textwidth}
+\centering
+\includegraphics[width=\linewidth]{figure_cumulative_duty_gap.png}
+\end{column}
+\begin{column}{0.38\textwidth}
+\small
+Dollar-level analogue of \texttt{gap\_timing} (S4$\to$T). Census IMDB monthly customs duties vs Treasury MTS/DTS, cumulated from Feb 2025.
+
+\medskip
+
+\textbf{Through Feb 2026:} Treasury has cumulatively over-collected by \alert{\$10.5B} relative to IMDB-declared duties, with the gap widening sharply since November 2025.
+
+\medskip
+
+Strongly suggestive of catch-up payments, post-entry adjustments, and FTZ-deferred duties being paid down -- not measurement noise.
+
+\medskip
+
+Source: \texttt{code/07\_cumulative\_duty\_gap.do} (standalone, not in the orchestrator).
+\end{column}
+\end{columns}
 
 \end{frame}
 

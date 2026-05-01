@@ -1473,7 +1473,7 @@ preserve
                 1 "S2: Statutory (USMCA H2-2025)" ///
                 2 "S4: Census (cal. duty / cons. value)" ///
                 3 "T: Treasury actual") ///
-                rows(3) size(small) position(6)) ///
+                rows(1) size(small) position(6)) ///
             ytitle("Effective Tariff Rate (%)") ///
             xtitle("") ///
             `opt_title' ///
