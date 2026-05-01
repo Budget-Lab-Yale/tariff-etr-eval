@@ -21,7 +21,7 @@
   - Document the gap (S1 = 15.07% Dec 2025, 14.06% Feb 2026; T = 9.88% / 10.49%; framework gap S1−T = 5.19 pp / 3.57 pp)
   - Five-channel decomposition: USMCA adjustment, trade diversion, all-other preferences, residual, timing
   - S1 (post-USMCA-stabilization) as the analytic anchor — aligns with paper's headline figure by construction
-  - Reproduce Eck, Hoang, Mix, Ray (2026) Dec-2025 numbers within 0.5 pp via independent methodology (S1 = 15.07 vs 14.7; T = 9.88 vs 9.27 implied; total gap = 5.19 vs 5.43)
+  - Reproduce Eck, Hoang, Mix, Ray (2026) Dec-2025 numbers within ~0.6 pp via independent methodology (S1 = 15.07 vs 14.7; T = 9.88 vs 9.27 implied; total gap = 5.19 vs 5.43)
   - Per-country, per-product attribution at every channel except S4→T; period-mean diversion contributions reveal China carries 90%+ of the trade-diversion gap; Steel/Aluminum, Autos, and Other Manufactured dominate the product-side decomposition
 - Keywords: tariffs, trade policy, effective tariff rate, USMCA, Section 232, Section 301, Section 122, IEEPA
 - JEL: F1, F3
@@ -40,7 +40,7 @@
   - Direct, transparent reconstruction of statutory rates from the HTS + Chapter 99 authorities (via the `tariff-rate-tracker` pipeline) using day-weighted monthly panels — captures mid-month policy events (e.g. Liberation Day, April 2 2025) that revision-snapshot lookups miss.
   - Shapley two-way decomposition of trade diversion at every partition (country, product), so the same numbers are decomposable along orthogonal cuts. Sums match the ladder identity within numerical noise.
   - Per-country and per-product attribution at four channels (USMCA adjustment, diversion, other preferences, residual). Treasury timing remains aggregate-only, by construction.
-  - Cross-validation: our independent methodology reproduces Eck et al. (2026) FEDS Notes "Mind the Gap" December-2025 numbers within 0.5 pp on every comparable quantity, despite different decomposition mechanics (Laspeyres-style vs. Shapley two-way).
+  - Cross-validation: our independent methodology reproduces Eck et al. (2026) FEDS Notes "Mind the Gap" December-2025 numbers within ~0.6 pp on every comparable quantity, despite different decomposition mechanics (Laspeyres-style vs. Shapley two-way).
 - **Roadmap paragraph**.
 
 ---
@@ -119,7 +119,7 @@
 
 - Existing work decomposes piecewise: each paper opens one or two channels.
 - Our framework provides a **single unified ladder** that covers all of: USMCA claim-rate evolution, cross-country composition, within-country product mix, non-USMCA exemptions, residual collection gaps, and Treasury timing.
-- Cross-validation against Eck et al. (2026) at Dec 2025 (within 0.5 pp on S1, T, total gap, and channel split) provides independent check on the methodology.
+- Cross-validation against Eck et al. (2026) at Dec 2025 (within ~0.6 pp on S1, T, total gap, and channel split) provides independent check on the methodology.
 
 ---
 
@@ -286,7 +286,7 @@ $$\text{contribution}_g = \frac{\sum_{i \in g}(r^{\text{left}}_i - r^{\text{righ
 | Composition channel | 2.22 pp (gap_diversion) | within their "composition" range | within methodology variance |
 | Rate-discrepancy channel | 2.97 pp (others + residual) | within their "rate discrepancies" range | within methodology variance |
 
-Cross-validation: independent methodology, same numbers within 0.5 pp on every comparable quantity at December 2025.
+Cross-validation: independent methodology, same numbers within ~0.6 pp on every comparable quantity at December 2025.
 
 **Series-wide consistency** (full month-by-month panel, S1 vs T):
 
@@ -308,8 +308,8 @@ Cross-validation: independent methodology, same numbers within 0.5 pp on every c
 | 2026m2 | 14.06 | 10.49 | 3.57 |
 
 Spot-checks against other tracking series:
-- **PWBM** (Jan 2026): 10.3% effective rate; our T = 10.65% (Δ = +0.35 pp) ✓
-- **Yale Budget Lab** (Aug 2025): ~11.5% actual / 15.7–18.2% statutory range; our T = 11.22% / S1 = 16.46% ✓ (within range)
+- **PWBM** (Jan 2026): 10.3% effective rate; our T = 10.65% (Δ = +0.35 pp) -- matches
+- **Yale Budget Lab** (Aug 2025): ~11.5% actual / 15.7–18.2% statutory range; our T = 11.22% / S1 = 16.46% -- within range
 - **Gopinath & Neiman** (Sept 2025): 27% statutory cited; our S0 = 19.57%, S1 = 16.83%. Their 27% is higher because it appears to be a pre-substitution / pre-USMCA-stabilization upper bound. Our T = 10.73% matches their realized (10–11%).
 
 ---
@@ -326,7 +326,7 @@ Spot-checks against other tracking series:
 
 ## 7. Headline gap (figs 1–3)
 
-### 7.1 The puzzle (Fig 1: figure_baseline_etr)
+### 7.1 The puzzle (Fig 1: figure_baseline)
 
 - Two-line monthly time series: S1 (statutory at H2-2025 USMCA × 2024 weights) and T (Treasury actual).
 - Headline numbers (most recent month, Feb 2026): **S1 = 14.06%**, **T = 10.49%**, **gap = 3.57 pp**.
@@ -335,13 +335,13 @@ Spot-checks against other tracking series:
 - Policy event markers: Liberation Day (Apr 2 2025), Phase 2 (Aug 7 2025), SCOTUS / Phase 3 (Feb 24 2026).
 - Per-month gap (S1 − T) ranges 3.4–8.8 pp; average ~4.95 pp over the analysis window.
 
-### 7.2 The full ladder (Fig 2: figure1_etr_comparison)
+### 7.2 The full ladder (Fig 2: figure_ladder)
 
 - Five lines: S0 (gray dashed; backstory), S1 (navy solid; framework anchor), S2, S3, T.
 - S0 → S1 step is the USMCA adjustment; visible as a constant or near-constant offset because both use 2024 weights.
-- S1 line equals figure_baseline_etr's statutory line by construction.
+- S1 line equals figure_baseline's statutory line by construction.
 
-### 7.3 Channel decomposition (Fig 3 / figure3_usmca_decomp)
+### 7.3 Channel decomposition (Fig 3 / figure_channel_stacked)
 
 - Stacked monthly bars: trade diversion + all-other preferences + residual+timing.
 - Gap_total = gap_adjustment + gap_diversion + gap_others + gap_residual + gap_timing — additive identity.
@@ -351,7 +351,7 @@ Spot-checks against other tracking series:
 
 ## 8. USMCA adjustment (S0 → S1) — backstory
 
-### 8.1 Visualizing the claim-rate evolution (Fig U1: figure_u1_usmca_adjustment)
+### 8.1 Visualizing the claim-rate evolution (Fig U1: figure_adjustment_explainer)
 
 - Two-panel facet (CA, MX), three lines per panel:
   - 2024 USMCA baseline (purple, dashed): the rate the schedule would have produced if claim rates stayed at 2024 levels.
@@ -359,7 +359,7 @@ Spot-checks against other tracking series:
   - H2-2025 USMCA baseline (navy, dashed): the rate the schedule produces at H2-2025 average claim shares.
 - Empirical line transitions from near the 2024 baseline (early 2025) toward the H2-2025 baseline (post-July 2025) — the July 2025 USITC reporting-change inflection is visible.
 
-### 8.2 Per-country attribution (Fig U2: figure_u2_adjustment_by_country)
+### 8.2 Per-country attribution (Fig U2: figure_adjustment_country)
 
 - Period-averaged S0 − S1 gap per partner group (horizontal bar chart, sorted).
 - CA and MX dominate; everyone else is essentially zero (USMCA only applies to those two).
@@ -373,13 +373,13 @@ Spot-checks against other tracking series:
 
 ## 9. Trade diversion (S1 → S2) — main analysis
 
-### 9.1 Aggregate decomposition (Fig D1: figure_d1_diversion_decomp)
+### 9.1 Aggregate decomposition (Fig D1: figure_diversion_decomp)
 
 - Stacked monthly bar: between-country (share shifts) + within-country (product mix inside each country) = total S1 − S2.
 - Between+within sum to total by Shapley construction; the bars visually demonstrate the additive identity.
 - Sign-bearing: between-country can flip negative ("reverse diversion" for CA/MX whose imports concentrate in inelastic high-tariff categories).
 
-### 9.2 Country lens (Fig D2: figure_d2_diversion_by_country)
+### 9.2 Country lens (Fig D2: figure_diversion_country)
 
 - Stacked monthly contributions per partner group.
 - **Period-mean contributions to S1−S2 (pp; from `diversion_by_country_avg.csv`)**:
@@ -394,7 +394,7 @@ Spot-checks against other tracking series:
 - China alone accounts for 90%+ of the between-country trade-diversion effect. The headline "trade diversion" story is overwhelmingly a China-share-dropped story.
 - ROW's negative bar is the mirror image: trade reallocated *to* ROW (Vietnam, India, etc.).
 
-### 9.3 Product lens (Fig D3: figure_d3_diversion_by_product)
+### 9.3 Product lens (Fig D3: figure_diversion_product)
 
 - 9-group taxonomy aligned with policy salience: S232 metals, autos, electronics, pharma, energy, chemicals, apparel, food, other.
 - **Period-mean contributions to S1−S2 (pp; from `diversion_by_product_avg.csv`)**:
@@ -433,8 +433,9 @@ Spot-checks against other tracking series:
 
 ### 10.2 Per-group attribution (Figs O2, O3)
 
-- O2 (`figure_o2_others_by_country.png`): stacked bar of per-country contributions to gap_others.
-- O3 (`figure_o3_others_by_product.png`): stacked bar of per-product contributions.
+- O1 (`figure_others_channel_stack.png`): stacked monthly bar showing how the 7 preference channels (Annex II / ITA / Ch98, KORUS, other FTAs, GSP/AGOA, etc.) sum to gap_others.
+- O2 (`figure_others_country.png`): stacked bar of per-country contributions to gap_others.
+- O3 (`figure_others_product.png`): stacked bar of per-product contributions.
 - Sums to gap_others = S2 − S3 by construction.
 
 ### 10.3 Discussion
@@ -444,18 +445,24 @@ Spot-checks against other tracking series:
 
 ---
 
-## 11. Residual + timing (S3 → S4 → T)
+## 11. Residual and timing (S3 → S4 → T)
 
-### 11.1 Per-group residual (Figs R2, R3)
+The 6-tier ladder splits the old "residual+timing" block into two empirically distinct phenomena heading in opposite directions: a structural and persistent residual (S3→S4), and a cyclical, recently-reversed timing channel (S4→T).
 
-- R2 (`figure_r2_residual_by_country.png`), R3 (`figure_r3_residual_by_product.png`): per-group contributions to S3 − S4.
-- Sums to gap_residual.
+### 11.1 The residual (S3 → S4): structural and persistent
+
+- Magnitude: ~1.4–2.6 pp window-mean across W1–W5 (Pre-Liberation through Post-SCOTUS); does **not** converge.
+- Per-group: R2 (`figure_residual_country.png`), R3 (`figure_residual_product.png`) decompose gap_residual.
 - What's in the residual: specific-duty AVE failures, AD/CVD, tracker error not yet corrected, behavioral noise within HS10 × cty cells.
+- Census-declared duties (S4) keep undershooting the cell-level statutory reconstruction (S3) regardless of which policy regime is in force. This is a measurement and behavioral phenomenon, not a transient.
 
-### 11.2 Timing (S4 → T)
+### 11.2 Timing (S4 → T): cyclical, now reversed
 
-- Treasury vs Census aggregation gap. Post-entry adjustments, FTZ deferrals, ACH-deferred payments, refunds, cash-vs-accrual.
+- Magnitude trajectory: +0.37 (W1) → +0.45 (W2) → +0.28 (W3) → −0.72 (W4) → **−2.01 (W5, Post-SCOTUS Feb 2026)**.
+- Treasury cash receipts (T) now *exceed* Census-declared duties (S4) by a widening margin. Cumulatively (Feb 2025 – Feb 2026), Treasury has over-collected by **~$10.5B** vs IMDB.
+- Visualization: `figure_cumulative_duty_gap.png` (built by standalone `code/07_cumulative_duty_gap.do`).
 - Aggregate-only — no Treasury microdata available for partner or product breakout.
+- Plausible drivers: ACH lag catch-up, post-entry adjustments, refund reversals, FTZ deferrals being paid down. Consistent with Eck et al. (2026)'s prediction that frictional gaps compress as front-loading depletes — but the empirical *sign* of the catch-up is opposite to the naive read (under-collection compressing toward zero); instead, Treasury has overshot.
 
 ### 11.3 Tracker miss / over diagnostics
 
@@ -467,7 +474,7 @@ Spot-checks against other tracking series:
 
 ## 12. Where the gap concentrates
 
-### 12.1 Product × country heatmap (Fig P3: figure_p3_product_partner_heatmap)
+### 12.1 Product × country heatmap (Fig P3: figure_s2s4_heatmap)
 
 - Period-averaged S2 − S4 gap on the 9 (product) × 8 (partner) grid.
 - Identifies high-magnitude cells: e.g. China × Electronics (Annex II), CA/MX × Autos (USMCA + S232 derivatives), EU × Pharma (generic exemption).
@@ -475,8 +482,8 @@ Spot-checks against other tracking series:
 
 ### 12.2 4-panel attribution facets (Figs F2, F3)
 
-- F2 (`figure_f2_attribution_by_country.png`): four panels (USMCA adjustment, trade diversion, other preferences, residual), each a stacked-bar by partner_group × month. Same y-axis across panels (`ycommon`) for magnitude comparability. Treasury timing channel not shown (aggregate-only).
-- F3 (`figure_f3_attribution_by_product.png`): same structure with product_group.
+- F2 (`figure_attribution_country.png`): four panels (USMCA adjustment, trade diversion, other preferences, residual), each a stacked-bar by partner_group × month. Same y-axis across panels (`ycommon`) for magnitude comparability. Treasury timing channel not shown (aggregate-only).
+- F3 (`figure_attribution_product.png`): same structure with product_group.
 - Reading the figures: which channel × group cells are loud over the analysis window.
 
 ### 12.3 Underlying tables (paper appendix)
@@ -491,14 +498,14 @@ Spot-checks against other tracking series:
 ### 13.1 What this paper establishes
 
 - The gap is large, growing, and faster-arriving than 2018–2019 [Eck et al., 2026]. Post-USMCA-stabilization (S1−T): **5.19 pp December 2025, 3.57 pp February 2026**. Full ladder gap (S0−T) including USMCA backstory: **7.84 pp December 2025, 6.07 pp February 2026**.
-- USMCA claim-rate normalization (S0→S1) averages **~2.6 pp** across our window; absorbing it upfront lets the policy-relevant signals (S1→T) come through cleanly. The reporting-pattern shift in July 2025 is visible directly in the data.
-- The trade-diversion channel (S1→S2) averages **~2.4 pp**; **China alone carries 90%+ of the between-country effect** (period mean +2.13 pp out of +2.13 total positive between-country contributions).
+- USMCA claim-rate normalization (S0→S1) averages **2.42 pp** across our window; absorbing it upfront lets the policy-relevant signals (S1→T) come through cleanly. The reporting-pattern shift in July 2025 is visible directly in the data.
+- The trade-diversion channel (S1→S2) averages **2.24 pp**; **China alone carries ~90% of the positive between-country contribution** (period mean +2.07 pp from China vs +2.27 pp total positive between-country across all groups; ROW contributes −0.77 pp between as low-tariff partners gain share).
 - The product-side decomposition (Fig D3) reveals a two-story pattern: high-tariff goods (Steel, Autos) lose share via the *between* term; medium-tariff catchalls (Other Manufactured, Electronics) gain share but shift their internal mix to lower-tariff variants via the *within* term.
 - Composition shifts began *immediately* in 2025, contradicting the slow-substitution view from 2018–2019 [Cavallo et al., 2021; Eck et al., 2026]. By April 2025 the trade-diversion channel was already +3.13 pp.
 - The other-preferences channel (S2→S3) is small in magnitude (~**0.5–0.9 pp** late-period) but policy-salient: Annex II / ITA / Ch98 carve-outs reduce both MFN base *and* IEEPA reciprocal, while KORUS / GSP / other FTAs reduce MFN only.
-- The residual+timing channel (S3→T) **flipped sign** in February 2026 (T = 10.49% > S3 = 10.31%, gap_residual = −0.18 pp) — Treasury collected slightly *more* than the cell-level reconstruction predicts, consistent with timing/lag effects unwinding.
+- The 6-tier ladder bifurcates what older frameworks bundled as "residual+timing": (i) **gap_residual (S3→S4) stays positive throughout** at ~1.4–2.6 pp — a structural, non-converging gap from specific-duty AVE failures, AD/CVD, and within-cell behavioral noise; (ii) **gap_timing (S4→T) flipped strongly negative** in mid-2025 and accelerated, hitting **−2.01 pp in February 2026** — Treasury cash receipts now *exceed* Census-declared duties. Cumulatively (Feb 2025–Feb 2026) Treasury has over-collected by **~$10.5B** vs IMDB; the gap widens monotonically since November 2025. Plausible drivers: ACH lag catch-up, post-entry adjustments, refund reversals, FTZ deferrals being paid down.
 - Per-product/per-country attribution shows the gap is concentrated, not pervasive: most of the dollar volume sits in a handful of (product × country) cells.
-- **Cross-validation against Eck et al. (2026)**: independent methodology reproduces their December 2025 numbers within 0.5 pp on every comparable quantity (S1: 15.07 vs 14.7; T: 9.88 vs 9.27 implied; total gap: 5.19 vs 5.43 pp).
+- **Cross-validation against Eck et al. (2026)**: independent methodology reproduces their December 2025 numbers within ~0.6 pp on every comparable quantity (S1: 15.07 vs 14.7, Δ=+0.37 pp; T: 9.88 vs 9.27 implied, Δ=+0.61 pp; total gap: 5.19 vs 5.43, Δ=−0.24 pp). Convergence in independent methodologies validates the framework anchor.
 
 ### 13.2 What this paper does not establish
 
@@ -509,7 +516,7 @@ Spot-checks against other tracking series:
 
 ### 13.3 Investigation paths
 
-- **Convergence dynamics**: Eck et al. predict the gap compresses if tariffs persist (frontloading depletes; shipping lags resolve). Our monthly day-weighted panel can test this directly: does gap_residual shrink month-over-month conditional on stable rate panels?
+- **Convergence dynamics, bifurcated**: Eck et al. predict the gap compresses as front-loading depletes and shipping lags resolve. Our 6-tier ladder splits "convergence" into two tests: (i) the structural residual (S3→S4) shows *no* sign of compressing — Census-declared duties persistently undershoot the cell-level reconstruction by ~1.4–2.6 pp regardless of regime; (ii) the timing channel (S4→T) is converging *and overshooting* — Treasury cash receipts have moved from below to above Census-declared, with cumulative over-collection reaching ~$10.5B by Feb 2026. The Eck prediction is half right: timing resolves, but residual is structural.
 - **Annex II quantification**: the largest single chunk of gap_others sits in the IEEPA carve-out term. Decomposing further by HS2 chapter inside Electronics × Pharma × Energy would attribute the carve-out story across product classes.
 - **Tracker error itemization**: the two diagnostic files (`05a`, `05b`) export operator-handoff CSVs identifying specific HTS codes where Census duties exceed (or fall short of) tracker rates. These bound how much of the residual is measurement vs behavior.
 - **Welfare framing**: pair our duty-collection ETR series with Waugh's TRI. Estimating dispersion and the welfare-equivalent uniform rate is mechanical from the per-cell rates we already produce.
@@ -519,7 +526,7 @@ Spot-checks against other tracking series:
 ### 13.4 Live policy questions the paper can inform
 
 - **Fiscal forecasting**: how much revenue should be expected from announced tariffs? Our channel decomposition implies a 30–45% haircut in 2025; the per-channel evolution suggests partial convergence over time.
-- **Will the gap close as frictions resolve?** Eck et al. say partly; we can test directly with our four-tier panel by tracking gap_residual month-over-month.
+- **Will the gap close as frictions resolve?** Eck et al. say partly; our panel splits the answer: the *timing* channel has already resolved and overshot (cumulative over-collection reached ~$10.5B by Feb 2026), while the *structural residual* shows no sign of compressing.
 - **What would full enforcement / no exemptions imply?** The `usmca_none` ladder provides an upper-bound number; a similar `pref_none` panel (zero non-USMCA preferences) is mechanical to construct.
 
 ---
