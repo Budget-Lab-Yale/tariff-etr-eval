@@ -78,6 +78,7 @@
 % Slide 2: The puzzle
 % ----------------------------------------------------------------------------
 \begin{frame}{The puzzle}
+\hypertarget{slide_puzzle}{}
 \centering
 \includegraphics[width=0.85\linewidth]{figure_baseline.png}
 
@@ -89,6 +90,7 @@
 % Slide 3: Literature
 % ----------------------------------------------------------------------------
 \begin{frame}{What the literature has established}
+\hypertarget{slide_literature}{}
 
 \small
 
@@ -114,6 +116,7 @@
 % Slide 5: Our approach (text framing)
 % ----------------------------------------------------------------------------
 \begin{frame}{The complete decomposition: four channels}
+\hypertarget{slide_decomp_text}{}
 
 \small
 
@@ -139,6 +142,7 @@
 % Slide 6: Formal Model
 % ----------------------------------------------------------------------------
 \begin{frame}{Formal Model}
+\hypertarget{slide_formal_model}{}
 
 \small
 
@@ -228,6 +232,7 @@ Tier & Rate $\tau^{k}_{pc}$        & Weight $w^{k}_{pc}$ \\
 % Slide 10: Between/within math (Shapley two-way derivation, intro)
 % ----------------------------------------------------------------------------
 \begin{frame}{Decomposing trade diversion: between- and within-group}
+\hypertarget{slide_shapley_intro}{}
 
 \small
 
@@ -323,6 +328,7 @@ Each facet panel below shows two lines per group; the visible spread is that gro
 % Slide 16: S1 -> S2 by product (Shapley)
 % ----------------------------------------------------------------------------
 \begin{frame}{S1 $\to$ S2: trade diversion, by product (Shapley)}
+\hypertarget{slide_diversion_product}{}
 \centering
 \includegraphics[width=0.85\linewidth]{figure_diversion_product.png}
 
@@ -388,6 +394,7 @@ Each facet panel below shows two lines per group; the visible spread is that gro
 % Slide 19: S2 -> S4 by country (Avg ETR) [shown before Shapley]
 % ----------------------------------------------------------------------------
 \begin{frame}{S2 $\to$ S4: residual gap, by country (Avg ETR)}
+\hypertarget{slide_s2s4_country_avg}{}
 \centering
 \includegraphics[width=0.85\linewidth]{figure_s2s4_facets_country.png}
 
@@ -422,6 +429,7 @@ Each facet panel below shows two lines per group; the visible spread is that gro
 % Slide 22: All four channels at once (synthesis closer)
 % ----------------------------------------------------------------------------
 \begin{frame}{All four decomposable channels at once}
+\hypertarget{slide_attribution_country}{}
 \centering
 \includegraphics[width=0.85\linewidth]{figure_attribution_country.png}
 
@@ -518,6 +526,9 @@ Validation: across both lenses (country, product) and across all months, the per
 
 Sign convention: positive contribution = positive contribution to $S^{\text{2024 wts}} - S^{\text{monthly wts}}$ at the fixed rate panel.
 
+\vfill
+\hyperlink{slide_shapley_intro}{\beamerreturnbutton{Back to Shapley intro}}
+
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -539,6 +550,9 @@ Per (HS10 $\times$ country) cell, the tariff-rate-tracker (\texttt{src/06\_calcu
 \medskip
 
 Per-revision rates are then \alert{day-weighted across revisions within each month} in R section 3e to produce HS10 $\times$ country $\times$ month panels (one per USMCA scenario), so mid-month policy changes (e.g., Liberation Day on April 2, 2025) are correctly captured.
+
+\vfill
+\hyperlink{slide_formal_model}{\beamerreturnbutton{Back to Formal Model}}
 
 \end{frame}
 
@@ -650,6 +664,10 @@ Independent methodologies converge.
 \end{column}
 \end{columns}
 
+\vfill
+\hyperlink{slide_puzzle}{\beamerreturnbutton{Back to puzzle}}\hfill
+\hyperlink{slide_literature}{\beamerreturnbutton{Back to literature}}
+
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -678,6 +696,9 @@ Same construction as the country facet (main deck), with the 9-group product par
 \end{column}
 \end{columns}
 
+\vfill
+\hyperlink{slide_attribution_country}{\beamerreturnbutton{Back to all-channels country view}}
+
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -704,7 +725,10 @@ Other Manufactured        & 41--49, 68--71, 86, 88--97 & Catch-all \\
 
 \vspace{0.6em}
 
-Defined in \texttt{code/utils/product\_groups.csv}; merged onto \texttt{merged\_analysis.dta} in Step 1. Used by both the trade-diversion product Shapley (Fig D3) and the gap visualization (Figs P1--P3).
+Defined in \texttt{resources/product\_groups.csv}; merged onto \texttt{merged\_analysis.dta} in Step 1. Used by both the trade-diversion product Shapley (Fig D3) and the gap visualization (Figs P1--P3).
+
+\vfill
+\hyperlink{slide_diversion_product}{\beamerreturnbutton{Back to product Shapley}}
 
 \end{frame}
 
@@ -758,6 +782,9 @@ Our framework's contribution: separates the (large) USMCA piece, isolates non-US
 \vspace{0.5em}
 
 \small Period-averaged $S2 - S4$ gap (pp) on the 9 (product) $\times$ 8 (partner) grid. Diverging palette around zero; high-magnitude cells flag where to drill down.
+
+\vfill
+\hyperlink{slide_s2s4_country_avg}{\beamerreturnbutton{Back to S2$\to$S4 country (Avg)}}
 \end{frame}
 
 % ----------------------------------------------------------------------------
@@ -785,6 +812,9 @@ W4: Recip $\to$ SCOTUS (m8--26m1)& 18.50 & 15.79 & 13.48 & 12.69 & 10.23 & 10.95
 \vspace{0.6em}
 
 \small Notable: in W5, \texttt{gap\_residual} (S3$-$S4) stays positive while \texttt{gap\_timing} (S4$-$T) flips strongly negative ($-$2.01 pp) -- Treasury collected \emph{more} than Census-declared duties imply, suggesting catch-up payments and refund reversals. \hyperlink{appendix_signflip}{\beamergotobutton{Detail}}
+
+\vfill
+\hyperlink{slide_decomp_text}{\beamerreturnbutton{Back to decomposition}}
 
 \end{frame}
 

@@ -123,7 +123,7 @@ Both must be at the same directory level as this repo:
 - Path globals: `$dir`, `$code`, `$data`, `$raw`, `$working`, `$results`, `$figures`, `$tables`
 - Analysis window: `$start_ym` to `$end_ym` (Jan 2025 -- Feb 2026)
 - Partner groups: China, Canada, Mexico, EU, Japan, S. Korea, UK, ROW
-- Product groups (9, defined in `code/utils/product_groups.csv`, merged into `merged_analysis.dta` in 01): Steel & Aluminum, Autos & Auto Parts, Electronics & Machinery, Pharmaceuticals, Energy & Minerals, Chemicals & Plastics, Apparel & Textiles, Food & Agriculture, Other Manufactured
+- Product groups (9, defined in `resources/product_groups.csv`, merged into `merged_analysis.dta` in 01): Steel & Aluminum, Autos & Auto Parts, Electronics & Machinery, Pharmaceuticals, Energy & Minerals, Chemicals & Plastics, Apparel & Textiles, Food & Agriculture, Other Manufactured
 - Policy event dates: `$event_fentanyl`, `$event_liberation`, etc. (for figure reference lines)
 - Color palette: `$color_actual` (red), `$color_statutory` (navy), `$color_gap` (green); partner-specific colors `$color_china/canada/mexico/...`; product-specific colors `$color_steel/autos/elec/pharma/energy/chem/apparel/food/other`
 - Graph scheme: `plotplainblind` (colorblind-friendly)

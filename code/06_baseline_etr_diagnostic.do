@@ -288,8 +288,7 @@ foreach v in titled clean {
         graphregion(color(white)) ///
         plotregion(margin(small)) ///
         name(g_diagnostic, replace)
-    graph export "${figures}figure_diagnostic`sfx'.png", ///
-        replace width(2400)
+    export_fig figure_diagnostic`sfx'
 }
 
 

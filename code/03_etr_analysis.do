@@ -376,8 +376,7 @@ preserve
             graphregion(color(white)) plotregion(margin(small)) ///
             name(g_div_decomp, replace)
 
-        graph export "${figures}figure_diversion_decomp`sfx'.png", ///
-            replace width(2400)
+        export_fig figure_diversion_decomp`sfx'
     }
 restore
 
@@ -448,8 +447,7 @@ preserve
             graphregion(color(white)) ///
             name(g_div_country, replace)
 
-        graph export "${figures}figure_diversion_country`sfx'.png", ///
-            replace width(2400)
+        export_fig figure_diversion_country`sfx'
     }
 restore
 
@@ -524,8 +522,7 @@ preserve
             graphregion(color(white)) ///
             name(g_div_product, replace)
 
-        graph export "${figures}figure_diversion_product`sfx'.png", ///
-            replace width(2400)
+        export_fig figure_diversion_product`sfx'
     }
 restore
 
@@ -677,8 +674,7 @@ preserve
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_others_country, replace)
-        graph export "${figures}figure_others_country`sfx'.png", ///
-            replace width(2400)
+        export_fig figure_others_country`sfx'
     }
 restore
 
@@ -742,8 +738,7 @@ preserve
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_others_product, replace)
-        graph export "${figures}figure_others_product`sfx'.png", ///
-            replace width(2400)
+        export_fig figure_others_product`sfx'
     }
 restore
 
@@ -803,8 +798,7 @@ preserve
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_resid_country, replace)
-        graph export "${figures}figure_residual_country`sfx'.png", ///
-            replace width(2400)
+        export_fig figure_residual_country`sfx'
     }
 restore
 
@@ -868,8 +862,7 @@ preserve
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_resid_product, replace)
-        graph export "${figures}figure_residual_product`sfx'.png", ///
-            replace width(2400)
+        export_fig figure_residual_product`sfx'
     }
 restore
 
@@ -1098,8 +1091,7 @@ foreach v in titled clean {
         `opt_title' ///
         graphregion(color(white)) ///
         name(g_attr_country, replace)
-    graph export "${figures}figure_attribution_country`sfx'.png", ///
-        replace width(3000)
+    export_fig figure_attribution_country`sfx', width(3000)
 }
 
 * Drop named graphs to free memory before product loop.
@@ -1193,8 +1185,7 @@ foreach v in titled clean {
         `opt_title' ///
         graphregion(color(white)) ///
         name(g_attr_product, replace)
-    graph export "${figures}figure_attribution_product`sfx'.png", ///
-        replace width(3000)
+    export_fig figure_attribution_product`sfx', width(3000)
 }
 
 graph drop g_p_adjustment g_p_diversion g_p_others g_p_residual
@@ -1272,15 +1263,66 @@ foreach v in titled clean {
         ytitle("Effective Tariff Rate (%)") ///
         xtitle("") ///
         `opt_title' ///
-        xlabel(`=ym(2025,1)' `=ym(2025,4)' `=ym(2025,7)' `=ym(2025,10)' ///
-               `=ym(2026,1)' `=ym(2026,2)', format(%tmMon_CCYY) angle(45)) ///
+        xlabel(`=ym(2025,1)'(1)`=ym(2026,2)', ///
+               format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
         ylabel(, format(%9.0f)) ///
         yscale(range(0)) ///
         graphregion(color(white)) ///
         plotregion(margin(small)) ///
         name(g_ladder, replace)
-    graph export "${figures}figure_ladder`sfx'.png", ///
-        replace width(2400)
+    export_fig figure_ladder`sfx'
+}
+
+
+* --- Figure 1b: ETR line chart without S3 (S0, S1, S2, Treasury) ---
+* Same layout as figure_ladder but drops the S3 line and uses a 2-row legend.
+
+di as text _n "      Figure 1b: ETR comparison (no S3)"
+
+foreach v in titled clean {
+    if "`v'" == "titled" {
+        local opt_title `"title("Statutory vs. Actual Effective Tariff Rates") subtitle("Six-tier ladder excluding S3, Jan 2025 - Feb 2026")"'
+        local sfx "_titled"
+    }
+    else {
+        local opt_title ""
+        local sfx ""
+    }
+    twoway ///
+        (connected s0 ym, ///
+            mcolor("$color_gray") lcolor("$color_gray") ///
+            msymbol(circle) msize(vsmall) lwidth(medium) ///
+            lpattern(dash)) ///
+        (connected s1 ym, ///
+            mcolor("$color_statutory") lcolor("$color_statutory") ///
+            msymbol(diamond) msize(small) lwidth(thick) ///
+            lpattern(solid)) ///
+        (connected s2 ym, ///
+            mcolor("$color_canada") lcolor("$color_canada") ///
+            msymbol(square) msize(small) lwidth(medium) ///
+            lpattern(shortdash)) ///
+        (connected t ym, ///
+            mcolor("$color_actual") lcolor("$color_actual") ///
+            msymbol(triangle) msize(small) lwidth(medthick) ///
+            lpattern(solid)) ///
+        , ///
+        legend(order( ///
+            1 "S0 (USMCA 2024 baseline; backstory)" ///
+            2 "S1 (Post-July 2025 USMCA, 2024 wts; framework anchor)" ///
+            3 "S2 (Post-July 2025 USMCA, monthly wts)" ///
+            4 "T (Treasury actual)") ///
+            rows(2) size(small) position(6)) ///
+        ytitle("Effective Tariff Rate (%)") ///
+        xtitle("") ///
+        `opt_title' ///
+        xlabel(`=ym(2025,1)'(1)`=ym(2026,2)', ///
+               format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+        ylabel(, format(%9.0f)) ///
+        yscale(range(0)) ///
+        graphregion(color(white)) ///
+        plotregion(margin(small)) ///
+        name(g_ladder_no_s3, replace)
+    export_fig figure_ladder_no_s3`sfx'
 }
 
 
@@ -1316,8 +1358,7 @@ foreach v in titled clean {
         `opt_title' ///
         graphregion(color(white)) ///
         name(g_gap_stacked, replace)
-    graph export "${figures}figure_gap_stacked`sfx'.png", ///
-        replace width(2400)
+    export_fig figure_gap_stacked`sfx'
 }
 
 
@@ -1354,8 +1395,7 @@ foreach v in titled clean {
         `opt_title' ///
         graphregion(color(white)) ///
         name(g_channel_stacked, replace)
-    graph export "${figures}figure_channel_stacked`sfx'.png", ///
-        replace width(2400)
+    export_fig figure_channel_stacked`sfx'
 }
 
 
@@ -1372,18 +1412,17 @@ foreach v in titled clean {
 *   T  = Treasury actual ETR (revenue_monthly.dta)
 *
 * Three aggregation levels:
-*   (i)  Overall monthly                  -> Fig 4
-*   (ii) Partner group x month            -> Fig 5, Fig 6
-*   (iii) HS2 chapter x month (rankings)  -> Tbl 3a
+*   (i)   Overall monthly                  -> figure_s2s4_overall
+*   (ii)  Partner group x month            -> figure_s2s4_facets_country, figure_s2s4_gap_country
+*   (iii) Product group x month            -> figure_s2s4_facets_product, figure_s2s4_gap_product
+*   (iv)  Product x partner heatmap        -> figure_s2s4_heatmap
+*   (v)   HS2 chapter x month (rankings)   -> Tbl 3a
 *
 * Outputs:
-*   Fig 4  -- results/figures/figure4_cmp_overall.png
-*   Fig 5  -- results/figures/figure5_cmp_partner_facets.png
-*   Fig 6  -- results/figures/figure6_cmp_gap_by_partner.png
-*   Tbl 1  -- results/tables/cmp_overall_monthly.csv
-*   Tbl 2  -- results/tables/cmp_partner_monthly.csv
-*   Tbl 3a -- results/tables/cmp_hs2_ranking.csv
-*   Tbl 3b -- results/tables/cmp_top_hs10_anomalies.csv
+*   results/tables/cmp_overall_monthly.csv
+*   results/tables/cmp_partner_monthly.csv
+*   results/tables/cmp_hs2_ranking.csv
+*   results/tables/cmp_top_hs10_anomalies.csv
 
 di as text _n "  [D] S2 (statutory, Post-July 2025 USMCA) vs S4 (Census) vs T (Treasury)..."
 
@@ -1482,8 +1521,7 @@ preserve
             yscale(range(0)) ///
             graphregion(color(white)) plotregion(margin(small)) ///
             name(g_s2s4_overall, replace)
-        graph export "${figures}figure_s2s4_overall`sfx'.png", ///
-            replace width(2400)
+        export_fig figure_s2s4_overall`sfx'
     }
 restore
 
@@ -1568,8 +1606,7 @@ preserve
             ytitle("ETR (%)") xtitle("") ///
             xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
             ylabel(, labsize(vsmall))
-        graph export "$figures/figure_s2s4_facets_country`sfx'.png", ///
-            replace width(3000)
+        export_fig figure_s2s4_facets_country`sfx', width(3000)
     }
 
     ** --- Fig C: overall gap decomposed by partner group contribution ---
@@ -1631,8 +1668,7 @@ preserve
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_s2s4_gap_country, replace)
-        graph export "${figures}figure_s2s4_gap_country`sfx'.png", ///
-            replace width(2400)
+        export_fig figure_s2s4_gap_country`sfx'
     }
 restore
 
@@ -2010,8 +2046,7 @@ preserve
             ytitle("ETR (%)") xtitle("") ///
             xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
             ylabel(, labsize(vsmall))
-        graph export "$figures/figure_s2s4_facets_product`sfx'.png", ///
-            replace width(3000)
+        export_fig figure_s2s4_facets_product`sfx', width(3000)
     }
 
     ** --- Fig P2: gap contribution stacked by product group ---
@@ -2070,8 +2105,7 @@ preserve
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_s2s4_gap_product, replace)
-        graph export "${figures}figure_s2s4_gap_product`sfx'.png", ///
-            replace width(2400)
+        export_fig figure_s2s4_gap_product`sfx'
     }
 restore
 
@@ -2118,8 +2152,7 @@ preserve
                 title("`fig_t'") ///
                 subtitle("`fig_st'") ///
                 graphregion(color(white)) plotregion(margin(small))
-            graph export "$figures/figure_s2s4_heatmap`sfx'.png", ///
-                replace width(2400)
+            export_fig figure_s2s4_heatmap`sfx'
         }
     }
     else {
@@ -2196,8 +2229,7 @@ preserve
             ytitle("ETR (%)") xtitle("") ///
             xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
             ylabel(, labsize(vsmall))
-        graph export "$figures/figure_s1s2_facets_country`sfx'.png", ///
-            replace width(3000)
+        export_fig figure_s1s2_facets_country`sfx', width(3000)
     }
 restore
 
@@ -2251,8 +2283,7 @@ preserve
             ytitle("ETR (%)") xtitle("") ///
             xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
             ylabel(, labsize(vsmall))
-        graph export "$figures/figure_s1s2_facets_product`sfx'.png", ///
-            replace width(3000)
+        export_fig figure_s1s2_facets_product`sfx', width(3000)
     }
 restore
 

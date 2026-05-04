@@ -29,7 +29,7 @@
 *   tariff_revenue.csv
 *
 * Repo crosswalks:
-*   $code/utils/product_groups.csv  (HS2 -> 9-group product classification)
+*   $resources/product_groups.csv  (HS2 -> 9-group product classification)
 *
 * Output (all to $working unless noted):
 *   census_hs10_clean.dta
@@ -665,12 +665,12 @@ if _rc != 0 {
     assign_partner_group cty_code
 }
 
-** Merge the HS2 -> 9-product-group crosswalk (code/utils/product_groups.csv).
+** Merge the HS2 -> 9-product-group crosswalk (resources/product_groups.csv).
 ** Used by 03 Section B (S0->S1 product-side Shapley) and Section D7
 ** (product-group gap figures). Crosswalk covers HS2 01-99; any HS2 in the
 ** data that's missing from the crosswalk gets caught by the assert below.
 preserve
-    import delimited using "${code}utils/product_groups.csv", ///
+    import delimited using "${resources}product_groups.csv", ///
         clear stringcols(1) varnames(1)
     sort hs2
     gisid hs2

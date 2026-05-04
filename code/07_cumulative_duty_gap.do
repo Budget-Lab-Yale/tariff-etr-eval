@@ -124,7 +124,7 @@ twoway ///
     graphregion(color(white)) ///
     plotregion(margin(small))
 
-graph export "$figures/figure_cumulative_duty_gap.png", replace width(2400)
+export_fig figure_cumulative_duty_gap
 
 di as text _n "  Wrote $figures/figure_cumulative_duty_gap.png"
 di as text "  07_cumulative_duty_gap complete." _n

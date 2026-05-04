@@ -143,8 +143,7 @@ foreach v in titled clean {
         graphregion(color(white)) ///
         plotregion(margin(small)) ///
         name(g_baseline, replace)
-    graph export "${figures}figure_baseline`sfx'.png", ///
-        replace width(2400)
+    export_fig figure_baseline`sfx'
 }
 
 
@@ -218,8 +217,7 @@ foreach v in titled clean {
         graphregion(color(white)) ///
         plotregion(margin(small)) ///
         name(g_daily_overlay, replace)
-    graph export "${figures}figure_daily_overlay`sfx'.png", ///
-        replace width(2400)
+    export_fig figure_daily_overlay`sfx'
 }
 
 
@@ -512,7 +510,7 @@ foreach v in titled clean {
         ytitle("Statutory ETR (%)") xtitle("") ///
         xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
         ylabel(, labsize(vsmall))
-    graph export "$figures/figure_adjustment_explainer`sfx'.png", replace width(2400)
+    export_fig figure_adjustment_explainer`sfx'
 }
 
 
@@ -570,8 +568,7 @@ foreach v in titled clean {
         `opt_title' ///
         graphregion(color(white)) ///
         name(g_adj_country, replace)
-    graph export "${figures}figure_adjustment_country`sfx'.png", ///
-        replace width(2400)
+    export_fig figure_adjustment_country`sfx'
 }
 
 

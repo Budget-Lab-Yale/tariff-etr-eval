@@ -75,6 +75,30 @@ end
 
 
 * ==============================================================================
+* PROGRAM: export_fig
+*
+* Writes the in-memory graph to ${figures}<stub>.png and, when $overleaf == 1
+* and $ol_fig is non-empty, also to ${ol_fig}<stub>.png. Always uses replace
+* and width(2400) by default; override width via the option.
+*
+* Usage:
+*   export_fig figure_ladder`sfx'
+*   export_fig figure_ladder`sfx', width(3000)
+* ==============================================================================
+
+capture program drop export_fig
+program define export_fig
+    version 17.0
+    syntax anything(name=stub) [, Width(integer 2400)]
+
+    graph export "${figures}`stub'.png", replace width(`width')
+    if "${overleaf}" == "1" & "${ol_fig}" != "" {
+        graph export "${ol_fig}`stub'.png", replace width(`width')
+    }
+end
+
+
+* ==============================================================================
 * PROGRAM: report_merge
 *
 * Reports match / master / using counts from the _merge variable left by a

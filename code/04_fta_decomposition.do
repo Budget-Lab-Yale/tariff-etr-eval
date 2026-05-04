@@ -250,7 +250,7 @@ preserve
             title("`fig_t'") ///
             subtitle("`fig_st'") ///
             graphregion(color(white))
-        graph export "$figures/figure_others_channel_stack`sfx'.png", replace width(2400)
+        export_fig figure_others_channel_stack`sfx'
     }
 restore
 
