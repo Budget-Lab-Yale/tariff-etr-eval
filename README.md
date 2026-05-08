@@ -37,10 +37,19 @@ Step 0 flags: `--refresh-tracker` (rebuild sibling tracker first), `--with-censu
 |--------|----------|------|
 | Census IMDB bulk | `census.gov/trade/downloads/` | HS10 x country x district x preference detail (primary monthly source; HS2 rollups derived from this) |
 | Census Bureau API | `api.census.gov` | HS2 x country monthly trade — opt-in via `--with-census`; not consumed by the Stata pipeline |
-| Tariff Rate Tracker | `tariff-rate-tracker` (sibling) | HTS10 x country statutory rates, daily ETR, import weights |
-| Tariff Impact Tracker | `tariff-impact-tracker` (sibling) | Monthly actual ETR (Treasury customs duties / imports) |
+| Tariff Rate Tracker | [`johniselin-budget-lab/tariff-rate-tracker`](https://github.com/johniselin-budget-lab/tariff-rate-tracker) | HTS10 x country statutory rates, daily ETR, import weights |
+| Tariff Impact Tracker | [`johniselin-budget-lab/tariff-impact-tracker`](https://github.com/johniselin-budget-lab/tariff-impact-tracker) | Monthly actual ETR (Treasury customs duties / imports) |
 
-Both sibling repos must be at the same directory level as this repo.
+Both sibling repos must be cloned at the same directory level as this repo. Step 0 (`code/R/00_pull_raw_data.R`) reads RDS snapshots, daily ETR CSVs, and Treasury revenue from those checkouts; if either is missing, the script aborts with a clear error pointing at the expected path. Suggested layout:
+
+```
+GitHub/
+├── tariff-etr-eval/         # this repo
+├── tariff-rate-tracker/     # https://github.com/johniselin-budget-lab/tariff-rate-tracker
+└── tariff-impact-tracker/   # https://github.com/johniselin-budget-lab/tariff-impact-tracker
+```
+
+`--refresh-tracker` shells out to the tracker repo and rebuilds its outputs end-to-end before the export step; this requires `DATAWEB_API_TOKEN` set in `tariff-rate-tracker/.env` (free token from <https://dataweb.usitc.gov>) and ~60–90 minutes. Both sibling repos publish their own README/CLAUDE-equivalent setup instructions.
 
 ## Six-Tier Decomposition
 
@@ -99,7 +108,19 @@ Every figure is exported in two versions: `figure_X.png` (no titles/subtitles, d
 
 **R** (step 0 only): `httr`, `jsonlite`, `dplyr`, `readr`, `here`, `stringi`, `yaml`
 
-**Stata 17+**: `ftools`, `reghdfe`, `gtools`, `estout`, `plotplainblind`
+**Stata 17+**: `ftools`, `reghdfe`, `gtools`, `estout`, `coefplot`, `plotplainblind`, `heatplot` (with deps `palettes`, `colrspace`). Install with:
+
+```stata
+ssc install ftools, replace
+ssc install reghdfe, replace
+ssc install gtools, replace
+ssc install estout, replace
+ssc install coefplot, replace
+ssc install plotplainblind, replace
+ssc install heatplot, replace
+ssc install palettes, replace
+ssc install colrspace, replace
+```
 
 Set `CENSUS_API_KEY` in `~/.Renviron` for Census API access.
 

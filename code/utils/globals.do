@@ -21,13 +21,6 @@ global figures   "${dir}results/figures/"
 global tables    "${dir}results/tables/"
 global logs      "${dir}logs/"
 
-* --- Overleaf integration (optional) ---
-* Set $overleaf = 1 and define paths to enable dual export.
-* Leave $overleaf = 0 to skip Overleaf export entirely.
-global overleaf 1
-global ol_fig "C:/Users/ji252/Dropbox/Apps/Overleaf/actual_statutory_etr/figures/"
-global ol_tab "C:/Users/ji252/Dropbox/Apps/Overleaf/actual_statutory_etr/tables/"
-
 * --- Graph settings ---
 * `set scheme` is per-session; safe to leave on. `graph set window fontface`
 * writes to Stata's persistent global preferences and survives across sessions.

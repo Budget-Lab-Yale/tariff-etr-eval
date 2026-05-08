@@ -4,7 +4,7 @@
 **Authors**: Abhi Gupta, John Iselin, John Ricco (The Budget Lab at Yale)
 **Status**: Outline draft, 2026-04-27
 
-This document drafts the paper's narrative structure. Implementation detail and open methodology questions live in `docs/methodology_outline.md`; literature touchpoints are catalogued in `docs/etr-literature-review.md`. Current Overleaf source: `Dropbox/Apps/Overleaf/actual_statutory_etr/main.tex`.
+This document drafts the paper's narrative structure. Implementation detail and open methodology questions live in `docs/methodology_outline.md`; literature touchpoints are catalogued in `docs/etr-literature-review.md`.
 
 ---
 
@@ -38,9 +38,7 @@ A compact historical and policy chapter situating 2025–2026 in a longer arc an
 - Tariffs as primary federal revenue source through ~1913 (peaks near 50% effective rate).
 - Post-Smoot–Hawley → GATT/WTO era: secular decline to ~1.5% by 2017.
 - Sources: Gerlach (2025) for the long series; standard trade-history references.
-- One figure: 150-year effective tariff rate (annual, 1867–2025). 
-Note: Pull from Figure 1 here - https://budgetlab.yale.edu/research/state-us-tariffs-april-8-2026) 
-Note: Data located here: "C:\Users\ji252\OneDrive - Yale University\Budget Lab - Topics\Trade\2026 04 April 8 State of Tariffs\data_download.xlsx"
+- One figure: 150-year effective tariff rate (annual, 1867–2025) — pull from Figure 1 of the Budget Lab "State of US Tariffs" April 8 2026 brief.
 
 ### 2.2 The 2018–2019 (Trump I) escalation
 - Section 301 lists 1–4 against China; Section 232 on steel and aluminum.
@@ -67,8 +65,7 @@ Note: Data located here: "C:\Users\ji252\OneDrive - Yale University\Budget Lab -
 - One table: chronology of major actions with HTS revision pointer.
 - One figure: announced statutory rate by month with policy event markers.
 - HHI ≈ 0.06 — far broader than 2018–2019.
-NOTE: Replicate figure 1 here https://budgetlab.yale.edu/research/introducing-tariff-rate-tracker-open-source-tool-daily-effective-tariff-rates
-NOTE: Data for policy here: C:/Users/ji252/OneDrive - Yale University/Budget Lab - Topics/Trade/2026 04 April 2 Tariff Daily Rate Tracker/tariff_rate_tracker_blog_20260408.xlsx
+- Note: replicate Figure 1 from the Budget Lab "Introducing the Tariff Rate Tracker" April 2 2026 brief.
 
 ### 2.5 Authority taxonomy (paper's running cross-reference)
 - Section 232, 301, 201; IEEPA reciprocal & fentanyl; Section 122; "other"; baseline MFN.
@@ -85,7 +82,7 @@ NOTE: Make it clear this was developed seperately from Eck et a. (2026) but cred
 Implementation detail in `docs/methodology_outline.md` §3; this section is the paper-prose version of those choices.
 
 ### 3.1 Definitions and the basic identity
-- Equations (1)–(3) from the Overleaf draft:
+- Equations (1)–(3) from the paper draft:
   - $\tau_t = R_t / I_t$ (basic ETR)
   - $\tau^s_t = \sum i_{cp,2024}\tau^s_{cpt} / \sum i_{cp,2024}$ (announced statutory)
   - $\tau^a_t = \sum i_{cpt}\tau^a_{cpt} / \sum i_{cpt}$ (realized actual)
@@ -287,7 +284,6 @@ A short concluding section organized around three claim levels.
 | `code/03_fta_decomposition.do` | Section 5.4 generator |
 | `code/04_max_district_crosscheck.do` | Section 5.5 generator |
 | `code/05_counterfactual_ladder.do` | Section 5.6 generator |
-| `Dropbox/.../actual_statutory_etr/main.tex` | Overleaf draft |
 
 ---
 

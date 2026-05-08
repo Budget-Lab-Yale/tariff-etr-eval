@@ -48,6 +48,9 @@ Thumbs.db
 *.swp
 .claude/
 
+# LLM context (local to each contributor)
+CLAUDE.md
+
 # LaTeX build artifacts
 *.aux
 *.nav
