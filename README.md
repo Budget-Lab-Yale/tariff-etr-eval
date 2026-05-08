@@ -257,6 +257,7 @@ Set `CENSUS_API_KEY` in `~/.Renviron` for Census API access.
 - `docs/six_tier_framework_plan.md` — math derivation (Shapley two-way, applicability matrix, sign-bearing channel discussion).
 - `docs/paper_outline.md` — current paper outline, with figure-name map, Shapley derivation, and Eck et al. (2026) cross-validation.
 - `docs/etr-literature-review.md` — context on the statutory-actual ETR gap literature.
+- `docs/slides/etr_divergence_slides.Rmd` — 42-frame Beamer deck (with `header.tex` preamble and `etr_divergence_slides_notes.md` speaker notes). Render with `rmarkdown::render("docs/slides/etr_divergence_slides.Rmd")`; uses `xelatex` and pulls figures from `results/figures/`.
 - `docs/tracker_miss_report.md` / `docs/tracker_over_report.md` — diagnostic handoffs to the `tariff-rate-tracker` maintainer (false-negative and false-positive rate-parsing errors).
 - `docs/tracker_audits/` — audit memos resolving specific tracker bug findings.
 
