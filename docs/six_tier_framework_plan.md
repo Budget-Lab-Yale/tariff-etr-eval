@@ -2,10 +2,10 @@
 
 **Authored**: 2026-04-28. **Last refreshed**: 2026-05-01 (tier definitions and channel labels updated to match the post-restructure h2avg-USMCA spine; math derivations in §5–§6 unchanged).
 
-This doc is the standalone derivation source for the framework's math: the Shapley two-way decomposition (§5–§5a), the channel-ordering rationale (§4–§5), and the per-authority applicability matrix for the non-USMCA preference delta (§6, §6.6). Tier definitions are kept synchronized with `CLAUDE.md`; if the two ever diverge, `CLAUDE.md` is canonical.
+This doc is the standalone derivation source for the framework's math: the Shapley two-way decomposition (§5–§5a), the channel-ordering rationale (§4–§5), and the per-authority applicability matrix for the non-USMCA preference delta (§6, §6.6). Tier definitions are kept synchronized with the project README; if the two ever diverge, the README is canonical.
 
 **Companions**:
-- `paper_outline_v2.md` — paper exposition target (subsumes the older `methodology_outline.md`).
+- `paper_outline_v2.md` — paper exposition target.
 - `tracker_miss_report.md` — Round 3 motivates the Annex II claim-rate channel that becomes part of S3.
 - `tracker_over_report.md` — companion diagnostic (over-statement direction).
 
