@@ -5,7 +5,7 @@
 This doc is the standalone derivation source for the framework's math: the Shapley two-way decomposition (§5–§5a), the channel-ordering rationale (§4–§5), and the per-authority applicability matrix for the non-USMCA preference delta (§6, §6.6). Tier definitions are kept synchronized with the project README; if the two ever diverge, the README is canonical.
 
 **Companions**:
-- `paper_outline_v2.md` — paper exposition target.
+- `paper_outline.md` — paper exposition target.
 - `tracker_miss_report.md` — Round 3 motivates the Annex II claim-rate channel that becomes part of S3.
 - `tracker_over_report.md` — companion diagnostic (over-statement direction).
 
@@ -206,4 +206,4 @@ The validation gate (no monotonicity violations on $S_0 \ge S_1 \ge S_2 \ge S_3$
 
 - **Sub-channel split of S2→S3** (Annex II vs KORUS vs GSP) — data hooks exist in `imdb_other_pref_shares_monthly.csv`'s per-channel shares; per-group attribution is implemented in 03 Section B2 but the in-paper exposition keeps S2→S3 aggregated.
 - **"Eligible-but-unclaimed" channel** (counterfactual against a hypothetical 100%-claim baseline) — not implemented; remains a future direction.
-- **Shapley re-decomposition** for trade diversion (S1→S2) — implemented (`compute_diversion_decomp` in `code/utils/programs.do`); see §5 of `paper_outline_v2.md` for the derivation and §5a above for the sign-bearing channel discussion.
+- **Shapley re-decomposition** for trade diversion (S1→S2) — implemented (`compute_diversion_decomp` in `code/utils/programs.do`); see §5 of `paper_outline.md` for the derivation and §5a above for the sign-bearing channel discussion.

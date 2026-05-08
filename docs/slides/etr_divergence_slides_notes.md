@@ -1,6 +1,6 @@
 # Slide notes — *Actual versus Statutory Tariff Rates: 2025–2026*
 
-Speaker notes paralleling `etr_divergence_slides.tex`. One section per main slide, in deck order. Prose intended as full-sentence speaking content; not literally read but available as a fallback.
+Speaker notes paralleling `etr_divergence_slides.Rmd`. One section per main slide, in deck order. Prose intended as full-sentence speaking content; not literally read but available as a fallback.
 
 > **Note (May 2026)**: the slide deck was reordered to put Avg-ETR plots before Shapley plots within each pair, to insert a new between/within math slide before S1→S2, to move "Two ways of decomposing" after S1→S2 trade diversion, and to move S2→S3 (all-other preferences) to after the Treasury-vs-Census slide. The section titles below reflect the *intended* deck order after these changes; not all sub-section prose has been re-synced to the new positions yet — fall back to the slides themselves when in doubt.
 

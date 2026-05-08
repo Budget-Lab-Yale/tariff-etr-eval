@@ -35,6 +35,9 @@ results/tables/
 docs/*.html
 docs/*.pdf
 docs/slides/*.pdf
+# Rmd renders the deck to .tex via keep_tex; ignore that intermediate
+docs/slides/etr_divergence_slides.tex
+docs/slides/etr_divergence_slides_files/
 
 # Literature PDFs
 lit/

@@ -7,7 +7,7 @@
 **Status**: Draft outline post-framework-restructure (April 2026).
 
 **Companion documents**:
-- `etr_divergence_slides.tex` — 10-minute presentation, same structure, less detail
+- `etr_divergence_slides.Rmd` — 10-minute presentation, same structure, less detail
 - `etr-literature-review.md` — full citation library (lift inline references from there)
 - `six_tier_framework_plan.md` — framework math derivation (Shapley two-way, applicability matrix, sign-bearing channel discussion). Tier definitions kept in sync with the project README.
 
@@ -224,7 +224,7 @@ This is the algebraic foundation for the Shapley decomposition in §5.4: at any 
 **Methodology choices**:
 
 - Single-stage row-level value-weighted average. No HS2 bridging.
-- Zero-tariff products **must be in the denominator** [`docs/weighting_note.md`]. Dropping them inflates the ETR from ~3.4% to ~27%.
+- Zero-tariff products **must be in the denominator**. Dropping them inflates the ETR from ~3.4% to ~27%.
 - All rate panels are day-weighted across HTS revisions within each month (R `00_pull_raw_data.R` §3e), so $r^{\text{tier}}_{i,t}$ is a smooth monthly object even when the underlying revision schedule changes mid-month.
 
 ### 5.4 Shapley two-way decomposition (S1 → S2 trade diversion)
@@ -606,10 +606,9 @@ Lifted from `etr-literature-review.md`. Full bibliography in the paper.
 
 | Document | Role |
 |---|---|
-| `paper_outline_v2.md` (this) | Current paper outline |
+| `paper_outline.md` (this) | Current paper outline |
 | `etr-literature-review.md` | Full citation library |
-| `etr_divergence_slides.tex` | 10-min presentation, parallel structure |
-| `weighting_note.md` | Aggregation note (single-stage row-level value-weighted) |
+| `etr_divergence_slides.Rmd` | 10-min presentation, parallel structure (renders to Beamer PDF via `rmarkdown::render()`) |
 | `six_tier_framework_plan.md` | Framework math derivation (Shapley two-way, applicability matrix, sign-bearing channels). Tier definitions kept in sync with the README. |
 
 ---

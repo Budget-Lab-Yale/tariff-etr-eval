@@ -153,7 +153,7 @@ The framework's S1 panel equals the tracker's daily ETR collapsed to monthly by 
 
 All ETR tiers are computed via single-stage row-level value-weighted averages over the (HS10 × country × month) cells of `merged_analysis.dta`: `Sum(rate × weight) / Sum(weight)`. Rate columns (`rate_2024`, `rate_h2avg` ≡ `total_rate`, `rate_usmca_monthly`, `rate_all_pref`) and weight columns (`imports` for 2024, `con_val_mo` for monthly) sit on the same row, so `compute_tier` collapses are uniform across tiers and figures. No HS2 bridging.
 
-Zero-tariff products **must be included** in the denominator. Dropping them inflates the ETR from ~3.4% to ~27%. See `docs/weighting_note.md`.
+Zero-tariff products **must be included** in the denominator. Dropping them inflates the ETR from ~3.4% to ~27%.
 
 `rate_h2avg` is the framework alias for the tracker's production `total_rate` column — built in the `tariff-rate-tracker` sibling at `src/06_calculate_rates.R` with USMCA scaled by **post-July 2025 average claim rates** (~89% for CA/MX). `rate_2024` swaps that to **2024-baseline claim rates** (~38% CA / ~50% MX); `rate_usmca_monthly` swaps to **monthly empirical rates** (USITC DataWeb). Same authority stacking, MFN exemptions, and IEEPA floor logic in all three; only the USMCA layer differs.
 
@@ -255,8 +255,7 @@ Set `CENSUS_API_KEY` in `~/.Renviron` for Census API access.
 ## Further reading
 
 - `docs/six_tier_framework_plan.md` — math derivation (Shapley two-way, applicability matrix, sign-bearing channel discussion).
-- `docs/paper_outline_v2.md` — current paper outline, with figure-name map, Shapley derivation, and Eck et al. (2026) cross-validation.
-- `docs/weighting_note.md` — value-weighted aggregation, importance of including zero-tariff products.
+- `docs/paper_outline.md` — current paper outline, with figure-name map, Shapley derivation, and Eck et al. (2026) cross-validation.
 - `docs/etr-literature-review.md` — context on the statutory-actual ETR gap literature.
 - `docs/tracker_miss_report.md` / `docs/tracker_over_report.md` — diagnostic handoffs to the `tariff-rate-tracker` maintainer (false-negative and false-positive rate-parsing errors).
 - `docs/tracker_audits/` — audit memos resolving specific tracker bug findings.
