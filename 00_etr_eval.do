@@ -11,7 +11,7 @@
 *   2. Run R/00_pull_raw_data.R to populate data/raw/
 *
 * Usage:
-*   cd "C:/Users/ji252/Documents/GitHub/tariff-etr-eval"
+*   cd <repo-root>
 *   do 00_etr_eval.do
 * ==============================================================================
 
