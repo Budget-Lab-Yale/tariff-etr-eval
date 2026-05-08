@@ -114,16 +114,16 @@ Toggle steps via globals in `code/utils/globals.do` (execution order):
 
 Both must be cloned at the same directory level as this repo. Step 0 reads RDS snapshots, daily ETR CSVs, and Treasury revenue from those checkouts; if either is missing, the script aborts with a clear error pointing at the expected path.
 
-- [`johniselin-budget-lab/tariff-rate-tracker`](https://github.com/johniselin-budget-lab/tariff-rate-tracker) — statutory rates, daily ETR, import weights, revision dates, USMCA product shares (from USITC DataWeb SPI data).
-- [`johniselin-budget-lab/tariff-impact-tracker`](https://github.com/johniselin-budget-lab/tariff-impact-tracker) — Treasury revenue (actual ETR).
+- [`Budget-Lab-Yale/tariff-rate-tracker`](https://github.com/Budget-Lab-Yale/tariff-rate-tracker) — statutory rates, daily ETR, import weights, revision dates, USMCA product shares (from USITC DataWeb SPI data).
+- [`Budget-Lab-Yale/tariff-impact-tracker`](https://github.com/Budget-Lab-Yale/tariff-impact-tracker) — Treasury revenue (actual ETR).
 
 Suggested layout:
 
 ```
 GitHub/
 ├── tariff-etr-eval/         # this repo
-├── tariff-rate-tracker/     # https://github.com/johniselin-budget-lab/tariff-rate-tracker
-└── tariff-impact-tracker/   # https://github.com/johniselin-budget-lab/tariff-impact-tracker
+├── tariff-rate-tracker/     # https://github.com/Budget-Lab-Yale/tariff-rate-tracker
+└── tariff-impact-tracker/   # https://github.com/Budget-Lab-Yale/tariff-impact-tracker
 ```
 
 ## Six-tier framework
@@ -176,8 +176,8 @@ Zero-tariff products **must be included** in the denominator. Dropping them infl
 |--------|------------|------|
 | Census IMDB bulk | `census.gov/trade/downloads/` | HS10 × country × district × preference detail (primary monthly source; HS2 rollups derived from this) |
 | Census Bureau API | `api.census.gov` | HS2 × country monthly trade — opt-in via `--with-census`; not consumed by the Stata pipeline |
-| Tariff Rate Tracker | [`johniselin-budget-lab/tariff-rate-tracker`](https://github.com/johniselin-budget-lab/tariff-rate-tracker) | HTS10 × country statutory rates, daily ETR, import weights |
-| Tariff Impact Tracker | [`johniselin-budget-lab/tariff-impact-tracker`](https://github.com/johniselin-budget-lab/tariff-impact-tracker) | Monthly actual ETR (Treasury customs duties / imports) |
+| Tariff Rate Tracker | [`Budget-Lab-Yale/tariff-rate-tracker`](https://github.com/Budget-Lab-Yale/tariff-rate-tracker) | HTS10 × country statutory rates, daily ETR, import weights |
+| Tariff Impact Tracker | [`Budget-Lab-Yale/tariff-impact-tracker`](https://github.com/Budget-Lab-Yale/tariff-impact-tracker) | Monthly actual ETR (Treasury customs duties / imports) |
 
 `--refresh-tracker` shells out to the tracker repo and rebuilds its outputs end-to-end before the export step; this requires `DATAWEB_API_TOKEN` set in `tariff-rate-tracker/.env` (free token from <https://dataweb.usitc.gov>) and ~60–90 minutes. Both sibling repos publish their own setup instructions.
 

@@ -323,6 +323,6 @@ Bonus diagnostic: the tracker-miss / tracker-over CSVs we produce (`05a` / `05b`
 
 ## Slide 24 — Closing
 
-Brief acknowledgement and pointer to the public code repository (`johniselin-budget-lab/tariff-etr-eval`).
+Brief acknowledgement and pointer to the public code repository (`Budget-Lab-Yale/tariff-etr-eval`).
 
 Q&A.
