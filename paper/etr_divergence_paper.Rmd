@@ -1,0 +1,662 @@
+---
+title: "Actual versus Statutory Tariff Rates: Measuring and Decomposing the Gap in the 2025--2026 U.S. Tariff Episode"
+author:
+  - Abhi Gupta
+  - John Iselin
+  - John Ricco
+date: "`r format(Sys.Date(), '%B %Y')`"
+abstract: |
+  The 2025--2026 U.S. tariff escalation drove announced statutory tariff rates
+  into the mid-teens, yet Treasury collected duties at barely two-thirds of that
+  level. We measure this gap directly and decompose it into interpretable
+  channels. Building per-cell statutory rates from the Harmonized Tariff Schedule
+  and Chapter 99 authorities and pairing them with Census import microdata, we
+  construct a ladder of effective tariff rate (ETR) measures that moves stepwise
+  from an announced statutory rate to the rate Treasury actually realizes. Each
+  rung turns on one channel: USMCA claim-rate normalization, import composition,
+  non-USMCA preference claiming, a statutory-versus-declared residual, and
+  declared-versus-collected timing. As of March 2026 --- the first full month
+  after the Supreme Court struck down the IEEPA tariffs --- the announced statutory
+  rate had fallen to 11.45\% and the realized rate to 7.34\%, a gap of 4.10 pp;
+  earlier in the episode the announced rate exceeded 16\% and the gap topped 8 pp
+  (April 2025). Import composition --- overwhelmingly a fall in
+  China's import share --- accounts for roughly 2--3 pp consistently, while the
+  back-end residual dominates and is the least-explained channel. An independent
+  cross-check reproduces the December 2025 figures of Eck et al. (2026) within
+  0.6 pp on every comparable quantity.
+output:
+  pdf_document:
+    number_sections: true
+    toc: false
+    keep_tex: true
+    latex_engine: xelatex
+fontsize: 11pt
+geometry: margin=1in
+bibliography: refs.bib
+link-citations: true
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{float}
+  - \usepackage{amsmath}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE, message = FALSE, warning = FALSE,
+  fig.align = "center", out.width = "85%", fig.pos = "H"
+)
+
+# --- Paths (relative to this .Rmd, which lives in paper/) ---------------------
+fig_dir <- "../results/figures"
+tbl_dir <- "../results/tables"
+
+rd <- function(f) {
+  p <- file.path(tbl_dir, f)
+  if (file.exists(p)) utils::read.csv(p, stringsAsFactors = FALSE) else NULL
+}
+fig <- function(f) {
+  # prefer the clean (no-title) version; captions are supplied by fig.cap
+  file.path(fig_dir, f)
+}
+
+# --- Load output tables -------------------------------------------------------
+decomp     <- rd("decomp_monthly.csv")          # 6-tier monthly: s0..s4,t + gaps
+div_cty    <- rd("diversion_by_country_avg.csv") # period-mean composition by partner
+div_prod   <- rd("diversion_by_product_avg.csv") # period-mean composition by product
+cty_avg    <- rd("counterfactual_by_country_avg.csv")
+
+# --- Convenience accessors ----------------------------------------------------
+gv <- function(ym_, col) if (!is.null(decomp)) decomp[[col]][decomp$ym == ym_] else NA
+f1 <- function(x) formatC(x, format = "f", digits = 1)
+f2 <- function(x) formatC(x, format = "f", digits = 2)
+
+# Headline months
+ann_dec <- gv("2025m12", "s1"); real_dec <- gv("2025m12", "t")
+gap_dec <- ann_dec - real_dec
+
+# Latest available month (auto-tracks the data; e.g. "2026m3" -> "March 2026")
+ym_last  <- if (!is.null(decomp)) decomp$ym[nrow(decomp)] else NA
+.mk      <- suppressWarnings(as.integer(sub(".*m", "", ym_last)))
+.yr      <- sub("m.*", "", ym_last)
+ym_lab   <- if (!is.na(.mk)) paste(month.name[.mk], .yr) else ym_last
+ann_last <- gv(ym_last, "s1"); real_last <- gv(ym_last, "t")
+comp_last <- gv(ym_last, "s2"); pref_last <- gv(ym_last, "s3"); cens_last <- gv(ym_last, "s4")
+gap_last <- ann_last - real_last
+
+# Policy-window definitions (ym strings) used for the sub-period table
+windows <- list(
+  "Overall (25m1--26m3)"          = decomp$ym,
+  "Pre-Liberation (25m1--3)"      = c("2025m1","2025m2","2025m3"),
+  "Lib. to Phase 2 (25m4--6)"     = c("2025m4","2025m5","2025m6"),
+  "Phase 2 (25m7)"                = c("2025m7"),
+  "Recip. to SCOTUS (25m8--26m1)" = c("2025m8","2025m9","2025m10","2025m11","2025m12","2026m1"),
+  "Post-SCOTUS (26m2--3)"         = c("2026m2","2026m3")
+)
+```
+
+# Introduction
+
+The 2025--2026 reorganization of U.S. trade policy was the largest in nearly a
+century. A stack of overlapping authorities --- IEEPA reciprocal and fentanyl
+tariffs, expanded Section 232 metals and autos duties, the legacy Section 301
+China lists, and a post-litigation Section 122 blanket --- pushed the
+trade-weighted *announced* statutory tariff rate from low single digits into the
+mid-teens within a few months. Yet the duties the Treasury actually collected
+never came close to the announced schedule. By our preferred summary measure,
+the announced statutory effective tariff rate (ETR) was
+`r f2(ann_last)`\% in `r ym_lab` while the realized rate --- customs duties
+collected as a share of import value --- was `r f2(real_last)`\%, a gap of
+`r f2(gap_last)` percentage points (pp). The gap was wider still earlier in the
+episode, exceeding 8 pp in April 2025 in the weeks after "Liberation Day," and
+the announced level has since fallen sharply --- from a peak above 16\% in
+late 2025 to `r f2(ann_last)`\% --- as the Supreme Court's February 2026 ruling
+struck down the IEEPA tariffs.
+
+This divergence is not a measurement artifact, and it is not small. It matters
+for at least three reasons.
+
+- **Revenue forecasting.** Scoring agencies anchor tariff-revenue projections on
+  assumed effective rates. A persistent, structured gap between announced and
+  realized rates implies systematic over-projection unless the channels driving
+  the gap are understood and modeled.
+- **Inference about economic responses.** Pass-through, welfare, and elasticity
+  estimates that use the statutory rate as the treatment intensity will overstate
+  the tariff "bite" if the realized rate is materially smaller. @gopinath_neiman_2026
+  show that pass-through on *collected* duties is near-complete, so the gap ---
+  not under-implementation of the schedule --- is what shields prices.
+- **Policy evaluation.** The realized burden borne by importers, consumers, and
+  partner countries equals what the announced rate implies only if the gap is
+  zero. Decomposing the gap tells us which margins are behavioral, which are
+  administrative, and which are simply timing.
+
+We make three contributions. First, we **measure** the gap directly and
+transparently: per-cell statutory rates are reconstructed from the Harmonized
+Tariff Schedule (HTS) and Chapter 99 text, day-weighted across mid-month policy
+changes, and aggregated against Census import weights, so the announced rate we
+report is reproducible from primary sources rather than asserted. Second, we
+**decompose** the gap into a sequential ladder of ETR measures in which each rung
+turns on exactly one channel --- USMCA claim-rate normalization, import
+composition, non-USMCA preference claiming, and a back-end residual that we split
+into a statutory-versus-declared component and a declared-versus-collected timing
+component. Existing decompositions [@azzimonti_2025; @eck_etal_2026] bundle
+several of these together. Third, we **attribute** every decomposable channel to
+partner countries and product groups using a symmetric Shapley two-way split,
+so the same aggregate gap can be read along orthogonal cuts. We validate the
+framework against the independent estimates of @eck_etal_2026 and reproduce their
+December 2025 numbers within 0.6 pp on every comparable quantity.
+
+The remainder of the paper proceeds as follows. Section 2 reviews the literature
+on the statutory--actual gap. Section 3 sets out the framework, the
+mathematical decomposition, and the data. Section 4 presents the headline
+comparison and the aggregate channel decomposition. Section 5 attributes the
+gap by partner country and by product group. Section 6 discusses open questions
+and future work.
+
+# Literature
+
+The divergence between announced and realized tariff rates has become one of
+the defining empirical features of the 2025 episode, and a small but fast-moving
+literature has formed around it.
+
+**Documenting the gap.** @gopinath_neiman_2026 provide the most comprehensive
+aggregate treatment, documenting a roughly 27\% trade-weighted statutory rate
+against a realized rate near 10--11\% in September 2025 and attributing the gap
+to shipping lags, exemptions, trade-agreement utilization, and enforcement.
+Their central result for our purposes is that pass-through on *collected* duties
+is near-complete (about 94\% in 2025, up from 80\% in 2018--2019): the gap is
+what moderates prices, which makes understanding its composition the welfare
+question. @azzimonti_2025 supplies a granular single-month decomposition for May
+2025, splitting an 8.8 pp gap into within-country product mix (0.6 pp),
+cross-country share shifts (2.7 pp), and implementation frictions (5.5 pp); her
+Canada case study finds that 31\% of Canadian product lines with positive
+predicted tariffs generated zero duty.
+
+**The direct comparator.** @eck_etal_2026 offer the closest analogue to this
+paper. They decompose the announced-versus-realized gap into a composition
+channel and a rate-discrepancy channel using Laspeyres-style baseline weights,
+and they contrast 2025 with 2018--2019. By December 2025 the announced ETR
+reached 14.7\% and the realized rate fell 5.43 pp short --- about 44\% of the
+announced increase, double the 22\% fraction of the far more concentrated
+2018--2019 episode. They emphasize that 2025 composition shifts began
+*immediately*, unlike the gradual substitution of the earlier episode, and
+predict that frictional gaps compress as front-loading depletes. We adopt their
+two-channel framing as a benchmark and refine it into a finer ladder.
+
+**Tracking series.** The Penn Wharton Budget Model [@pwbm_2026] tracks realized
+rates monthly and splits revenue into mechanical and behavioral components,
+documenting the surge in USMCA compliance from roughly 33--38\% of Canadian and
+Mexican imports in 2024 to nearly 88\% by December 2025. The Budget Lab at Yale
+[@ybl_2026] maintains a complementary public series and emphasizes the
+pre-versus-post-substitution distinction; this paper is its analytical companion.
+
+**Measurement and mechanism.** @waugh_2026 argues that both the statutory
+average and the duties-to-imports ratio understate the welfare burden, because
+dispersion matters: building on @anderson_neary_1996, his Trade Restrictiveness
+Index implies a welfare-equivalent uniform rate of roughly 21--23\% in late
+2025, about twice the realized rate. On the price side, @cavallo_llamas_vazquez_2025
+find about 20\% retail pass-through after six months (contributing ~0.7 pp to
+CPI), while @cavallo_etal_2021 and @flaaen_etal_2025 document border and
+store-level pass-through, and @cui_etal_2025 provide a firm-strategy framework
+(mitigation versus contingency) that rationalizes a partially structural gap.
+For historical and fiscal context, @fajgelbaum_etal_2020 analyze the 2018--2019
+episode, @alfaro_chor_2025 and @barbiero_etal_2025 document supply-chain
+reallocation, @clausing_obstfeld_2025 treat tariffs as fiscal policy, and
+@gerlach_2025 places the current ~10--12\% realized rate in a 150-year context.
+
+Where this paper fits: the existing work opens one or two channels at a time. We
+provide a single unified ladder spanning USMCA claim-rate evolution,
+cross-country and within-country composition, non-USMCA preferences, a structural
+collection residual, and Treasury timing --- with a clean attribution to
+countries and products at every channel except the aggregate-only timing rung.
+
+# Methodology
+
+## Framework and mathematical setup
+
+### The ETR ladder
+
+For any month $t$, the effective tariff rate is total duties over total import
+value. Indexing cells by product $p$ (HTS-10) and partner country $c$, and
+letting $w_{pc}(t)$ be the cell's import value and $r_{pc}(t)$ its tariff rate,
+
+$$
+\tau_t \;=\; \frac{R_t}{I_t} \;=\; \frac{\sum_{p,c} w_{pc}(t)\, r_{pc}(t)}{\sum_{p,c} w_{pc}(t)}.
+$$
+
+We construct six measures of $\tau_t$ that differ only in *which* rate panel and
+*which* weight panel enter the average. We give each a descriptive name and use
+those names throughout; Table \ref{tab:tiers} is the master key.
+
+\begin{table}[H]
+\centering
+\caption{The ETR ladder. All rate panels share the same authority stacking, metal-content rules, and MFN-exemption logic; they differ only in the USMCA claim-rate input. The two observed measures (Census-declared, Treasury-realized) are data, not statutory reconstructions.}
+\label{tab:tiers}
+\begin{tabular}{lll}
+\toprule
+Measure & Rate input & Weight input \\
+\midrule
+Baseline statutory      & statutory, USMCA at 2024 claim rates        & 2024 imports \\
+Announced statutory      & statutory, USMCA at post-July 2025 rates    & 2024 imports \\
+Composition-adjusted     & statutory, USMCA at post-July 2025 rates    & monthly imports \\
+Preference-adjusted      & + non-USMCA preferences applied             & monthly imports \\
+Census-declared          & Census calculated duty / import value       & (observed) \\
+Treasury-realized        & Treasury customs duties / goods imports     & (observed) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The **announced statutory rate** is the framework anchor. It applies the
+post-July 2025 USMCA claim rates (~89\% for Canada and Mexico) to fixed 2024
+import weights, and by construction it equals the public Budget Lab tracker's
+daily statutory ETR collapsed to monthly. Stepping down the ladder turns on one
+channel at a time:
+
+- **USMCA adjustment** (baseline $\to$ announced): hold 2024 weights and move the
+  USMCA claim rate from its 2024 level (~38\% Canada, ~50\% Mexico) to the
+  post-July 2025 level. This is largely retrospective --- firms filed claims late
+  and a July 2025 USITC reporting change made utilization visible --- so we treat
+  it as baseline backstory rather than a behavioral channel.
+- **Import composition** (announced $\to$ composition-adjusted): hold rates fixed
+  and shift weights from 2024 to actual monthly imports. This isolates the effect
+  of the changing import basket. We call it *import composition* rather than
+  "trade diversion" because the construction reweights cells but does not separate
+  anticipatory front-loading from durable supplier diversion.
+- **Non-USMCA preferences** (composition-adjusted $\to$ preference-adjusted):
+  apply observed claim shares for Annex II / ITA / Chapter 98, KORUS, GSP/AGOA,
+  and other bilateral FTAs.
+- **Residual** (preference-adjusted $\to$ Census-declared) and **timing**
+  (Census-declared $\to$ Treasury-realized): the back-end gap between the
+  fully-adjusted statutory reconstruction and what is actually collected. Treasury
+  duties are reported only in aggregate, so the policy-relevant object is the
+  combined preference-adjusted-to-realized residual; the Census-declared measure
+  is an observable *approximation* that lets us look inside it, not a fourth
+  statutory step.
+
+These channels are additive by construction: the announced-to-realized gap is
+the sum of import composition, non-USMCA preferences, residual, and timing, and
+the full gap adds the USMCA-adjustment backstory.
+
+### Decomposing import composition: between and within groups
+
+The import-composition channel holds rates fixed and moves weights, which makes
+it amenable to a clean group decomposition. Partition cells into groups $g$
+(eight partner groups, or nine product groups). The aggregate rate is the
+share-weighted average of group rates,
+
+$$
+\tau \;=\; \sum_g s_g R_g, \qquad
+R_g = \frac{\sum_{i \in g} w_i r_i}{\sum_{i \in g} w_i}, \qquad
+s_g = \frac{\sum_{i \in g} w_i}{\sum_i w_i}.
+$$
+
+Comparing two weight panels (2024 weights, superscript $0$; monthly weights,
+superscript $1$) at the *same* rates, the symmetric Shapley two-way split
+averages the two orderings of "share change then rate change":
+
+$$
+\Delta\tau \;=\;
+\underbrace{\tfrac{1}{2}\sum_g \bigl(R^0_g + R^1_g\bigr)\bigl(s^1_g - s^0_g\bigr)}_{\text{between-group: cross-group share shifts}}
+\;+\;
+\underbrace{\tfrac{1}{2}\sum_g \bigl(s^0_g + s^1_g\bigr)\bigl(R^1_g - R^0_g\bigr)}_{\text{within-group: mix shifts inside each group}}.
+$$
+
+A positive group contribution adds to the import-composition gap. Because the
+rate panel is fixed, the *between* term captures a group gaining or losing share
+of total imports, and the *within* term captures the group's internal product
+mix tilting toward lower- or higher-tariff cells. The country and product
+partitions are complementary: both sum to the same aggregate gap each month, a
+restriction we assert at runtime to within numerical noise.
+
+### Per-group attribution for the fixed-weight channels
+
+For channels where weights are held fixed and rates change (non-USMCA
+preferences; the statutory-versus-declared residual), the between-group Shapley
+term is mechanically zero and the attribution collapses to a dollar-weighted rate
+difference,
+
+$$
+\text{contribution}_g \;=\; \frac{\sum_{i \in g}\bigl(r^{\text{left}}_i - r^{\text{right}}_i\bigr)\, w_i}{\sum_i w_i},
+$$
+
+where the right-hand rate is the next rung down (for the residual, the
+cell-level Census-declared rate). The timing channel is reported in aggregate
+only, since Treasury revenue carries no partner or product breakout.
+
+### Per-cell rate construction and preference mechanics
+
+Cell-level statutory rates are built by the Budget Lab tariff-rate tracker from
+HTSUS and Chapter 99 text. Each cell stacks authority components --- MFN base,
+IEEPA reciprocal, IEEPA fentanyl, Section 232, Section 301, Section 122 --- with
+metal-content scaling for Section 232 (the metal share carries the 232 rate; the
+non-metal share carries reciprocal and 122), country-specific stacking rules,
+USMCA scaling by claim share (with a 0.40 U.S.-content rule for auto and
+medium/heavy-duty parts), HS2-by-country MFN exemption shares, and IEEPA floor
+adjustments. All six measures use the *same* stack; only the USMCA claim-rate
+input differs across the four statutory panels.
+
+The non-USMCA preference step subtracts, per cell, the authority components that
+each preference exempts. Letting $s_q$ be the observed claim share for preference
+$q$ (from importer-declared codes in the Census microdata), the
+preference-adjusted rate is the composition-adjusted rate minus
+
+$$
+\Delta^{\text{base}} = \bigl(s_{\text{duty\_free}} + s_{\text{korus}} + s_{\text{gsp}} + s_{\text{other\_fta}}\bigr)\, r^{\text{base}},
+\qquad
+\Delta^{\text{recip}} = s_{\text{duty\_free}}^{\text{annex}}\, r^{\text{recip}},
+$$
+
+floored at zero. The duty-free channel reduces the MFN base for all of its
+imports, but reduces the IEEPA reciprocal layer only for the share whose HS10 is
+on the controlling Annex II / ITA / Chapter 98 exempt list
+($s_{\text{duty\_free}}^{\text{annex}}$); pure MFN-zero imports that are not on
+that list still owe the reciprocal duty statutorily, so they are not credited
+with a reciprocal exemption. KORUS, GSP/AGOA, and other FTAs reduce the MFN base
+only. Because preference claims are mutually exclusive at the entry level, the
+shares partition imports and the rung is structurally non-negative.
+
+## Data
+
+Four sources populate the framework; Table \ref{tab:data} maps each to the
+formal model.
+
+\begin{table}[H]
+\centering
+\caption{Data sources and their role in the framework.}
+\label{tab:data}
+\begin{tabular}{lll}
+\toprule
+Source & Granularity & Role \\
+\midrule
+Census IMDB              & HS10 $\times$ country $\times$ month & monthly weights $w_{pc}(t)$; Census-declared duties \\
+Tariff Rate Tracker      & HS10 $\times$ country $\times$ revision & cell-level statutory rates $r_{pc}(t)$ \\
+USITC DataWeb            & HS10 $\times$ country $\times$ month & USMCA claim-rate scenarios \\
+U.S. Treasury (MTS/DTS)  & aggregate, monthly & realized rate (cash duties / imports) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The analysis window is January 2025 through March 2026, the latest month with
+Census import microdata available at the time of writing. Three measurement
+choices are worth stating explicitly. First, aggregation is a single-stage,
+row-level value-weighted average over (HS10 $\times$ country) cells --- there is
+no HS2 bridging. Second, zero-tariff products must remain in the denominator:
+dropping them inflates the realized rate from roughly 3.4\% to roughly 27\%.
+Third, every statutory rate panel is day-weighted across HTS revisions *within*
+each month, so mid-month policy events (Liberation Day on April 2, 2025; Phase 2
+on August 7, 2025; the SCOTUS ruling and Section 122 onset on February 24, 2026)
+are captured rather than snapped to a revision boundary. The Census-declared
+measure reflects duties as importers report them at entry; the Treasury-realized
+measure reflects cash actually collected, so the two diverge through refunds,
+drawback, FTZ deferrals, administrative-review liquidations, and payment timing.
+
+# Basic results
+
+## The headline gap
+
+Figure \ref{fig:baseline} plots the two measures that matter most to an outside
+analyst: the announced statutory rate and the rate Treasury realizes. Both rise
+sharply through spring 2025, but a persistent wedge opens between them.
+
+```{r baseline, fig.cap="Announced statutory rate versus Treasury-realized rate, monthly. The announced rate applies post-July 2025 USMCA claim rates to 2024 import weights; the realized rate is Treasury customs duties over goods imports."}
+knitr::include_graphics(fig("figure_baseline.png"))
+```
+
+The announced statutory rate jumps from `r f2(gv("2025m3","s1"))`\% in March
+2025 to `r f2(gv("2025m4","s1"))`\% in April after Liberation Day, peaks at
+`r f2(gv("2025m9","s1"))`\% in September 2025, then falls steeply after the
+February 2026 Supreme Court ruling invalidated the IEEPA tariffs and the regime
+partially transitioned to Section 122, reaching `r f2(ann_last)`\% in `r ym_lab`.
+The realized rate traces the same path one step behind:
+`r f2(gv("2025m3","t"))`\% in March 2025, `r f2(gv("2025m4","t"))`\% in April,
+peaking near `r f2(gv("2025m11","t"))`\% in late 2025, and falling to
+`r f2(real_last)`\% in `r ym_lab`. The monthly gap ranges from about 3.4 pp to
+8.8 pp; it was `r f2(gap_dec)` pp in December 2025 and `r f2(gap_last)` pp in
+`r ym_lab`.
+
+## The full ladder
+
+Figure \ref{fig:ladder} shows all six measures together. The three statutory
+reconstructions (announced, composition-adjusted, preference-adjusted) bunch
+tightly after mid-2025, which means the dominant gap is between the announced
+rate and what is realized --- and most of the action lives in the back-end
+residual rather than in composition or preferences.
+
+```{r ladder, fig.cap="The full ETR ladder, January 2025--March 2026. From top: baseline statutory (backstory), announced statutory (anchor), composition-adjusted, preference-adjusted, and Treasury-realized. The Census-declared measure sits between preference-adjusted and Treasury-realized."}
+knitr::include_graphics(fig("figure_ladder.png"))
+```
+
+Table \ref{tab:windows} averages the ladder and the implied channels over five
+policy windows. Two features stand out beyond the trend. The
+statutory-versus-declared residual stays positive in every window: the cell-level
+reconstruction persistently over-predicts what importers declare at entry. And
+the timing channel flips sign mid-2025 --- positive early, then increasingly
+negative, reaching about $-2$ pp in February 2026 (easing to about $-0.5$ pp in
+March) as Treasury cash receipts come to *exceed* Census-declared duties.
+
+```{r windows, results='asis'}
+if (!is.null(decomp)) {
+  cols <- c("s0","s1","s2","s3","s4","t",
+            "gap_adjustment","gap_diversion","gap_others","gap_residual","gap_timing")
+  wtab <- t(sapply(windows, function(yms) {
+    sub <- decomp[decomp$ym %in% yms, , drop = FALSE]
+    colMeans(sub[cols], na.rm = TRUE)
+  }))
+  wdf <- data.frame(Window = rownames(wtab), round(wtab, 2), row.names = NULL,
+                    check.names = FALSE)
+  colnames(wdf) <- c("Window", "Base", "Ann", "Comp", "Pref", "Cens", "Treas",
+                     "USMCA", "ImpComp", "NonUSMCA", "Resid", "Timing")
+  kbl <- knitr::kable(
+    wdf, format = "latex", booktabs = TRUE, linesep = "", row.names = FALSE,
+    caption = "Sub-period averages by policy window. Left block: ladder measures (\\%). Right block: channel gaps (pp). Post-SCOTUS covers only two months and should be read as directional."
+  )
+  if (requireNamespace("kableExtra", quietly = TRUE)) {
+    kbl <- kableExtra::add_header_above(
+      kbl, c(" " = 1, "Ladder measures (\\\\%)" = 6, "Channel gaps (pp)" = 5), escape = FALSE)
+    kbl <- kableExtra::kable_styling(kbl, latex_options = c("scale_down", "HOLD_position"))
+  }
+  kbl
+}
+```
+
+## The aggregate channel decomposition
+
+Figure \ref{fig:channel} splits the announced-to-realized gap into its three
+forward channels each month: import composition, non-USMCA preferences, and the
+combined residual-plus-timing band. Import composition contributes a steady
+2--3 pp; non-USMCA preferences are consistently the smallest band (~0.4 pp, and
+larger only when IEEPA reciprocal rates and Annex II claiming were both high in
+mid-2025); and
+the residual-plus-timing band is the largest and most variable, expanding around
+major policy events, briefly collapsing toward zero (even slightly negative) in
+February 2026, then widening again to about 1.6 pp in March as the post-SCOTUS
+schedule settled.
+
+```{r channel, fig.cap="Announced-to-realized gap decomposed monthly into import composition, non-USMCA preferences, and residual-plus-timing."}
+knitr::include_graphics(fig("figure_channel_stacked.png"))
+```
+
+## Validation against external estimates
+
+Our reconstruction is independent of @eck_etal_2026 in both data assembly and
+decomposition mechanics (a Shapley two-way rather than a Laspeyres separation),
+yet the two converge. At December 2025 our announced rate is `r f2(ann_dec)`\%
+against their 14.7\% (+0.4 pp), our realized rate is `r f2(real_dec)`\% against
+their ~9.27\% implied (+0.6 pp), and our total gap is `r f2(gap_dec)` pp against
+their 5.43 pp ($-0.2$ pp). Spot checks against other tracking series are
+consistent: PWBM reports 10.3\% for January 2026 against our
+`r f2(gv("2026m1","t"))`\%, and the Budget Lab's August 2025 range brackets our
+`r f2(gv("2025m8","t"))`\% realized and `r f2(gv("2025m8","s1"))`\% announced.
+The full month-by-month panel is reported in the appendix
+(Table \ref{tab:xval}). Convergence of independent methodologies is a useful
+check that the anchor is not idiosyncratic.
+
+# Decompositions
+
+We now attribute the two largest decomposable channels --- import composition and
+the back-end residual --- to partner countries and product groups. The USMCA
+adjustment is, by construction, almost entirely Canada and Mexico (the only
+USMCA-eligible partners) and the non-USMCA preferences channel is small and
+broadly distributed, so we focus the discussion here.
+
+## By country
+
+Figure \ref{fig:divcty} stacks each partner group's monthly contribution to the
+import-composition gap. The picture is dominated by a single country.
+
+```{r divcty, fig.cap="Import-composition channel: monthly contributions by partner group (signed; positive adds to the gap)."}
+knitr::include_graphics(fig("figure_diversion_country.png"))
+```
+
+```{r divcty-nums}
+chn <- if (!is.null(div_cty)) div_cty[div_cty$partner_group == "China", ] else NULL
+row <- if (!is.null(div_cty)) div_cty[div_cty$partner_group == "ROW", ] else NULL
+pos_between <- if (!is.null(div_cty)) sum(div_cty$c_between[div_cty$c_between > 0]) else NA
+china_share <- if (!is.null(chn)) 100 * chn$c_between / pos_between else NA
+```
+
+Period-mean contributions confirm what the figure suggests. China contributes
+about **`r f2(chn$c_total)` pp** to the import-composition gap, almost entirely
+through the *between* term (`r f2(chn$c_between)` pp) --- its share of total U.S.
+imports fell from roughly 13\% to 7\% as the reciprocal and Section 301 stack
+took hold. China alone accounts for about `r f1(china_share)`\% of all positive
+between-country contribution. The rest of the world shows a *negative*
+contribution (`r f2(row$c_total)` pp): lower-tariff partners such as Vietnam and
+India gained share, which pulls the monthly-weighted rate down. Canada and Mexico
+contribute little, because their trade concentrates in high-tariff categories
+whose share moved relatively little; what movement there is comes through the
+*within* term (internal mix shifts), not share loss. The headline
+import-composition story is, in short, overwhelmingly a China-share-decline story
+mirrored by reallocation toward low-tariff origins.
+
+## By product
+
+The same channel partitioned by product group (Figure \ref{fig:divprod}) reveals
+two distinct patterns operating at once.
+
+```{r divprod, fig.cap="Import-composition channel: monthly contributions by product group (signed)."}
+knitr::include_graphics(fig("figure_diversion_product.png"))
+```
+
+```{r divprod-tab, results='asis'}
+if (!is.null(div_prod)) {
+  pt <- div_prod[, c("product_group","p_between","p_within","p_total")]
+  pt <- pt[order(-pt$p_total), ]
+  pt[2:4] <- round(pt[2:4], 2)
+  colnames(pt) <- c("Product group", "Between", "Within", "Total")
+  knitr::kable(pt, format = "latex", booktabs = TRUE, linesep = "", row.names = FALSE,
+    caption = "Period-mean contributions to the import-composition gap by product group (pp).\\label{tab:divprod}")
+}
+```
+
+High-tariff goods lose *share*: Autos & Auto Parts (+0.59 pp) and Steel &
+Aluminum (+0.33 pp) compressed under Section 232, and their contributions come
+through the between term. Medium-tariff catch-all categories tell the opposite
+story: Other Manufactured (+0.49 pp) and Electronics & Machinery (+0.34 pp)
+*gained* share but tilted their internal mix toward lower-tariff sub-products, so
+their contributions are dominated by the within term (and their between terms are
+negative). Both Shapley terms therefore matter: the gap has a supply-side leg
+(high-tariff imports compressed) and a demand-side leg (substitution toward
+lower-tariff variants inside broad categories).
+
+## Where the residual concentrates
+
+Figure \ref{fig:heat} maps the period-averaged statutory-versus-declared gap
+across the full product-by-partner grid. The gap is concentrated, not pervasive:
+most cells are small. Steel & Aluminum is the loudest row across nearly every
+partner --- consistent with specific-duty ad-valorem-equivalent failures and
+classification effects --- with additional mass in China autos and apparel and in
+Canada/Mexico pharmaceuticals.
+
+```{r heat, fig.cap="Period-averaged statutory-versus-declared gap (pp) on the product (rows) by partner (columns) grid."}
+knitr::include_graphics(fig("figure_s2s4_heatmap.png"))
+```
+
+## All channels at once
+
+Figure \ref{fig:attr} places the four decomposable channels side by side on a
+common scale, partitioned by country. The reading is clean: the USMCA adjustment
+is Canada and Mexico by construction; import composition is China; non-USMCA
+preferences are small and broad; and the residual shows the widest dispersion,
+with Canada and Mexico prominent in mid-2025 and the EU and rest-of-world
+prominent later. The aggregate-only timing channel is not shown.
+
+```{r attr, fig.cap="The four decomposable channels by partner group on a common vertical scale. Timing (Census-declared to Treasury-realized) is aggregate-only and omitted."}
+knitr::include_graphics(fig("figure_attribution_country.png"))
+```
+
+# Future work
+
+The framework leaves several questions open, and points to concrete extensions.
+
+**The timing sign-flip.** The clearest unexplained signal in the panel is the
+back-end timing channel turning negative since mid-2025: Treasury now collects
+more than Census-declared duties imply, and cumulatively (February 2025--March
+2026) Treasury has over-collected by roughly \$12.1B relative to the Census
+microdata (Figure \ref{fig:cumgap}). Candidate mechanisms --- catch-up payments and refund
+reversals, AD/CVD administrative-review liquidations on a 12--18 month lag, FTZ
+entry reclassification, and coverage differences between the Monthly Treasury
+Statement and the Census import data --- push in the same direction and cannot be
+separated without Treasury microdata. A phase-correction on Treasury cash
+receipts would help discriminate among them.
+
+```{r cumgap, fig.cap="Cumulative Census-declared versus Treasury-realized customs duties (\\$), cumulated from February 2025."}
+knitr::include_graphics(fig("figure_cumulative_duty_gap.png"))
+```
+
+**What sustains the structural residual.** The statutory-versus-declared residual
+does not converge: it holds at roughly 1.4--2.6 pp regardless of policy regime.
+Specific-duty AVE failures, classification engineering, and unverified preference
+claiming all push the same way, and separating them likewise requires entry-level
+microdata. Our companion tracker-diagnostic outputs bound how much of the residual
+is measurement error versus genuine behavior and are a natural starting point.
+
+**Separating front-loading from durable diversion.** We deliberately label the
+announced-to-composition channel *import composition* rather than trade diversion,
+because the construction reweights cells without identifying mechanism. Pairing
+the monthly composition shifts with inventory and shipment-timing data --- or
+re-running the framework on a longer horizon as front-loaded inventory depletes
+--- would let us decompose composition into anticipatory and durable parts.
+
+**Finer preference attribution.** The non-USMCA preferences channel is currently
+reported in aggregate. Its largest piece is the Annex II / ITA / Chapter 98
+carve-out, which uniquely exempts the IEEPA reciprocal layer; decomposing it by
+HS2 chapter inside electronics, pharmaceuticals, and energy would attribute the
+carve-out story across product classes. Extending the country/product Shapley
+machinery, which currently runs only for import composition, to the other rungs
+is mechanical given the existing helpers.
+
+**Historical comparison and welfare.** Re-running the framework on 2017--2019
+data would test whether the channel mix has structurally changed or whether
+broader concentration alone explains the doubling of the gap fraction relative to
+2018--2019 [@eck_etal_2026]. And because the framework already produces per-cell
+rates, pairing them with the Trade Restrictiveness Index of @waugh_2026 would let
+us move from a duties-to-imports accounting of the gap to a welfare-equivalent
+one.
+
+\appendix
+
+# Cross-validation panel {-}
+
+```{r xval, results='asis'}
+if (!is.null(decomp)) {
+  xv <- decomp[, c("ym","s1","t")]
+  xv$gap <- xv$s1 - xv$t
+  xv[2:4] <- round(xv[2:4], 2)
+  colnames(xv) <- c("Month", "Announced statutory (\\%)", "Treasury-realized (\\%)", "Gap (pp)")
+  knitr::kable(xv, format = "latex", booktabs = TRUE, longtable = TRUE, linesep = "", row.names = FALSE,
+    caption = "Announced statutory versus Treasury-realized rate, full monthly panel.")
+}
+```
+
+# Product taxonomy {-}
+
+The nine product groups are policy-salient HS2 aggregations: Steel & Aluminum
+(72, 73, 76; Section 232), Autos & Auto Parts (87 and derivatives; Section 232
+autos), Electronics & Machinery (84, 85; Annex II / ITA and China 301),
+Pharmaceuticals (30; generic exemption), Energy & Minerals (25--27; fentanyl
+carve-outs), Chemicals & Plastics (28, 29, 31--40), Apparel & Textiles (50--67;
+high MFN baseline), Food & Agriculture (01--24; specific duties), and Other
+Manufactured (41--49, 68--71, 86, 88--97).
+
+# References {-}
