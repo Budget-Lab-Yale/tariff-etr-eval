@@ -1,0 +1,66 @@
+gtap_code,description,aggregate_sector,is_manufacturing,is_durable,is_nondurable,is_advanced
+pdr,Paddy rice,Agriculture,0,0,0,0
+wht,Wheat,Agriculture,0,0,0,0
+gro,Cereal grains nec,Agriculture,0,0,0,0
+v_f,"Vegetables, fruit, nuts",Agriculture,0,0,0,0
+osd,Oil seeds,Agriculture,0,0,0,0
+c_b,"Sugar cane, sugar beet",Agriculture,0,0,0,0
+pfb,Plant-based fibers,Agriculture,0,0,0,0
+ocr,Crops nec,Agriculture,0,0,0,0
+ctl,"Bovine cattle, sheep, goats, horses",Agriculture,0,0,0,0
+oap,Animal products nec,Agriculture,0,0,0,0
+rmk,Raw milk,Agriculture,0,0,0,0
+wol,"Wool, silk-worm cocoons",Agriculture,0,0,0,0
+frs,Forestry,Agriculture,0,0,0,0
+fsh,Fishing,Agriculture,0,0,0,0
+coa,Coal,Mining,0,0,0,0
+oil,Oil,Mining,0,0,0,0
+gas,Gas,Mining,0,0,0,0
+oxt,Other extraction,Mining,0,0,0,0
+cmt,Bovine meat products,Manufacturing,1,0,1,0
+omt,Meat products nec,Manufacturing,1,0,1,0
+vol,Vegetable oils and fats,Manufacturing,1,0,1,0
+mil,Dairy products,Manufacturing,1,0,1,0
+pcr,Processed rice,Manufacturing,1,0,1,0
+sgr,Sugar,Manufacturing,1,0,1,0
+ofd,Food products nec,Manufacturing,1,0,1,0
+b_t,Beverages and tobacco products,Manufacturing,1,0,1,0
+tex,Textiles,Manufacturing,1,0,1,0
+wap,Wearing apparel,Manufacturing,1,0,1,0
+lea,Leather products,Manufacturing,1,0,1,0
+lum,Wood products,Manufacturing,1,1,0,0
+ppp,"Paper products, publishing",Manufacturing,1,0,1,0
+p_c,"Petroleum, coal products",Manufacturing,1,0,1,0
+chm,Chemical products,Manufacturing,1,0,1,0
+bph,Basic pharmaceutical products,Manufacturing,1,0,1,0
+rpp,Rubber and plastic products,Manufacturing,1,0,1,0
+nmm,Mineral products nec,Manufacturing,1,1,0,0
+i_s,Ferrous metals,Manufacturing,1,1,0,0
+nfm,Metals nec,Manufacturing,1,1,0,0
+fmp,Metal products,Manufacturing,1,1,0,0
+ele,"Computer, electronic and optical products",Manufacturing,1,0,0,1
+eeq,Electrical equipment,Manufacturing,1,1,0,0
+ome,Machinery and equipment nec,Manufacturing,1,1,0,0
+mvh,Motor vehicles and parts,Manufacturing,1,1,0,0
+otn,Transport equipment nec,Manufacturing,1,1,0,0
+omf,Manufactures nec,Manufacturing,1,1,0,0
+ely,Electricity,Utilities,0,0,0,0
+gdt,Gas distribution,Utilities,0,0,0,0
+wtr,Water,Utilities,0,0,0,0
+cns,Construction,Construction,0,0,0,0
+trd,Trade,Services,0,0,0,0
+afs,Accommodation and food services,Services,0,0,0,0
+otp,Transport nec,Services,0,0,0,0
+wtp,Water transport,Services,0,0,0,0
+atp,Air transport,Services,0,0,0,0
+whs,Warehousing and support activities,Services,0,0,0,0
+cmn,Communication,Services,0,0,0,0
+ofi,Financial services nec,Services,0,0,0,0
+ins,Insurance,Services,0,0,0,0
+rsa,Real estate activities,Services,0,0,0,0
+obs,Business services nec,Services,0,0,0,0
+ros,Recreational and other services,Services,0,0,0,0
+osg,Public administration and defense,Services,0,0,0,0
+edu,Education,Services,0,0,0,0
+hht,Human health and social work,Services,0,0,0,0
+dwe,Dwellings,Services,0,0,0,0
