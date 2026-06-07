@@ -18,6 +18,7 @@ data/raw/
 data/imdb/
 data/working/
 data/snapshots/
+data/weights/
 # zip duplicate of the extracted data/gtap_output/ folder
 data/gtap_output.zip
 

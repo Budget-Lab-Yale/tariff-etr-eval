@@ -917,50 +917,87 @@ if (!HAVE_SIBLING) {
 
 log_msg("  Exporting 2024 import weights...")
 existing_iw <- file.path(RAW_DIR, "import_weights_2024.csv")
-if (!HAVE_SIBLING) {
-  # 2024 weights are fixed, so a previously exported CSV stays valid.
-  if (file.exists(existing_iw)) {
-    log_msg("    NOTE: no sibling checkout; keeping existing ",
-            "import_weights_2024.csv (2024 weights are fixed).")
-  } else {
-    log_msg("    WARNING: import weights are not in the shared publish and no")
-    log_msg("    sibling checkout found -- skipping (see docs/shared_publish_extensions.md).")
-  }
-} else {
-  # local_paths.yaml is gitignored in the tracker; fall back to the tracker's
-  # default weights location when only local_paths.yaml.example is present.
-  lp_path <- file.path(TRACKER_DIR, "config", "local_paths.yaml")
-  iw_rel <- if (file.exists(lp_path)) {
-    read_yaml(lp_path)$import_weights
-  } else {
-    "data/weights/hs10_by_country_gtap_2024_con.rds"
-  }
+LOCAL_IW_RDS <- here("data", "weights", "hs10_by_country_gtap_2024_con.rds")
 
-  if (is.null(iw_rel) || length(iw_rel) == 0L || !nzchar(iw_rel)) {
-    # The tracker's config/local_paths.yaml no longer carries an 'import_weights'
-    # key (reduced to weight_mode only). 2024 import weights are fixed and do not
-    # change as the analysis window extends, so keep the existing CSV in place
-    # rather than aborting the whole pull.
-    if (file.exists(existing_iw)) {
-      log_msg("    NOTE: 'import_weights' absent in tracker local_paths.yaml; ",
-              "keeping existing import_weights_2024.csv (2024 weights are fixed).")
-    } else {
-      log_msg("    WARNING: 'import_weights' absent in tracker local_paths.yaml ",
-              "AND no existing import_weights_2024.csv to fall back on.")
-    }
-  } else {
-    iw_path <- normalizePath(file.path(TRACKER_DIR, iw_rel), mustWork = FALSE)
-    if (file.exists(iw_path)) {
-      readRDS(iw_path) |>
-        summarise(imports = sum(imports, na.rm = TRUE),
-                  .by = c(hs10, cty_code)) |>
-        filter(imports > 0) |>
-        write_csv(existing_iw)
-      log_msg("    -> import_weights_2024.csv written")
-    } else {
-      log_msg("    WARNING: import weights RDS not found at: ", iw_path)
+# Resolve a weights RDS, in order: tracker local_paths.yaml ('import_weights'
+# key, if present) -> tracker default weights location -> a previously
+# self-built local copy (see the build fallback below).
+iw_path <- NULL
+if (HAVE_SIBLING) {
+  lp_path <- file.path(TRACKER_DIR, "config", "local_paths.yaml")
+  if (file.exists(lp_path)) {
+    iw_rel <- read_yaml(lp_path)$import_weights
+    if (!is.null(iw_rel) && length(iw_rel) > 0L && nzchar(iw_rel)) {
+      cand <- normalizePath(file.path(TRACKER_DIR, iw_rel), mustWork = FALSE)
+      if (file.exists(cand)) iw_path <- cand
     }
   }
+  if (is.null(iw_path)) {
+    cand <- file.path(TRACKER_DIR, "data", "weights",
+                      "hs10_by_country_gtap_2024_con.rds")
+    if (file.exists(cand)) iw_path <- cand
+  }
+}
+if (is.null(iw_path) && file.exists(LOCAL_IW_RDS)) iw_path <- LOCAL_IW_RDS
+
+# Self-build fallback: no prebuilt RDS anywhere (data/weights/ is gitignored
+# in the tracker, so a fresh clone has none). Run the tracker's committed
+# src/build_import_weights.R -- deterministic from public Census IMDB ZIPs,
+# so the output matches the weights behind the tracker's own daily series
+# (which the S1 = daily-ETR identity depends on). Reuses Section 2's ZIP
+# cache via --raw-dir; any missing 2024 ZIPs are downloaded into it
+# (--keep-zips so the cache survives). Output lands in this repo's
+# data/weights/, never inside the tracker checkout.
+if (is.null(iw_path) && HAVE_SIBLING) {
+  build_script <- file.path(TRACKER_DIR, "src", "build_import_weights.R")
+  if (file.exists(build_script)) {
+    log_msg("    No weights RDS found -- building via the tracker's ",
+            "build_import_weights.R")
+    log_msg("    (downloads any missing 2024 IMDB ZIPs into data/imdb/; ",
+            "~10-30 min)")
+    dir.create(dirname(LOCAL_IW_RDS), showWarnings = FALSE, recursive = TRUE)
+    rscript_bin <- file.path(R.home("bin"),
+                             if (.Platform$OS.type == "windows") "Rscript.exe"
+                             else "Rscript")
+    old_wd <- getwd()
+    setwd(TRACKER_DIR)  # script resolves its here() defaults from the tracker
+    status <- tryCatch(
+      system2(rscript_bin,
+              args = c(shQuote(build_script),
+                       "--year", "2024",
+                       "--raw-dir", shQuote(IMDB_RAW),
+                       "--crosswalk", shQuote(file.path(TRACKER_DIR,
+                                                        "resources",
+                                                        "hs10_gtap_crosswalk.csv")),
+                       "--out", shQuote(LOCAL_IW_RDS),
+                       "--keep-zips")),
+      finally = setwd(old_wd))
+    if (identical(status, 0L) && file.exists(LOCAL_IW_RDS)) {
+      iw_path <- LOCAL_IW_RDS
+      log_msg("    -> weights RDS built at data/weights/")
+    } else {
+      log_msg("    WARNING: weight build failed (exit status ", status, ")")
+    }
+  } else {
+    log_msg("    WARNING: tracker checkout has no src/build_import_weights.R")
+  }
+}
+
+if (!is.null(iw_path)) {
+  readRDS(iw_path) |>
+    summarise(imports = sum(imports, na.rm = TRUE),
+              .by = c(hs10, cty_code)) |>
+    filter(imports > 0) |>
+    write_csv(existing_iw)
+  log_msg("    -> import_weights_2024.csv written")
+} else if (file.exists(existing_iw)) {
+  # 2024 weights are fixed, so a previously exported CSV stays valid.
+  log_msg("    NOTE: no weights RDS available; keeping existing ",
+          "import_weights_2024.csv (2024 weights are fixed).")
+} else {
+  log_msg("    WARNING: no weights RDS and no existing import_weights_2024.csv.")
+  log_msg("    Clone tariff-rate-tracker alongside this repo; this section will")
+  log_msg("    then rebuild the weights from Census IMDB automatically.")
 }
 
 # --- 3c. Daily ETR CSVs (copy from tracker output) ---
