@@ -89,7 +89,17 @@ Rscript code/R/00_pull_raw_data.R --skip-imdb           # skip IMDB bulk downloa
 Rscript code/R/00_pull_raw_data.R --only-tracker        # sections 3a–3e only (~15 min)
 Rscript code/R/00_pull_raw_data.R --only-counterfactual # sections 3d–3g only (~10 min)
 Rscript code/R/00_pull_raw_data.R --refresh-tracker     # rebuild tracker first (~hours)
+Rscript code/R/00_pull_raw_data.R --tracker-data=PATH   # pin a specific tracker publish vintage
+Rscript code/R/00_pull_raw_data.R --no-shared-tracker   # force the sibling-checkout path
 ```
+
+#### Tracker data source: shared publish vs sibling checkout
+
+On the BL cluster, Step 0 reads statutory rate snapshots (3a) and daily ETRs + revision dates (3c) from the **shared tracker publish** (`model_data/Tariff-Rate-Tracker/latest`: parquet + `manifest.json`; vintage and git commit are logged at the top of each run). The publish location is machine-specific and lives in the gitignored `config/local_paths.yaml` (key `tracker_data_dir`; copy `config/local_paths.yaml.example` and edit). Resolution order: `--tracker-data=PATH` → `--no-shared-tracker` → `TRACKER_DATA_DIR` env var → `tracker_data_dir` from `config/local_paths.yaml` if it exists → sibling checkout. With no publish configured (e.g. off-cluster) the script behaves exactly as before, reading everything from the sibling checkout.
+
+In shared mode, `revision_dates.csv` is **derived from the publish** (one revision per `valid_from=` snapshot directory — the publish's dating is authoritative for the rates being used), with `policy_event` annotations joined from the vendored lookup `resources/revision_policy_events.csv`.
+
+Not yet in the publish — these still require the sibling checkout (warn-and-skip otherwise): 2024 import weights (3b), USMCA share files (3d), and the four USMCA scenario snapshot sets behind the counterfactual panels (3e). Weights and share files are obtainable from any tracker clone (the shares and the weight-build script are committed there); the scenario snapshots are the one input only the tracker build can produce — `docs/shared_publish_extensions.md` is the request to the tracker maintainer for those (plus two small publish fixes).
 
 Use `--only-tracker` after updating the tracker repo to regenerate snapshot CSVs, USMCA shares, and counterfactual rate files. Use `--refresh-tracker` to rebuild the tracker end-to-end (revision dates, HTS JSON, DataWeb USMCA shares, top-level + per-scenario snapshots, daily ETRs) before the export steps; requires `DATAWEB_API_TOKEN` in `tariff-rate-tracker/.env` and may halt at `01_scrape_revision_dates.R` if a new HTS revision needs manual policy-date curation. Composes with the other flags.
 
@@ -136,7 +146,7 @@ announced-basis ~32–38% — all above the model's current flat 10% assumption.
 
 ## Sibling repo dependencies
 
-Both must be cloned at the same directory level as this repo. Step 0 reads RDS snapshots, daily ETR CSVs, and Treasury revenue from those checkouts; if either is missing, the script aborts with a clear error pointing at the expected path.
+Both should be cloned at the same directory level as this repo. Step 0 reads RDS snapshots, daily ETR CSVs, and Treasury revenue from those checkouts. On the BL cluster, the shared tracker publish replaces the `tariff-rate-tracker` checkout for snapshots and daily ETRs (see [Tracker data source](#tracker-data-source-shared-publish-vs-sibling-checkout)); the checkout is still needed for import weights, USMCA shares, and scenario snapshots, and `tariff-impact-tracker` is always needed for Treasury revenue. With no publish and no checkout, the script aborts with a clear error pointing at the expected path.
 
 - [`Budget-Lab-Yale/tariff-rate-tracker`](https://github.com/Budget-Lab-Yale/tariff-rate-tracker) — statutory rates, daily ETR, import weights, revision dates, USMCA product shares (from USITC DataWeb SPI data).
 - [`Budget-Lab-Yale/tariff-impact-tracker`](https://github.com/Budget-Lab-Yale/tariff-impact-tracker) — Treasury revenue (actual ETR).
@@ -200,7 +210,7 @@ Zero-tariff products **must be included** in the denominator. Dropping them infl
 |--------|------------|------|
 | Census IMDB bulk | `census.gov/trade/downloads/` | HS10 × country × district × preference detail (primary monthly source; HS2 rollups derived from this) |
 | Census Bureau API | `api.census.gov` | HS2 × country monthly trade — opt-in via `--with-census`; not consumed by the Stata pipeline |
-| Tariff Rate Tracker | [`Budget-Lab-Yale/tariff-rate-tracker`](https://github.com/Budget-Lab-Yale/tariff-rate-tracker) | HTS10 × country statutory rates, daily ETR, import weights |
+| Tariff Rate Tracker | [`Budget-Lab-Yale/tariff-rate-tracker`](https://github.com/Budget-Lab-Yale/tariff-rate-tracker) | HTS10 × country statutory rates, daily ETR, import weights. On the BL cluster, snapshots + daily ETRs come from the shared publish (`model_data/Tariff-Rate-Tracker/latest`, configured in `config/local_paths.yaml`) instead of a checkout |
 | Tariff Impact Tracker | [`Budget-Lab-Yale/tariff-impact-tracker`](https://github.com/Budget-Lab-Yale/tariff-impact-tracker) | Monthly actual ETR (Treasury customs duties / imports) |
 
 `--refresh-tracker` shells out to the tracker repo and rebuilds its outputs end-to-end before the export step; this requires `DATAWEB_API_TOKEN` set in `tariff-rate-tracker/.env` (free token from <https://dataweb.usitc.gov>) and ~60–90 minutes. Both sibling repos publish their own setup instructions.
@@ -240,7 +250,7 @@ Every figure is exported in two versions: `figure_X.png` (no titles/subtitles, d
 
 ## Requirements
 
-**R** (Step 0 only): `httr`, `jsonlite`, `dplyr`, `readr`, `here`, `stringi`, `yaml`.
+**R** (Step 0 only): `httr`, `jsonlite`, `dplyr`, `readr`, `here`, `stringi`, `yaml`; plus `arrow` when reading the shared tracker publish (any mode except `--no-shared-tracker` on the BL cluster).
 
 **Stata 17+**: `ftools`, `reghdfe`, `gtools`, `estout`, `coefplot`, `plotplainblind`, `heatplot` (with deps `palettes`, `colrspace`). Install with:
 

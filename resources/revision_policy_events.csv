@@ -1,0 +1,43 @@
+revision,policy_event
+basic,Baseline (pre-Trump 2.0)
+rev_1,China IEEPA fentanyl (+10%; EO 14195 eff. Feb 4)
+rev_2,
+rev_3,CA/MX fentanyl (+25%) and China fentanyl (+20%) eff. Mar 4 after the February pause
+rev_4,USMCA carve-outs (Mar 7); 232 derivatives text (Mar 12 items held by stated-date gate until rev_5)
+rev_5,
+rev_6,232 Autos (25%; Proclamation 10908 eff. Apr 3)
+rev_7,IEEPA Phase 1 reciprocal (Liberation Day; 10% baseline eff. Apr 5; Apr-9 country rates held by stated-date gate until rev_8)
+rev_8,China IEEPA: 34% -> 84%; country-specific Phase 1 rates begin
+rev_9,China IEEPA: 84% -> 125%; Phase 1 suspended (90-day pause)
+rev_10,Phase 1 suspension continues; retroactive Apr-5 electronics memo (covered by Annex II exemption windows)
+rev_11,232 Auto parts (eff. May 3)
+rev_12,Geneva: China 125% -> 34% suspended to 10% (EO 14298 eff. May 14)
+rev_13,
+rev_14,232 steel/aluminum + derivatives 50% (Proclamation 10947 eff. Jun 4)
+rev_15,
+rev_16,Annual July 1 staged updates (the 232 50% increase entered at rev_14)
+rev_17,CA fentanyl: 25% -> 35%; copper 232 (Proclamation 10962) both eff. Aug 1
+rev_18,IEEPA Phase 2 reciprocal; Brazil EO (+40%); Phase 1 unsuspended
+rev_19,232 derivative inclusions (eff. Aug 18)
+rev_20,India EO second +25% (eff. Aug 27)
+rev_21,
+rev_22,EO 14346 Annex II metals/gold amendment (eff. Sep 8)
+rev_23,Japan floor (15%; implementation eff. Sep 16)
+rev_24,EU exemption entries (9903.02.74-77; legally retroactive to Sep 1; text published Sep 25 - retro window not modeled)
+rev_25,232 wood/timber (PP 10976; 9903.76 eff. Oct 14)
+rev_26,MHD vehicles/buses 232 (eff. Nov 1); copper 232; 232 auto entries
+rev_27,301 cranes (100%; eff. Nov 9); China fentanyl: 20% -> 10% (eff. Nov 10)
+rev_28,China-deal follow-through (eff. Nov 10)
+rev_29,Agricultural Annex II expansion (eff. Nov 13); note 2(v)(iii) restructured into (iii)(a)/(b)
+rev_30,Nov-13 EO follow-through corrections (published Nov 21)
+rev_31,
+rev_32,S. Korea floor (15%) and 232 auto S. Korea; legally retroactive to Nov 14; text published Dec 5 - retro window not modeled (see todo)
+2026_basic,Switzerland/Liechtenstein floor (15%)
+2026_rev_1,Semiconductor tariffs (25%; 9903.79; eff. Jan 15)
+2026_rev_2,
+2026_rev_3,Argentina beef quota (9903.54; eff. Feb 7)
+2026_rev_4,IEEPA invalidated (SCOTUS); Section 122 Phase 3 (10% blanket; 9903.03)
+2026_rev_5,"232 annex restructuring (4-tier: 50/25/0/15% floor; 9903.82); corrected by HTS rev_7 published 2026-04-29 (Note 16(a)/(e) amendments + 9903.82.01 zero-metal-content carve-out, all retroactive to April 6)"
+2026_rev_6,"232 USMCA vehicle-parts carve-out (9903.82.18 steel +25%, 9903.82.19 aluminum +25%; Commerce-authorized limited quantities; Proc. 10984 / 91 FR 21790)"
+2026_rev_7,232 annex Note 16(a)/(e) corrections + 9903.82.01 zero-metal-content carve-out; corrections retroactive to April 6 (already applied to rev_5 source files); no functional rate-engine impact vs rev_6 (carve-out not currently modeled)
+2026_rev_9,"Taiwan added to 15% floor structure (legally retroactive to May 1 per change record; dated May 1 here): 232 auto parts (9903.94.66-.69), wood products (9903.76.24, 15%), civil-aircraft components exempt (9903.96.03). 2026_rev_8 (published May 22) is EXCLUDED from the series - editorial-only vs rev_7 (description wording on 9819.11.12, AGOA apparel), zero rate impact; keeping it would invert interval ordering against the retro-dated rev_9."

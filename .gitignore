@@ -65,3 +65,6 @@ Thumbs.db
 *.snm
 *.toc
 *.synctex.gz
+
+# User-specific local paths (committed template: config/local_paths.yaml.example)
+config/local_paths.yaml

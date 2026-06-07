@@ -1,0 +1,15 @@
+# =============================================================================
+# Local Paths — User-Specific File Locations
+# =============================================================================
+# Copy to config/local_paths.yaml (gitignored) and edit for your machine.
+# This file keeps machine/server-specific paths out of the repository.
+# =============================================================================
+
+# Shared tariff-rate-tracker data publish (parquet snapshots + daily ETRs +
+# manifest.json). When set and the directory exists, Step 0 sections 3a/3c
+# read from it instead of converting RDS from a sibling tracker checkout.
+# Point at `latest`, or pin a dated vintage for reproducibility.
+# Leave unset (or delete this file) to always use the sibling checkout.
+# Overridden by --tracker-data=PATH / TRACKER_DATA_DIR; bypassed entirely
+# by --no-shared-tracker.
+tracker_data_dir: /path/to/shared/model_data/Tariff-Rate-Tracker/latest

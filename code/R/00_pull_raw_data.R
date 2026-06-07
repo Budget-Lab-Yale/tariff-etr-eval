@@ -8,8 +8,13 @@
 # Data sources:
 #   1. Census Bureau API    -- HS2 x country monthly trade data
 #   2. Census IMDB bulk     -- HS10 x country monthly (via fixed-width ZIPs)
-#   3. tariff-rate-tracker  -- snapshot rates (RDS -> CSV), daily ETRs,
-#                              revision dates, import weights
+#   3. tariff-rate-tracker  -- snapshot rates, daily ETRs, revision dates,
+#                              import weights. Snapshots + daily ETRs come
+#                              from the shared tracker publish (parquet +
+#                              manifest) when available; everything else
+#                              (and all of section 3 otherwise) comes from
+#                              a sibling checkout. See "Tracker data source"
+#                              below.
 #   4. tariff-impact-tracker -- Treasury revenue (actual ETR)
 #
 # Usage:
@@ -28,6 +33,15 @@
 #                                                       # ~60-90 min, requires
 #                                                       # DATAWEB_API_TOKEN env var.
 #                                                       # Composes with other flags.
+#                                                       # Requires sibling checkout.
+#   Rscript code/R/00_pull_raw_data.R --tracker-data=PATH  # read snapshots +
+#                                                       # daily ETRs from a
+#                                                       # specific tracker publish
+#                                                       # (e.g. a pinned vintage
+#                                                       # instead of latest)
+#   Rscript code/R/00_pull_raw_data.R --no-shared-tracker  # force the sibling-
+#                                                       # checkout path even if
+#                                                       # the shared publish exists
 #
 # Output (all in data/raw/):
 #   census_hs2_country_monthly.csv      -- HS2 x country x month
@@ -70,6 +84,21 @@ IMDB_RAW    <- file.path(IMDB_DIR, "raw")
 SNAP_DIR    <- file.path(RAW_DIR, "snapshot_rates")
 TRACKER_DIR <- file.path(dirname(here()), "tariff-rate-tracker")
 IMPACTS_DIR <- file.path(dirname(here()), "tariff-impact-tracker")
+
+# Default location of the shared tracker publish, read from the gitignored
+# config/local_paths.yaml (key: tracker_data_dir) -- see
+# config/local_paths.yaml.example. Kept out of the repo so no internal
+# server paths are committed. A dated vintage directory sits next to
+# `latest`; pin one for reproducibility via --tracker-data= or the
+# TRACKER_DATA_DIR env var.
+LOCAL_PATHS_FILE <- here("config", "local_paths.yaml")
+SHARED_TRACKER_DEFAULT <- NULL
+if (file.exists(LOCAL_PATHS_FILE)) {
+  lp <- read_yaml(LOCAL_PATHS_FILE)
+  if (!is.null(lp$tracker_data_dir) && nzchar(lp$tracker_data_dir)) {
+    SHARED_TRACKER_DEFAULT <- lp$tracker_data_dir
+  }
+}
 
 dir.create(RAW_DIR,  showWarnings = FALSE, recursive = TRUE)
 dir.create(IMDB_DIR, showWarnings = FALSE, recursive = TRUE)
@@ -185,6 +214,45 @@ if ("--refresh-tracker" %in% cli_args) {
   RUN_REFRESH_TRACKER <- TRUE
 }
 
+# --- Tracker data source (shared publish vs sibling checkout) ---
+# Sections 3a (top-level snapshots) and 3c (daily ETRs, revision dates) read
+# the published tracker data (parquet + manifest.json) instead of converting
+# RDS from a sibling checkout when a publish is available. Resolution order:
+#   1. --tracker-data=PATH    (CLI; pin a vintage)
+#   2. --no-shared-tracker    (force sibling checkout)
+#   3. TRACKER_DATA_DIR       (env var)
+#   4. tracker_data_dir from config/local_paths.yaml, if it exists
+#   5. sibling checkout only  (original behavior)
+# Sections 3b/3d/3e (import weights, USMCA shares, scenario snapshots) are
+# not yet in the publish and still need the sibling checkout -- see
+# docs/shared_publish_extensions.md for the requested additions.
+TRACKER_DATA_DIR <- NULL
+td_flag <- grep("^--tracker-data=", cli_args, value = TRUE)
+if (length(td_flag) > 0) {
+  TRACKER_DATA_DIR <- sub("^--tracker-data=", "", td_flag[1])
+  if (!dir.exists(TRACKER_DATA_DIR)) {
+    stop("--tracker-data path not found: ", TRACKER_DATA_DIR, call. = FALSE)
+  }
+} else if (!("--no-shared-tracker" %in% cli_args)) {
+  env_dir <- Sys.getenv("TRACKER_DATA_DIR")
+  if (nzchar(env_dir)) {
+    if (!dir.exists(env_dir)) {
+      stop("TRACKER_DATA_DIR not found: ", env_dir, call. = FALSE)
+    }
+    TRACKER_DATA_DIR <- env_dir
+  } else if (!is.null(SHARED_TRACKER_DEFAULT) &&
+             dir.exists(SHARED_TRACKER_DEFAULT)) {
+    TRACKER_DATA_DIR <- SHARED_TRACKER_DEFAULT
+  }
+}
+USE_SHARED_TRACKER <- !is.null(TRACKER_DATA_DIR)
+
+if (USE_SHARED_TRACKER && !requireNamespace("arrow", quietly = TRUE)) {
+  stop("Package 'arrow' is required to read the shared tracker publish.",
+       "\n  install.packages(\"arrow\"), or rerun with --no-shared-tracker",
+       " to use the sibling checkout.", call. = FALSE)
+}
+
 log_msg("=======================================================")
 log_msg("  Raw Data Assembly for tariff-etr-eval")
 log_msg("  Started: ", format(Sys.time()))
@@ -192,6 +260,27 @@ log_msg("  Sections: census=", RUN_CENSUS, " imdb=", RUN_IMDB,
         " tracker=", RUN_TRACKER, " counterfactual=", RUN_COUNTERFACTUAL,
         " impacts=", RUN_IMPACTS, " refresh-tracker=", RUN_REFRESH_TRACKER)
 log_msg("=======================================================")
+
+# Log tracker-source provenance up front so every run records which data it
+# consumed (the shared publish carries vintage + git commit in its manifest).
+if (USE_SHARED_TRACKER) {
+  log_msg("  Tracker data: shared publish at ", TRACKER_DATA_DIR)
+  manifest_path <- file.path(TRACKER_DATA_DIR, "manifest.json")
+  if (file.exists(manifest_path)) {
+    mf <- jsonlite::fromJSON(manifest_path)
+    mf_commit <- if (is.null(mf$git$commit)) "?" else substr(mf$git$commit, 1, 9)
+    log_msg("    vintage=", mf$vintage, " commit=", mf_commit,
+            " schema=", mf$schema_version, " rate_unit=", mf$rate_unit)
+    if (!identical(mf$rate_unit, "fraction")) {
+      log_msg("    WARNING: publish rate_unit is '", mf$rate_unit,
+              "' -- the Stata pipeline assumes fractional rates")
+    }
+  } else {
+    log_msg("    WARNING: manifest.json not found in publish")
+  }
+} else {
+  log_msg("  Tracker data: sibling checkout at ", TRACKER_DIR)
+}
 
 
 # ======================================================================
@@ -683,9 +772,15 @@ if (length(imdb_gap_months) > 0) {
 # 3. TARIFF-RATE-TRACKER: snapshots, daily ETRs, weights, revision dates
 # ======================================================================
 
-if (!dir.exists(TRACKER_DIR)) {
+# The sibling checkout is required outright only when no shared publish is
+# in play. With a publish, sections 3a/3c run from it and the sibling-only
+# sections (3b/3d/3e) degrade to warnings below.
+HAVE_SIBLING <- dir.exists(TRACKER_DIR)
+if (!USE_SHARED_TRACKER && !HAVE_SIBLING) {
   stop("tariff-rate-tracker not found at: ", TRACKER_DIR,
-       "\n  Expected sibling directory alongside this repo.", call. = FALSE)
+       "\n  Expected sibling directory alongside this repo, or point",
+       "\n  --tracker-data= / TRACKER_DATA_DIR at a shared tracker publish.",
+       call. = FALSE)
 }
 
 if (!RUN_TRACKER) {
@@ -734,98 +829,229 @@ export_snapshots <- function(src_dir, dst_dir, label) {
   length(files)
 }
 
-log_msg("  Exporting top-level snapshots (production, h2avg-equivalent)...")
-n_top <- export_snapshots(ts_dir, SNAP_DIR, "top-level")
-log_msg(sprintf("    -> %d top-level snapshot CSVs written", n_top))
-
-SCENARIOS <- c("usmca_none", "usmca_2024", "usmca_monthly", "usmca_h2avg")
-for (scn in SCENARIOS) {
-  scn_src <- file.path(ts_dir, scn)
-  if (!dir.exists(scn_src)) {
-    log_msg(sprintf("    WARNING: scenario dir '%s' not found -- skipping",
-                    scn))
-    next
+# Shared-publish variant: each actual/snapshots/valid_from=*/rates.parquet
+# holds exactly one revision (carried in its `revision` column; verified
+# unique across the 2026-06-06 vintage). Writes the same snapshot_<rev>.csv
+# files as the RDS path and returns a revision -> effective-date map (from
+# `valid_from`) that 3c uses to derive revision_dates.csv. Stale top-level
+# CSVs are cleared first: a prior sibling-mode run may have written
+# revisions the publish has since re-dated or dropped, and leftovers would
+# corrupt the month-revision merge in Stata.
+export_snapshots_shared <- function(snap_root, dst_dir) {
+  parquets <- list.files(snap_root, pattern = "^rates\\.parquet$",
+                         recursive = TRUE, full.names = TRUE)
+  if (length(parquets) == 0) {
+    stop("No rates.parquet files found under: ", snap_root,
+         "\n  Bad or incomplete publish? Rerun with --no-shared-tracker to",
+         " use the sibling checkout.", call. = FALSE)
   }
-  scn_dst <- file.path(SNAP_DIR, scn)
-  log_msg(sprintf("  Exporting scenario: %s ...", scn))
-  n_scn <- export_snapshots(scn_src, scn_dst, scn)
-  log_msg(sprintf("    -> %d %s snapshot CSVs written", n_scn, scn))
+  dir.create(dst_dir, showWarnings = FALSE, recursive = TRUE)
+  stale <- list.files(dst_dir, pattern = "^snapshot_.*\\.csv$",
+                      full.names = TRUE)
+  if (length(stale) > 0) {
+    unlink(stale)
+    log_msg(sprintf("    Cleared %d stale top-level snapshot CSVs",
+                    length(stale)))
+  }
+
+  rev_map <- vector("list", length(parquets))
+  for (i in seq_along(parquets)) {
+    snap <- arrow::read_parquet(
+      parquets[i],
+      col_select = dplyr::any_of(c(SNAP_COLS, "revision", "valid_from")))
+    rev <- unique(snap$revision)
+    if (length(rev) != 1) {
+      log_msg(sprintf("    WARNING: %s carries %d revisions -- skipping",
+                      parquets[i], length(rev)))
+      rm(snap); next
+    }
+    rev_map[[i]] <- data.frame(revision       = rev,
+                               effective_date = format(min(snap$valid_from),
+                                                        "%Y-%m-%d"),
+                               stringsAsFactors = FALSE)
+    snap |>
+      select(all_of(intersect(SNAP_COLS, colnames(snap)))) |>
+      write_csv(file.path(dst_dir, paste0("snapshot_", rev, ".csv")))
+    rm(snap)
+    gc(verbose = FALSE)
+  }
+  bind_rows(rev_map)
+}
+
+SHARED_REV_MAP <- NULL
+if (USE_SHARED_TRACKER) {
+  log_msg("  Exporting top-level snapshots from shared publish (parquet)...")
+  SHARED_REV_MAP <- export_snapshots_shared(
+    file.path(TRACKER_DATA_DIR, "actual", "snapshots"), SNAP_DIR)
+  log_msg(sprintf("    -> %d top-level snapshot CSVs written",
+                  nrow(SHARED_REV_MAP)))
+} else {
+  log_msg("  Exporting top-level snapshots (production, h2avg-equivalent)...")
+  n_top <- export_snapshots(ts_dir, SNAP_DIR, "top-level")
+  log_msg(sprintf("    -> %d top-level snapshot CSVs written", n_top))
+}
+
+# USMCA scenario snapshots are not in the shared publish (core-only builds);
+# they always come from the sibling checkout when it is present.
+SCENARIOS <- c("usmca_none", "usmca_2024", "usmca_monthly", "usmca_h2avg")
+if (!HAVE_SIBLING) {
+  log_msg("    WARNING: USMCA scenario snapshots are not in the shared")
+  log_msg("    publish and no sibling checkout found -- skipping scenario")
+  log_msg("    exports (see docs/shared_publish_extensions.md).")
+} else {
+  for (scn in SCENARIOS) {
+    scn_src <- file.path(ts_dir, scn)
+    if (!dir.exists(scn_src)) {
+      log_msg(sprintf("    WARNING: scenario dir '%s' not found -- skipping",
+                      scn))
+      next
+    }
+    scn_dst <- file.path(SNAP_DIR, scn)
+    log_msg(sprintf("  Exporting scenario: %s ...", scn))
+    n_scn <- export_snapshots(scn_src, scn_dst, scn)
+    log_msg(sprintf("    -> %d %s snapshot CSVs written", n_scn, scn))
+  }
 }
 
 # --- 3b. 2024 import weights (RDS -> CSV) ---
 
 log_msg("  Exporting 2024 import weights...")
-local_paths <- read_yaml(file.path(TRACKER_DIR, "config", "local_paths.yaml"))
-iw_rel <- local_paths$import_weights
 existing_iw <- file.path(RAW_DIR, "import_weights_2024.csv")
-
-if (is.null(iw_rel) || length(iw_rel) == 0L || !nzchar(iw_rel)) {
-  # The tracker's config/local_paths.yaml no longer carries an 'import_weights'
-  # key (reduced to weight_mode only). 2024 import weights are fixed and do not
-  # change as the analysis window extends, so keep the existing CSV in place
-  # rather than aborting the whole pull.
+if (!HAVE_SIBLING) {
+  # 2024 weights are fixed, so a previously exported CSV stays valid.
   if (file.exists(existing_iw)) {
-    log_msg("    NOTE: 'import_weights' absent in tracker local_paths.yaml; ",
-            "keeping existing import_weights_2024.csv (2024 weights are fixed).")
+    log_msg("    NOTE: no sibling checkout; keeping existing ",
+            "import_weights_2024.csv (2024 weights are fixed).")
   } else {
-    log_msg("    WARNING: 'import_weights' absent in tracker local_paths.yaml ",
-            "AND no existing import_weights_2024.csv to fall back on.")
+    log_msg("    WARNING: import weights are not in the shared publish and no")
+    log_msg("    sibling checkout found -- skipping (see docs/shared_publish_extensions.md).")
   }
 } else {
-  iw_path <- normalizePath(file.path(TRACKER_DIR, iw_rel), mustWork = FALSE)
-  if (file.exists(iw_path)) {
-    readRDS(iw_path) |>
-      summarise(imports = sum(imports, na.rm = TRUE),
-                .by = c(hs10, cty_code)) |>
-      filter(imports > 0) |>
-      write_csv(existing_iw)
-    log_msg("    -> import_weights_2024.csv written")
+  # local_paths.yaml is gitignored in the tracker; fall back to the tracker's
+  # default weights location when only local_paths.yaml.example is present.
+  lp_path <- file.path(TRACKER_DIR, "config", "local_paths.yaml")
+  iw_rel <- if (file.exists(lp_path)) {
+    read_yaml(lp_path)$import_weights
   } else {
-    log_msg("    WARNING: import weights RDS not found at: ", iw_path)
+    "data/weights/hs10_by_country_gtap_2024_con.rds"
+  }
+
+  if (is.null(iw_rel) || length(iw_rel) == 0L || !nzchar(iw_rel)) {
+    # The tracker's config/local_paths.yaml no longer carries an 'import_weights'
+    # key (reduced to weight_mode only). 2024 import weights are fixed and do not
+    # change as the analysis window extends, so keep the existing CSV in place
+    # rather than aborting the whole pull.
+    if (file.exists(existing_iw)) {
+      log_msg("    NOTE: 'import_weights' absent in tracker local_paths.yaml; ",
+              "keeping existing import_weights_2024.csv (2024 weights are fixed).")
+    } else {
+      log_msg("    WARNING: 'import_weights' absent in tracker local_paths.yaml ",
+              "AND no existing import_weights_2024.csv to fall back on.")
+    }
+  } else {
+    iw_path <- normalizePath(file.path(TRACKER_DIR, iw_rel), mustWork = FALSE)
+    if (file.exists(iw_path)) {
+      readRDS(iw_path) |>
+        summarise(imports = sum(imports, na.rm = TRUE),
+                  .by = c(hs10, cty_code)) |>
+        filter(imports > 0) |>
+        write_csv(existing_iw)
+      log_msg("    -> import_weights_2024.csv written")
+    } else {
+      log_msg("    WARNING: import weights RDS not found at: ", iw_path)
+    }
   }
 }
 
 # --- 3c. Daily ETR CSVs (copy from tracker output) ---
 
 log_msg("  Copying daily ETR files...")
-tracker_copies <- c(
-  "output/daily/daily_overall.csv"    = "daily_overall.csv",
-  "output/daily/daily_by_country.csv" = "daily_by_country.csv"
-)
-
-for (src_rel in names(tracker_copies)) {
-  src <- file.path(TRACKER_DIR, src_rel)
-  dst <- file.path(RAW_DIR, tracker_copies[[src_rel]])
-  if (file.exists(src)) {
-    file.copy(src, dst, overwrite = TRUE)
-    log_msg(sprintf("    -> %s", tracker_copies[[src_rel]]))
-  } else {
-    log_msg(sprintf("    WARNING: %s not found", src_rel))
+if (USE_SHARED_TRACKER) {
+  for (f in c("daily_overall.csv", "daily_by_country.csv")) {
+    src <- file.path(TRACKER_DATA_DIR, "actual", "daily", f)
+    if (file.exists(src)) {
+      file.copy(src, file.path(RAW_DIR, f), overwrite = TRUE)
+      log_msg(sprintf("    -> %s (shared publish)", f))
+    } else {
+      log_msg(sprintf("    WARNING: %s not found in shared publish", f))
+    }
   }
-}
 
-# revision_dates.csv: swap policy_effective_date into effective_date at the
-# export boundary, mirroring the tracker's load_revision_dates(use_policy_dates
-# = TRUE) (June 2026 re-dating: effective_date = HTS publication date;
-# policy_effective_date = when the rates were actually in force). Downstream
-# consumers (Stata B3/D1, section 3e) then read corrected dates unchanged.
-rd_src <- file.path(TRACKER_DIR, "config", "revision_dates.csv")
-if (file.exists(rd_src)) {
-  rd <- read_csv(rd_src, col_types = cols(.default = col_character()))
-  if ("policy_effective_date" %in% names(rd)) {
-    n_swap <- sum(!is.na(rd$policy_effective_date) &
-                  rd$policy_effective_date != rd$effective_date)
-    rd <- rd |>
-      mutate(effective_date = dplyr::coalesce(policy_effective_date,
-                                              effective_date))
-    log_msg(sprintf("    -> revision_dates.csv (policy dates swapped in for %d revisions)",
-                    n_swap))
+  # Derive revision_dates.csv from the snapshot map built in 3a. The
+  # publish's valid_from dating is authoritative for the rates being used:
+  # it already carries the June 2026 re-dating, i.e. it equals the
+  # coalesce(policy_effective_date, effective_date) that the sibling path
+  # below computes. policy_event annotations come from the vendored lookup
+  # in resources/ since the publish does not carry them.
+  if (!is.null(SHARED_REV_MAP) && nrow(SHARED_REV_MAP) > 0) {
+    pe_path <- here("resources", "revision_policy_events.csv")
+    rd <- SHARED_REV_MAP
+    if (file.exists(pe_path)) {
+      pe <- read_csv(pe_path, col_types = cols(.default = col_character()),
+                     progress = FALSE)
+      rd <- left_join(rd, pe[, c("revision", "policy_event")],
+                      by = "revision")
+      n_unmatched <- sum(is.na(rd$policy_event) &
+                         !(rd$revision %in% pe$revision))
+      if (n_unmatched > 0) {
+        log_msg(sprintf(paste0("    NOTE: %d publish revisions missing from ",
+                               "resources/revision_policy_events.csv ",
+                               "(policy_event left empty)"), n_unmatched))
+      }
+    } else {
+      log_msg("    WARNING: resources/revision_policy_events.csv not found --")
+      log_msg("    revision_dates.csv will have empty policy_event")
+      rd$policy_event <- NA_character_
+    }
+    rd |>
+      arrange(effective_date) |>
+      write_csv(file.path(RAW_DIR, "revision_dates.csv"))
+    log_msg(sprintf("    -> revision_dates.csv derived from publish (%d revisions)",
+                    nrow(rd)))
   } else {
-    log_msg("    -> revision_dates.csv (no policy_effective_date column; copied as-is)")
+    log_msg("    WARNING: no snapshot map from 3a -- revision_dates.csv not written")
   }
-  write_csv(rd, file.path(RAW_DIR, "revision_dates.csv"))
 } else {
-  log_msg("    WARNING: config/revision_dates.csv not found")
+  tracker_copies <- c(
+    "output/daily/daily_overall.csv"    = "daily_overall.csv",
+    "output/daily/daily_by_country.csv" = "daily_by_country.csv"
+  )
+
+  for (src_rel in names(tracker_copies)) {
+    src <- file.path(TRACKER_DIR, src_rel)
+    dst <- file.path(RAW_DIR, tracker_copies[[src_rel]])
+    if (file.exists(src)) {
+      file.copy(src, dst, overwrite = TRUE)
+      log_msg(sprintf("    -> %s", tracker_copies[[src_rel]]))
+    } else {
+      log_msg(sprintf("    WARNING: %s not found", src_rel))
+    }
+  }
+
+  # revision_dates.csv: swap policy_effective_date into effective_date at the
+  # export boundary, mirroring the tracker's load_revision_dates(use_policy_dates
+  # = TRUE) (June 2026 re-dating: effective_date = HTS publication date;
+  # policy_effective_date = when the rates were actually in force). Downstream
+  # consumers (Stata B3/D1, section 3e) then read corrected dates unchanged.
+  # (In shared mode the derived dates above already equal this coalesce.)
+  rd_src <- file.path(TRACKER_DIR, "config", "revision_dates.csv")
+  if (file.exists(rd_src)) {
+    rd <- read_csv(rd_src, col_types = cols(.default = col_character()))
+    if ("policy_effective_date" %in% names(rd)) {
+      n_swap <- sum(!is.na(rd$policy_effective_date) &
+                    rd$policy_effective_date != rd$effective_date)
+      rd <- rd |>
+        mutate(effective_date = dplyr::coalesce(policy_effective_date,
+                                                effective_date))
+      log_msg(sprintf("    -> revision_dates.csv (policy dates swapped in for %d revisions)",
+                      n_swap))
+    } else {
+      log_msg("    -> revision_dates.csv (no policy_effective_date column; copied as-is)")
+    }
+    write_csv(rd, file.path(RAW_DIR, "revision_dates.csv"))
+  } else {
+    log_msg("    WARNING: config/revision_dates.csv not found")
+  }
 }
 
 } # end RUN_TRACKER
@@ -838,41 +1064,46 @@ if (!RUN_COUNTERFACTUAL) {
 # --- 3d. USMCA utilization shares (copy from tracker resources) ---
 
 log_msg("  Copying USMCA utilization shares...")
-USMCA_DIR <- file.path(RAW_DIR, "usmca_shares")
-dir.create(USMCA_DIR, showWarnings = FALSE, recursive = TRUE)
-
-# 2024 annual shares (pre-tariff baseline)
-usmca_2024_src <- file.path(TRACKER_DIR, "resources", "usmca_product_shares_2024.csv")
-if (file.exists(usmca_2024_src)) {
-  file.copy(usmca_2024_src, file.path(USMCA_DIR, basename(usmca_2024_src)), overwrite = TRUE)
-  log_msg("    -> usmca_product_shares_2024.csv")
+if (!HAVE_SIBLING) {
+  log_msg("    WARNING: USMCA share files are not in the shared publish and")
+  log_msg("    no sibling checkout found -- skipping (see docs/shared_publish_extensions.md).")
 } else {
-  log_msg("    WARNING: usmca_product_shares_2024.csv not found in tracker")
-}
+  USMCA_DIR <- file.path(RAW_DIR, "usmca_shares")
+  dir.create(USMCA_DIR, showWarnings = FALSE, recursive = TRUE)
 
-# Monthly 2025 + available 2026 shares
-n_monthly <- 0L
-for (y in 2025:2026) {
-  months_to_try <- if (y == 2025) 1:12 else 1:12
-  for (m in months_to_try) {
-    src <- file.path(TRACKER_DIR, "resources",
-                     sprintf("usmca_product_shares_%d_%02d.csv", y, m))
-    if (file.exists(src)) {
-      file.copy(src, file.path(USMCA_DIR, basename(src)), overwrite = TRUE)
-      n_monthly <- n_monthly + 1L
+  # 2024 annual shares (pre-tariff baseline)
+  usmca_2024_src <- file.path(TRACKER_DIR, "resources", "usmca_product_shares_2024.csv")
+  if (file.exists(usmca_2024_src)) {
+    file.copy(usmca_2024_src, file.path(USMCA_DIR, basename(usmca_2024_src)), overwrite = TRUE)
+    log_msg("    -> usmca_product_shares_2024.csv")
+  } else {
+    log_msg("    WARNING: usmca_product_shares_2024.csv not found in tracker")
+  }
+
+  # Monthly 2025 + available 2026 shares
+  n_monthly <- 0L
+  for (y in 2025:2026) {
+    months_to_try <- if (y == 2025) 1:12 else 1:12
+    for (m in months_to_try) {
+      src <- file.path(TRACKER_DIR, "resources",
+                       sprintf("usmca_product_shares_%d_%02d.csv", y, m))
+      if (file.exists(src)) {
+        file.copy(src, file.path(USMCA_DIR, basename(src)), overwrite = TRUE)
+        n_monthly <- n_monthly + 1L
+      }
     }
   }
-}
-log_msg(sprintf("    -> %d monthly USMCA share files copied", n_monthly))
+  log_msg(sprintf("    -> %d monthly USMCA share files copied", n_monthly))
 
-# Carry forward latest available share file to fill gaps in analysis window.
-# Currently: Feb 2026 not yet available from DataWeb; carry forward Jan 2026.
-jan_2026 <- file.path(USMCA_DIR, "usmca_product_shares_2026_01.csv")
-feb_2026 <- file.path(USMCA_DIR, "usmca_product_shares_2026_02.csv")
-if (file.exists(jan_2026) && !file.exists(feb_2026)) {
-  file.copy(jan_2026, feb_2026, overwrite = FALSE)
-  log_msg("    NOTE: Carried forward Jan 2026 shares -> Feb 2026 (DataWeb not yet available)")
-}
+  # Carry forward latest available share file to fill gaps in analysis window.
+  # Currently: Feb 2026 not yet available from DataWeb; carry forward Jan 2026.
+  jan_2026 <- file.path(USMCA_DIR, "usmca_product_shares_2026_01.csv")
+  feb_2026 <- file.path(USMCA_DIR, "usmca_product_shares_2026_02.csv")
+  if (file.exists(jan_2026) && !file.exists(feb_2026)) {
+    file.copy(jan_2026, feb_2026, overwrite = FALSE)
+    log_msg("    NOTE: Carried forward Jan 2026 shares -> Feb 2026 (DataWeb not yet available)")
+  }
+} # end 3d sibling guard
 
 
 # --- 3e. Counterfactual month-level rate CSVs (day-weighted scenarios) ---
@@ -1036,8 +1267,14 @@ build_counterfactual <- function(scenario, out_file) {
   invisible(NULL)
 }
 
-for (scn in names(scenario_outputs)) {
-  build_counterfactual(scn, scenario_outputs[[scn]])
+# Scenario snapshots only exist in the sibling checkout (not published).
+if (!HAVE_SIBLING) {
+  log_msg("    WARNING: scenario snapshots require the sibling checkout --")
+  log_msg("    skipping counterfactual rate builds (see docs/shared_publish_extensions.md).")
+} else {
+  for (scn in names(scenario_outputs)) {
+    build_counterfactual(scn, scenario_outputs[[scn]])
+  }
 }
 
 
