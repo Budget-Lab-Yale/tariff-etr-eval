@@ -756,17 +756,33 @@ for (scn in SCENARIOS) {
 
 log_msg("  Exporting 2024 import weights...")
 local_paths <- read_yaml(file.path(TRACKER_DIR, "config", "local_paths.yaml"))
-iw_path <- normalizePath(file.path(TRACKER_DIR, local_paths$import_weights), mustWork = FALSE)
+iw_rel <- local_paths$import_weights
+existing_iw <- file.path(RAW_DIR, "import_weights_2024.csv")
 
-if (file.exists(iw_path)) {
-  readRDS(iw_path) |>
-    summarise(imports = sum(imports, na.rm = TRUE),
-              .by = c(hs10, cty_code)) |>
-    filter(imports > 0) |>
-    write_csv(file.path(RAW_DIR, "import_weights_2024.csv"))
-  log_msg("    -> import_weights_2024.csv written")
+if (is.null(iw_rel) || length(iw_rel) == 0L || !nzchar(iw_rel)) {
+  # The tracker's config/local_paths.yaml no longer carries an 'import_weights'
+  # key (reduced to weight_mode only). 2024 import weights are fixed and do not
+  # change as the analysis window extends, so keep the existing CSV in place
+  # rather than aborting the whole pull.
+  if (file.exists(existing_iw)) {
+    log_msg("    NOTE: 'import_weights' absent in tracker local_paths.yaml; ",
+            "keeping existing import_weights_2024.csv (2024 weights are fixed).")
+  } else {
+    log_msg("    WARNING: 'import_weights' absent in tracker local_paths.yaml ",
+            "AND no existing import_weights_2024.csv to fall back on.")
+  }
 } else {
-  log_msg("    WARNING: import weights RDS not found at: ", iw_path)
+  iw_path <- normalizePath(file.path(TRACKER_DIR, iw_rel), mustWork = FALSE)
+  if (file.exists(iw_path)) {
+    readRDS(iw_path) |>
+      summarise(imports = sum(imports, na.rm = TRUE),
+                .by = c(hs10, cty_code)) |>
+      filter(imports > 0) |>
+      write_csv(existing_iw)
+    log_msg("    -> import_weights_2024.csv written")
+  } else {
+    log_msg("    WARNING: import weights RDS not found at: ", iw_path)
+  }
 }
 
 # --- 3c. Daily ETR CSVs (copy from tracker output) ---
@@ -774,8 +790,7 @@ if (file.exists(iw_path)) {
 log_msg("  Copying daily ETR files...")
 tracker_copies <- c(
   "output/daily/daily_overall.csv"    = "daily_overall.csv",
-  "output/daily/daily_by_country.csv" = "daily_by_country.csv",
-  "config/revision_dates.csv"         = "revision_dates.csv"
+  "output/daily/daily_by_country.csv" = "daily_by_country.csv"
 )
 
 for (src_rel in names(tracker_copies)) {
@@ -787,6 +802,30 @@ for (src_rel in names(tracker_copies)) {
   } else {
     log_msg(sprintf("    WARNING: %s not found", src_rel))
   }
+}
+
+# revision_dates.csv: swap policy_effective_date into effective_date at the
+# export boundary, mirroring the tracker's load_revision_dates(use_policy_dates
+# = TRUE) (June 2026 re-dating: effective_date = HTS publication date;
+# policy_effective_date = when the rates were actually in force). Downstream
+# consumers (Stata B3/D1, section 3e) then read corrected dates unchanged.
+rd_src <- file.path(TRACKER_DIR, "config", "revision_dates.csv")
+if (file.exists(rd_src)) {
+  rd <- read_csv(rd_src, col_types = cols(.default = col_character()))
+  if ("policy_effective_date" %in% names(rd)) {
+    n_swap <- sum(!is.na(rd$policy_effective_date) &
+                  rd$policy_effective_date != rd$effective_date)
+    rd <- rd |>
+      mutate(effective_date = dplyr::coalesce(policy_effective_date,
+                                              effective_date))
+    log_msg(sprintf("    -> revision_dates.csv (policy dates swapped in for %d revisions)",
+                    n_swap))
+  } else {
+    log_msg("    -> revision_dates.csv (no policy_effective_date column; copied as-is)")
+  }
+  write_csv(rd, file.path(RAW_DIR, "revision_dates.csv"))
+} else {
+  log_msg("    WARNING: config/revision_dates.csv not found")
 }
 
 } # end RUN_TRACKER
@@ -859,9 +898,17 @@ if (file.exists(jan_2026) && !file.exists(feb_2026)) {
 
 log_msg("  Building counterfactual rate CSVs (from scenario snapshots)...")
 
-# Load revision dates for day-weighting
+# Load revision dates for day-weighting. The 3c export already swaps
+# policy_effective_date into effective_date; the coalesce here is an
+# idempotent guard for --only-counterfactual runs against an older copy.
 rev_dates <- read_csv(file.path(RAW_DIR, "revision_dates.csv"),
-                       col_types = cols(.default = col_character())) |>
+                       col_types = cols(.default = col_character()))
+if ("policy_effective_date" %in% names(rev_dates)) {
+  rev_dates <- rev_dates |>
+    mutate(effective_date = dplyr::coalesce(policy_effective_date,
+                                            effective_date))
+}
+rev_dates <- rev_dates |>
   mutate(effective_date = as.Date(effective_date)) |>
   filter(!is.na(effective_date)) |>
   arrange(effective_date) |>
@@ -869,7 +916,7 @@ rev_dates <- read_csv(file.path(RAW_DIR, "revision_dates.csv"),
 
 # Analysis window (must match globals.do: $start_ym to $end_ym)
 CF_START <- as.Date("2025-01-01")
-CF_END   <- as.Date("2026-02-28")
+CF_END   <- as.Date("2026-03-31")
 
 # Build month x revision day-weights
 month_starts <- seq.Date(CF_START, CF_END, by = "month")
@@ -901,6 +948,24 @@ scenario_outputs <- list(
   usmca_monthly = "counterfactual_usmca_monthly.csv",
   usmca_h2avg   = "counterfactual_h2avg.csv"
 )
+
+# Census (hs10 x cty) universe, for expanding the tracker's 8-digit leaf HTS
+# lines (kept since June 2026, padded to xxxxxxxx00) to the 10-digit stat
+# suffixes Census actually reports. Without this the Stata exact-hs10 merges
+# silently drop those lines (e.g. the Swiss watch headings).
+imdb_agg_path <- file.path(RAW_DIR, "imdb_hs10_country_monthly.csv")
+census_hs8_pairs <- if (file.exists(imdb_agg_path)) {
+  read_csv(imdb_agg_path,
+           col_types = cols(.default = col_character(),
+                            con_val_mo = col_double(),
+                            cal_dut_mo = col_double()),
+           col_select = c("hs10", "cty_code"), progress = FALSE) |>
+    distinct() |>
+    mutate(hs8 = substr(hs10, 1, 8))
+} else {
+  log_msg("    NOTE: imdb_hs10_country_monthly.csv not found -- skipping 8-digit leaf expansion")
+  NULL
+}
 
 build_counterfactual <- function(scenario, out_file) {
   scn_src <- file.path(TRACKER_DIR, "data", "timeseries", scenario)
@@ -943,6 +1008,27 @@ build_counterfactual <- function(scenario, out_file) {
     summarise(total_rate = sum(wtd_rate),
               .by = c(hts10, country, year_month)) |>
     rename(cty_code = country)
+
+  # Expand 8-digit leaf lines (...00) to the Census stat suffixes they cover,
+  # so downstream exact-hs10 merges pick them up. Census codes that already
+  # have their own exact row keep it (anti_join).
+  if (!is.null(census_hs8_pairs)) {
+    parents <- result |>
+      filter(substr(hts10, 9, 10) == "00") |>
+      mutate(hs8 = substr(hts10, 1, 8))
+    expanded <- census_hs8_pairs |>
+      inner_join(parents, by = c("hs8", "cty_code"),
+                 relationship = "many-to-many") |>
+      filter(hs10 != hts10) |>
+      anti_join(result, by = c("hs10" = "hts10", "cty_code", "year_month")) |>
+      transmute(hts10 = hs10, cty_code, year_month, total_rate)
+    if (nrow(expanded) > 0) {
+      result <- bind_rows(result, expanded)
+      log_msg(sprintf("    + %s rows expanded from 8-digit leaf parents",
+                      format(nrow(expanded), big.mark = ",")))
+    }
+    rm(parents, expanded)
+  }
 
   write_csv(result, file.path(RAW_DIR, out_file))
   log_msg(sprintf("    -> %s: %d rows", out_file, nrow(result)))
@@ -991,13 +1077,42 @@ if (!file.exists(imdb_detail_path)) {
   # then classify pref_channel. The IMDB detail CSV already carries year_month
   # as "YYYY-MM" and hs10 (not commodity).
   imdb_detail <- imdb_detail |>
-    filter(year_month >= "2025-01" & year_month <= "2026-02")
+    filter(year_month >= "2025-01" & year_month <= "2026-03")
   gc(verbose = FALSE)
   imdb_detail <- imdb_detail |>
     mutate(pref_channel = classify_pref_channel(cty_subco, rate_prov,
                                                 cty_code))
 
   log_msg(sprintf("    %d entries in analysis window", nrow(imdb_detail)))
+
+  # --- Split duty_free into Annex-II vs pure-MFN-zero (upgrade 1) ---------------
+  # The duty_free channel (rate_prov 10/18/19) is composite. Products on the
+  # tracker's IEEPA-exempt list (Annex II / ITA / Ch98 / Berman, claimed via
+  # 9903.01.32) carve out the IEEPA *reciprocal* layer; pure MFN-zero duty_free
+  # entries do NOT. Splitting here lets section 3g apply the reciprocal exemption
+  # (delta_recip) only to the on-list (annex) share, removing the over-count
+  # flagged in docs/six_tier_framework_plan.md sec. 6.7. The base exemption is
+  # unaffected (both sub-channels still exempt the MFN base).
+  exempt_file <- file.path(TRACKER_DIR, "resources", "ieepa_exempt_products.csv")
+  if (file.exists(exempt_file)) {
+    exempt_hs10 <- read_csv(exempt_file,
+                            col_types = cols(hts10 = col_character()),
+                            progress = FALSE)$hts10
+    imdb_detail <- imdb_detail |>
+      mutate(pref_channel = if_else(
+        pref_channel == "duty_free",
+        if_else(hs10 %in% exempt_hs10, "duty_free_annex", "duty_free_mfn"),
+        pref_channel))
+    log_msg(sprintf("    Split duty_free via %d IEEPA-exempt HTS10 codes",
+                    length(exempt_hs10)))
+  } else {
+    # Fallback preserves prior behaviour (all duty_free exempts reciprocal).
+    log_msg("    WARNING: ieepa_exempt_products.csv not found at ", exempt_file,
+            "; treating all duty_free as Annex-II (prior behaviour).")
+    imdb_detail <- imdb_detail |>
+      mutate(pref_channel = if_else(pref_channel == "duty_free",
+                                    "duty_free_annex", pref_channel))
+  }
 
   # Cell totals (all channels, including non-preference)
   cell_totals <- imdb_detail |>
@@ -1006,7 +1121,8 @@ if (!file.exists(imdb_detail_path)) {
 
   # Per-channel imports (one column per preference channel via repeated joins;
   # avoids tidyr dependency).
-  pref_channels <- c("usmca", "duty_free", "korus", "gsp_agoa", "other_fta")
+  pref_channels <- c("usmca", "duty_free_annex", "duty_free_mfn",
+                     "korus", "gsp_agoa", "other_fta")
   imdb_shares <- cell_totals
   for (ch in pref_channels) {
     ch_imports <- imdb_detail |>
@@ -1022,8 +1138,12 @@ if (!file.exists(imdb_detail_path)) {
     mutate(across(starts_with("imports_"), ~ coalesce(., 0)),
            share_usmca      = if_else(total_imports > 0,
                                        imports_usmca / total_imports, 0),
-           share_duty_free  = if_else(total_imports > 0,
-                                       imports_duty_free / total_imports, 0),
+           share_duty_free_annex = if_else(total_imports > 0,
+                                       imports_duty_free_annex / total_imports, 0),
+           share_duty_free_mfn   = if_else(total_imports > 0,
+                                       imports_duty_free_mfn / total_imports, 0),
+           # backward-compatible composite (annex + mfn = old duty_free)
+           share_duty_free  = share_duty_free_annex + share_duty_free_mfn,
            share_korus      = if_else(total_imports > 0,
                                        imports_korus / total_imports, 0),
            share_gsp_agoa   = if_else(total_imports > 0,
@@ -1034,7 +1154,8 @@ if (!file.exists(imdb_detail_path)) {
                                    share_gsp_agoa + share_other_fta,
            total_share = share_usmca + non_usmca_pref_share) |>
     select(hs10, cty_code, year_month, total_imports,
-           share_usmca, share_duty_free, share_korus,
+           share_usmca, share_duty_free,
+           share_duty_free_annex, share_duty_free_mfn, share_korus,
            share_gsp_agoa, share_other_fta,
            non_usmca_pref_share, total_share)
 
@@ -1089,6 +1210,8 @@ if (!shares_built && !file.exists(shares_path)) {
                                        total_imports = col_double(),
                                        share_usmca = col_double(),
                                        share_duty_free = col_double(),
+                                       share_duty_free_annex = col_double(),
+                                       share_duty_free_mfn = col_double(),
                                        share_korus = col_double(),
                                        share_gsp_agoa = col_double(),
                                        share_other_fta = col_double(),
@@ -1096,7 +1219,8 @@ if (!shares_built && !file.exists(shares_path)) {
                                        total_share = col_double()),
                       progress = FALSE) |>
     filter(non_usmca_pref_share > 0) |>
-    select(hs10, cty_code, year_month, share_duty_free, share_korus,
+    select(hs10, cty_code, year_month, share_duty_free,
+           share_duty_free_annex, share_korus,
            share_gsp_agoa, share_other_fta, non_usmca_pref_share)
   log_msg(sprintf("    Share-cells with positive non-USMCA pref: %d rows",
                   nrow(shares)))
@@ -1173,7 +1297,9 @@ if (!shares_built && !file.exists(shares_path)) {
            other_pref_total = share_duty_free + share_korus +
                               share_gsp_agoa + share_other_fta,
            delta_base  = other_pref_total * base_rate,
-           delta_recip = share_duty_free  * recip_rate) |>
+           # Upgrade 1: reciprocal exemption only on the Annex-II share (not
+           # pure MFN-zero duty_free), per applicability matrix sec. 6.3/6.7.
+           delta_recip = share_duty_free_annex * recip_rate) |>
     filter(delta_base + delta_recip > 0) |>
     select(hs10, cty_code, year_month, delta_base, delta_recip)
 

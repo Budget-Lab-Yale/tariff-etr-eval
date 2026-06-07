@@ -18,6 +18,8 @@ data/raw/
 data/imdb/
 data/working/
 data/snapshots/
+# zip duplicate of the extracted data/gtap_output/ folder
+data/gtap_output.zip
 
 # Output (regenerated)
 output/*.html
@@ -28,12 +30,17 @@ output/*_files/
 output/old/
 results/*.html
 results/*.docx
+results/*.zip
 results/figures/
 results/tables/
 
 # Rendered docs
 docs/*.html
 docs/*.pdf
+docs/*.docx
+# Paper renders (keep the .Rmd source)
+paper/*.pdf
+paper/*.tex
 docs/slides/*.pdf
 # Rmd renders the deck to .tex via keep_tex; ignore that intermediate
 docs/slides/etr_divergence_slides.tex

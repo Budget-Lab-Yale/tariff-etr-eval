@@ -353,7 +353,7 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local opt_title `"title("Trade Diversion Decomposition: Country Lens") subtitle("Shapley two-way; segments sum to total S1-S2 gap")"'
+            local opt_title `"title("Import Composition Decomposition: Country Lens") subtitle("Shapley two-way; segments sum to the total import-composition gap")"'
             local sfx "_titled"
         }
         else {
@@ -370,7 +370,7 @@ preserve
                 1 "Between-country (share shifts)" ///
                 2 "Within-country (product mix)") ///
                 rows(1) size(small) position(6)) ///
-            ytitle("Contribution to S1-S2 gap (pp)") ///
+            ytitle("Contribution to import-composition gap (pp)") ///
             `opt_title' ///
             yline(0, lcolor(gs10) lpattern(dot)) ///
             graphregion(color(white)) plotregion(margin(small)) ///
@@ -420,7 +420,7 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local opt_title `"title("Trade Diversion: Country Contributions") subtitle("Stacked monthly, signed (positive = adds to gap_diversion)")"'
+            local opt_title `"title("Import Composition: Country Contributions") subtitle("Stacked monthly, signed (positive = adds to the import-composition gap)")"'
             local sfx "_titled"
         }
         else {
@@ -442,7 +442,7 @@ preserve
             legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
                          5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
                    rows(1) size(vsmall) position(6)) ///
-            ytitle("Contribution to S1-S2 gap (pp)") ///
+            ytitle("Contribution to import-composition gap (pp)") ///
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_div_country, replace)
@@ -492,7 +492,7 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local opt_title `"title("Trade Diversion: Product Contributions") subtitle("Stacked monthly, signed (positive = adds to gap_diversion)")"'
+            local opt_title `"title("Import Composition: Product Contributions") subtitle("Stacked monthly, signed (positive = adds to the import-composition gap)")"'
             local sfx "_titled"
         }
         else {
@@ -517,7 +517,7 @@ preserve
                          5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
                          8 "Food & Ag" 9 "Other") ///
                    rows(2) size(vsmall) position(6)) ///
-            ytitle("Contribution to S1-S2 gap (pp)") ///
+            ytitle("Contribution to import-composition gap (pp)") ///
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_div_product, replace)
@@ -652,7 +652,7 @@ preserve
     }
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local opt_title `"title("All-Other Preferences: Country Contributions") subtitle("Stacked monthly, signed; sums to gap_others")"'
+            local opt_title `"title("All-Other Preferences: Country Contributions") subtitle("Stacked monthly, signed; sums to the non-USMCA-preferences gap")"'
             local sfx "_titled"
         }
         else {
@@ -670,7 +670,7 @@ preserve
             legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
                          5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
                    rows(1) size(vsmall) position(6)) ///
-            ytitle("Contribution to S2-S3 gap (pp)") ///
+            ytitle("Contribution to non-USMCA-preferences gap (pp)") ///
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_others_country, replace)
@@ -713,7 +713,7 @@ preserve
     }
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local opt_title `"title("All-Other Preferences: Product Contributions") subtitle("Stacked monthly, signed; sums to gap_others")"'
+            local opt_title `"title("All-Other Preferences: Product Contributions") subtitle("Stacked monthly, signed; sums to the non-USMCA-preferences gap")"'
             local sfx "_titled"
         }
         else {
@@ -734,7 +734,7 @@ preserve
                          5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
                          8 "Food & Ag" 9 "Other") ///
                    rows(2) size(vsmall) position(6)) ///
-            ytitle("Contribution to S2-S3 gap (pp)") ///
+            ytitle("Contribution to non-USMCA-preferences gap (pp)") ///
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_others_product, replace)
@@ -776,7 +776,7 @@ preserve
     }
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local opt_title `"title("Residual: Country Contributions") subtitle("Stacked monthly, signed; sums to gap_residual (S3-S4)")"'
+            local opt_title `"title("Residual: Country Contributions") subtitle("Stacked monthly, signed; sums to the residual gap")"'
             local sfx "_titled"
         }
         else {
@@ -794,7 +794,7 @@ preserve
             legend(order(1 "China" 2 "Canada" 3 "Mexico" 4 "EU" ///
                          5 "Japan" 6 "S. Korea" 7 "UK" 8 "ROW") ///
                    rows(1) size(vsmall) position(6)) ///
-            ytitle("Contribution to S3-S4 gap (pp)") ///
+            ytitle("Contribution to residual gap (pp)") ///
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_resid_country, replace)
@@ -837,7 +837,7 @@ preserve
     }
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local opt_title `"title("Residual: Product Contributions") subtitle("Stacked monthly, signed; sums to gap_residual (S3-S4)")"'
+            local opt_title `"title("Residual: Product Contributions") subtitle("Stacked monthly, signed; sums to the residual gap")"'
             local sfx "_titled"
         }
         else {
@@ -858,7 +858,7 @@ preserve
                          5 "Energy" 6 "Chem & Plastics" 7 "Apparel" ///
                          8 "Food & Ag" 9 "Other") ///
                    rows(2) size(vsmall) position(6)) ///
-            ytitle("Contribution to S3-S4 gap (pp)") ///
+            ytitle("Contribution to residual gap (pp)") ///
             `opt_title' ///
             graphregion(color(white)) ///
             name(g_resid_product, replace)
@@ -1044,10 +1044,10 @@ foreach ch in adjustment diversion others residual {
         }
 
         local channel_title = upper(substr("`ch'", 1, 1)) + substr("`ch'", 2, .)
-        if "`ch'" == "adjustment" local panel_label "USMCA adjustment (S0-S1)"
-        if "`ch'" == "diversion"  local panel_label "Trade diversion (S1-S2)"
-        if "`ch'" == "others"     local panel_label "Other preferences (S2-S3)"
-        if "`ch'" == "residual"   local panel_label "Residual (S3-S4)"
+        if "`ch'" == "adjustment" local panel_label "USMCA adjustment"
+        if "`ch'" == "diversion"  local panel_label "Import composition"
+        if "`ch'" == "others"     local panel_label "Non-USMCA preferences"
+        if "`ch'" == "residual"   local panel_label "Residual"
 
         * Show legend on first panel only.
         if "`ch'" == "adjustment" {
@@ -1079,7 +1079,7 @@ foreach ch in adjustment diversion others residual {
 
 foreach v in titled clean {
     if "`v'" == "titled" {
-        local opt_title `"title("Per-Country Attribution Across the Four Decomposable Channels") subtitle("Stacked monthly; gap_timing (S4-T) is Treasury-aggregate-only, not shown")"'
+        local opt_title `"title("Per-Country Attribution Across the Four Decomposable Channels") subtitle("Stacked monthly; the timing channel (Census-declared to Treasury-realized) is aggregate-only and not shown")"'
         local sfx "_titled"
     }
     else {
@@ -1136,10 +1136,10 @@ foreach ch in adjustment diversion others residual {
             local ++i
         }
 
-        if "`ch'" == "adjustment" local panel_label "USMCA adjustment (S0-S1)"
-        if "`ch'" == "diversion"  local panel_label "Trade diversion (S1-S2)"
-        if "`ch'" == "others"     local panel_label "Other preferences (S2-S3)"
-        if "`ch'" == "residual"   local panel_label "Residual (S3-S4)"
+        if "`ch'" == "adjustment" local panel_label "USMCA adjustment"
+        if "`ch'" == "diversion"  local panel_label "Import composition"
+        if "`ch'" == "others"     local panel_label "Non-USMCA preferences"
+        if "`ch'" == "residual"   local panel_label "Residual"
 
         if "`ch'" == "adjustment" {
             local legend_opts ///
@@ -1173,7 +1173,7 @@ foreach ch in adjustment diversion others residual {
 
 foreach v in titled clean {
     if "`v'" == "titled" {
-        local opt_title `"title("Per-Product Attribution Across the Four Decomposable Channels") subtitle("Stacked monthly; gap_timing (S4-T) is Treasury-aggregate-only, not shown")"'
+        local opt_title `"title("Per-Product Attribution Across the Four Decomposable Channels") subtitle("Stacked monthly; the timing channel (Census-declared to Treasury-realized) is aggregate-only and not shown")"'
         local sfx "_titled"
     }
     else {
@@ -1254,16 +1254,16 @@ foreach v in titled clean {
             lpattern(solid)) ///
         , ///
         legend(order( ///
-            1 "S0 (USMCA 2024 baseline; backstory)" ///
-            2 "S1 (Post-July 2025 USMCA, 2024 wts; framework anchor)" ///
-            3 "S2 (Post-July 2025 USMCA, monthly wts)" ///
-            4 "S3 (+ all-other prefs, monthly wts)" ///
-            5 "T (Treasury actual)") ///
+            1 "Baseline statutory (USMCA at 2024 claim rates; backstory)" ///
+            2 "Announced statutory (anchor)" ///
+            3 "Composition-adjusted statutory" ///
+            4 "Preference-adjusted statutory" ///
+            5 "Treasury-realized") ///
             rows(5) size(small) position(6)) ///
         ytitle("Effective Tariff Rate (%)") ///
         xtitle("") ///
         `opt_title' ///
-        xlabel(`=ym(2025,1)'(1)`=ym(2026,2)', ///
+        xlabel(`=ym(2025,1)'(1)`=ym(2026,3)', ///
                format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
         ylabel(, format(%9.0f)) ///
         yscale(range(0)) ///
@@ -1281,7 +1281,7 @@ di as text _n "      Figure 1b: ETR comparison (no S3)"
 
 foreach v in titled clean {
     if "`v'" == "titled" {
-        local opt_title `"title("Statutory vs. Actual Effective Tariff Rates") subtitle("Six-tier ladder excluding S3, Jan 2025 - Feb 2026")"'
+        local opt_title `"title("Statutory vs. Actual Effective Tariff Rates") subtitle("Six-rung ladder excluding the preference-adjusted line, Jan 2025 - Feb 2026")"'
         local sfx "_titled"
     }
     else {
@@ -1307,15 +1307,15 @@ foreach v in titled clean {
             lpattern(solid)) ///
         , ///
         legend(order( ///
-            1 "S0 (USMCA 2024 baseline; backstory)" ///
-            2 "S1 (Post-July 2025 USMCA, 2024 wts; framework anchor)" ///
-            3 "S2 (Post-July 2025 USMCA, monthly wts)" ///
-            4 "T (Treasury actual)") ///
+            1 "Baseline statutory (USMCA at 2024 claim rates; backstory)" ///
+            2 "Announced statutory (anchor)" ///
+            3 "Composition-adjusted statutory" ///
+            4 "Treasury-realized") ///
             rows(2) size(small) position(6)) ///
         ytitle("Effective Tariff Rate (%)") ///
         xtitle("") ///
         `opt_title' ///
-        xlabel(`=ym(2025,1)'(1)`=ym(2026,2)', ///
+        xlabel(`=ym(2025,1)'(1)`=ym(2026,3)', ///
                format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
         ylabel(, format(%9.0f)) ///
         yscale(range(0)) ///
@@ -1345,14 +1345,14 @@ foreach v in titled clean {
             1 `" "Jan" "2025" "' ///
             2 "Feb" 3 "Mar" 4 "Apr" 5 "May" 6 "Jun" ///
             7 "Jul" 8 "Aug" 9 "Sep" 10 "Oct" 11 "Nov" 12 "Dec" ///
-            13 `" "Jan" "2026" "' 14 "Feb") ///
+            13 `" "Jan" "2026" "' 14 "Feb" 15 "Mar") ///
             label(angle(0) labsize(small))) ///
         stack ///
         bar(1, color("$color_gap") fintensity(70)) ///
         bar(2, color("$color_statutory") fintensity(70)) ///
         legend(order( ///
-            2 "USMCA adjustment (S0{&rarr}S1)" ///
-            1 "Main analytic gap (S1{&rarr}Treasury)") ///
+            2 "USMCA adjustment" ///
+            1 "Main analytic gap (announced {&rarr} realized)") ///
             rows(1) size(small) position(6)) ///
         ytitle("Gap (percentage points)") ///
         `opt_title' ///
@@ -1368,7 +1368,7 @@ di as text "      Figure 3: Trade diversion / all-others / residual decompositio
 
 foreach v in titled clean {
     if "`v'" == "titled" {
-        local opt_title `"title("Preferences Gap Decomposition") subtitle("S1{&rarr}Treasury split into USMCA / all-others / residual")"'
+        local opt_title `"title("Announced-to-Realized Gap Decomposition") subtitle("Announced {&rarr} realized split into composition / preferences / residual")"'
         local sfx "_titled"
     }
     else {
@@ -1380,16 +1380,16 @@ foreach v in titled clean {
             1 `" "Jan" "2025" "' ///
             2 "Feb" 3 "Mar" 4 "Apr" 5 "May" 6 "Jun" ///
             7 "Jul" 8 "Aug" 9 "Sep" 10 "Oct" 11 "Nov" 12 "Dec" ///
-            13 `" "Jan" "2026" "' 14 "Feb") ///
+            13 `" "Jan" "2026" "' 14 "Feb" 15 "Mar") ///
             label(angle(0) labsize(small))) ///
         stack ///
         bar(1, color("$color_canada") fintensity(80)) ///
         bar(2, color("$color_eu")     fintensity(75)) ///
         bar(3, color("$color_gray")   fintensity(70)) ///
         legend(order( ///
-            1 "Trade diversion (S1{&rarr}S2)" ///
-            2 "All-other preferences (S2{&rarr}S3)" ///
-            3 "Residual + timing (S3{&rarr}Treasury)") ///
+            1 "Import composition" ///
+            2 "Non-USMCA preferences" ///
+            3 "Residual + timing") ///
             rows(2) size(small) position(6)) ///
         ytitle("Gap (percentage points)") ///
         `opt_title' ///
@@ -1490,7 +1490,7 @@ preserve
     ** --- Fig 4: overall line chart (S2 / S4 / T) ---
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local opt_title `"title("S2 vs. S4 vs. T") subtitle("Monthly, Jan 2025 - Feb 2026")"'
+            local opt_title `"title("Composition-adjusted vs. Census-declared vs. Treasury-realized") subtitle("Monthly, Jan 2025 - Feb 2026")"'
             local sfx "_titled"
         }
         else {
@@ -1509,14 +1509,14 @@ preserve
                 msymbol(triangle) msize(small) lwidth(medium) lpattern(dash)) ///
             , ///
             legend(order( ///
-                1 "S2: Statutory (Post-July 2025 USMCA)" ///
-                2 "S4: Census (cal. duty / cons. value)" ///
-                3 "T: Treasury actual") ///
+                1 "Composition-adjusted statutory" ///
+                2 "Census-declared (cal. duty / cons. value)" ///
+                3 "Treasury-realized") ///
                 rows(1) size(small) position(6)) ///
             ytitle("Effective Tariff Rate (%)") ///
             xtitle("") ///
             `opt_title' ///
-            xlabel(, format(%tmMon_CCYY) angle(45)) ///
+            xlabel(`=$start_ym'(1)`=$end_ym', format(%tmMon_CCYY) angle(45)) ///
             ylabel(, format(%9.0f)) ///
             yscale(range(0)) ///
             graphregion(color(white)) plotregion(margin(small)) ///
@@ -1577,7 +1577,7 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local fig_t "S2 (Statutory, Post-July 2025 USMCA) vs. S4 (Census) by Partner"
+            local fig_t "Composition-adjusted vs. Census-declared by Partner"
             local fig_st "Monthly, Jan 2025 - Feb 2026"
             local sfx "_titled"
         }
@@ -1601,10 +1601,10 @@ preserve
                 note("") ///
                 graphregion(color(white))) ///
             legend(order( ///
-                1 "S2: Statutory (Post-July 2025 USMCA)" ///
-                2 "S4: Census") rows(1) size(small) position(6)) ///
+                1 "Composition-adjusted statutory" ///
+                2 "Census-declared") rows(1) size(small) position(6)) ///
             ytitle("ETR (%)") xtitle("") ///
-            xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+            xlabel(`=$start_ym'(1)`=$end_ym', format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
             ylabel(, labsize(vsmall))
         export_fig figure_s2s4_facets_country`sfx', width(3000)
     }
@@ -1642,7 +1642,7 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local opt_title `"title("Statutory - Census gap, by partner group") subtitle("Monthly contribution to overall-ETR gap, pp")"'
+            local opt_title `"title("Composition-adjusted minus Census-declared gap, by partner group") subtitle("Monthly contribution to overall-ETR gap, pp")"'
             local sfx "_titled"
         }
         else {
@@ -2017,7 +2017,7 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local fig_t "S2 (Statutory, Post-July 2025 USMCA) vs. S4 (Census) by Product Group"
+            local fig_t "Composition-adjusted vs. Census-declared by Product Group"
             local fig_st "Monthly, Jan 2025 - Feb 2026"
             local sfx "_titled"
         }
@@ -2041,10 +2041,10 @@ preserve
                 note("") ///
                 graphregion(color(white))) ///
             legend(order( ///
-                1 "S2: Statutory (Post-July 2025 USMCA)" ///
-                2 "S4: Census") rows(1) size(small) position(6)) ///
+                1 "Composition-adjusted statutory" ///
+                2 "Census-declared") rows(1) size(small) position(6)) ///
             ytitle("ETR (%)") xtitle("") ///
-            xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+            xlabel(`=$start_ym'(1)`=$end_ym', format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
             ylabel(, labsize(vsmall))
         export_fig figure_s2s4_facets_product`sfx', width(3000)
     }
@@ -2076,7 +2076,7 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local opt_title `"title("S2 - S4 Gap, by Product Group") subtitle("Monthly contribution to overall-ETR gap, pp")"'
+            local opt_title `"title("Composition-adjusted minus Census-declared gap, by Product Group") subtitle("Monthly contribution to overall-ETR gap, pp")"'
             local sfx "_titled"
         }
         else {
@@ -2136,7 +2136,7 @@ preserve
     if _rc == 0 {
         foreach v in titled clean {
             if "`v'" == "titled" {
-                local fig_t "S2 - S4 Gap by Product x Partner"
+                local fig_t "Composition-adjusted minus Census-declared gap by Product x Partner"
                 local fig_st "Period-averaged, pp"
                 local sfx "_titled"
             }
@@ -2200,8 +2200,8 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local fig_t "S1 (USMCA h2avg, 2024 wts) vs. S2 (USMCA h2avg, monthly wts) by Partner"
-            local fig_st "Rate panel held fixed; weights shift -- the trade-diversion channel"
+            local fig_t "Announced vs. Composition-adjusted by Partner"
+            local fig_st "Rate panel held fixed; weights shift -- the import-composition channel"
             local sfx "_titled"
         }
         else {
@@ -2224,10 +2224,10 @@ preserve
                 note("") ///
                 graphregion(color(white))) ///
             legend(order( ///
-                1 "S1: 2024 weights" ///
-                2 "S2: monthly weights") rows(1) size(small) position(6)) ///
+                1 "Announced (2024 weights)" ///
+                2 "Composition-adjusted (monthly weights)") rows(1) size(small) position(6)) ///
             ytitle("ETR (%)") xtitle("") ///
-            xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+            xlabel(`=$start_ym'(1)`=$end_ym', format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
             ylabel(, labsize(vsmall))
         export_fig figure_s1s2_facets_country`sfx', width(3000)
     }
@@ -2254,8 +2254,8 @@ preserve
 
     foreach v in titled clean {
         if "`v'" == "titled" {
-            local fig_t "S1 (USMCA h2avg, 2024 wts) vs. S2 (USMCA h2avg, monthly wts) by Product Group"
-            local fig_st "Rate panel held fixed; weights shift -- the trade-diversion channel"
+            local fig_t "Announced vs. Composition-adjusted by Product Group"
+            local fig_st "Rate panel held fixed; weights shift -- the import-composition channel"
             local sfx "_titled"
         }
         else {
@@ -2278,10 +2278,10 @@ preserve
                 note("") ///
                 graphregion(color(white))) ///
             legend(order( ///
-                1 "S1: 2024 weights" ///
-                2 "S2: monthly weights") rows(1) size(small) position(6)) ///
+                1 "Announced (2024 weights)" ///
+                2 "Composition-adjusted (monthly weights)") rows(1) size(small) position(6)) ///
             ytitle("ETR (%)") xtitle("") ///
-            xlabel(, format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
+            xlabel(`=$start_ym'(1)`=$end_ym', format(%tmMon_CCYY) angle(45) labsize(vsmall)) ///
             ylabel(, labsize(vsmall))
         export_fig figure_s1s2_facets_product`sfx', width(3000)
     }

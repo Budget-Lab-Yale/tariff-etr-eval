@@ -169,7 +169,9 @@ where:
 
 $$\Delta^{\text{base}}_{pct} = \big( s_{\text{duty\_free}}^{pct} + s_{\text{korus}}^{pct} + s_{\text{gsp\_agoa}}^{pct} + s_{\text{other\_fta}}^{pct} \big) \cdot r^{\text{base},\text{pre}}_{pcr(t)}$$
 
-$$\Delta^{\text{recip}}_{pct} = s_{\text{duty\_free}}^{pct} \cdot r^{\text{recip},\text{pre}}_{pcr(t)}$$
+$$\Delta^{\text{recip}}_{pct} = s_{\text{duty\_free\_annex}}^{pct} \cdot r^{\text{recip},\text{pre}}_{pcr(t)}$$
+
+where $s_{\text{duty\_free}} = s_{\text{duty\_free\_annex}} + s_{\text{duty\_free\_mfn}}$ splits the composite `duty_free` channel by HS10 membership in the tracker's `ieepa_exempt_products.csv` list (Annex II / ITA / Ch98 / Berman, claimed via 9903.01.32). Only the on-list (`annex`) share carves out the IEEPA reciprocal layer; the off-list pure-MFN-zero (`mfn`) share exempts only the base. Both sub-channels enter $\Delta^{\text{base}}$ identically (via the composite $s_{\text{duty\_free}}$ above), so the base term is unchanged. Implemented in `00_pull_raw_data.R` §3f (the split) and §3g (the reciprocal application). See caveat 1.
 
 The other authorities (`fent`, `232`, `301`, `s122`, `s201`) carry no incremental reduction from $S_2$ to $S_3$.
 
@@ -177,7 +179,7 @@ The pre-preference component rates $r^{\text{base},\text{pre}}$ and $r^{\text{re
 
 ### 6.7 Caveats
 
-1. **The `duty_free` channel is composite.** Importers declaring `rate_prov 10/18/19` could be claiming any of MFN-zero, ITA, Ch98, Berman, or 9903.01.32 (Annex II). Our applicability $\alpha_{\text{duty\_free}}^{\text{recip}} = 1.0$ is correct for the Annex II / ITA / Ch98 / Berman cases (all on `ieepa_exempt_products.csv`) but slightly over-counts for pure MFN-zero products that the tracker's `base_rate` already shows as 0. In practice the over-count is small: pure MFN-zero products have $r^{\text{base}} = 0$ already, and IEEPA recip exemption requires being on the Annex II list anyway. A purist refinement would split the channel using the tracker's `is_universally_exempt` flag at the HS10 level.
+1. **The `duty_free` channel is composite — now split (upgrade 1, June 2026).** Importers declaring `rate_prov 10/18/19` could be claiming any of MFN-zero, ITA, Ch98, Berman, or 9903.01.32 (Annex II). The reciprocal carve-out ($\alpha^{\text{recip}} = 1.0$) is correct only for products on `ieepa_exempt_products.csv` (Annex II / ITA / Ch98 / Berman); applying it to pure MFN-zero entries over-counts $\Delta^{\text{recip}}$. We now split `duty_free` at the HS10 level into `duty_free_annex` (on the exempt list → exempts base **and** recip) and `duty_free_mfn` (off-list → base only), and apply $\Delta^{\text{recip}}$ to the `annex` share only (§6.6). The residual over-count is therefore eliminated; the base term is unchanged because both sub-channels exempt the base. (The over-count was already small in practice — pure MFN-zero products have $r^{\text{base}}=0$ — so the realized effect on $\Delta^{\text{recip}}$ and on `gap_others` is modest.)
 2. **`other_fta` heterogeneity.** The bilateral FTAs (AU/IL/SG/CL/CO/PE/PA/etc.) have varying coverage of authorities beyond `base`. None of them have IEEPA reciprocal carve-outs in the current EOs, so $\alpha = 0$ for `recip` is correct, but content-rule interactions (e.g., Australia FTA on copper) are simplified.
 3. **USMCA × 232 country exemptions.** Some 232 products have country-level exemptions (UK 25% steel/aluminum, etc.) that operate independently of USMCA shares. These are encoded in the snapshot's `rate_232` and unaffected by share-based scaling — the snapshot already reflects them.
 4. **Mutual exclusivity assumption.** $\sum_q s_q^{pct} \le 1$ holds at the entry level. Aggregation to cell shares preserves this — the residual share $1 - \sum_q s_q^{pct}$ is unambiguously the "paying full rate" share. Verified in `validate_s3.do`.

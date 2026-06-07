@@ -67,7 +67,7 @@ global color_other     "200 200 200"     // Light gray (catchall)
 * --- Analysis parameters ---
 * Analysis window (Stata monthly dates)
 global start_ym = ym(2025, 1)
-global end_ym   = ym(2026, 2)
+global end_ym   = ym(2026, 3)
 
 * --- Cross-check thresholds (used by 05_max_district_crosscheck.do) ---
 * rate_extreme_cutoff: drop entry-level rates above this proportion. Following
