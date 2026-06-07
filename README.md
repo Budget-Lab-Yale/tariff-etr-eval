@@ -110,6 +110,30 @@ Toggle steps via globals in `code/utils/globals.do` (execution order):
 - `$run_crosscheck` (Step 5): max-district validation (needs `imdb_detail.csv`)
 - `$run_baseline` (Step 6): baseline ETR diagnostic
 
+### Compliance calibration (Step 8, R)
+
+```bash
+Rscript code/R/08_eta_calibration.R
+```
+
+Calibrates the *State of Tariffs* compliance parameter η — the share of statutory tariff revenue
+not realized as collections — from the observed statutory-vs-actual gap, and tests it out of sample
+on the post-IEEPA (Section 122) regime. Reads `data/working/merged_analysis.dta` and
+`data/working/revenue_monthly.dta` (so run after the Stata Step 1 clean) directly via `haven`.
+Identifies the cross-sectional *shape* from Census-declared duties and pins the aggregate *level*
+to Treasury (timing factor `k`), across two statutory baselines (S1 announced / S2
+composition-adjusted), three specifications (constant, two-way, full-interaction with
+empirical-Bayes shrinkage), and two training windows (full 2025m1–2026m2 vs post-April 2025m5–2026m2,
+to drop the volatile ramp); test = 2026m3 throughout. Outputs `results/tables/eta_*.csv`, a bundled
+`results/tables/eta_analysis.xlsx` (one sheet per table, with a readme tab), and
+`results/figures/figure_eta_*.png` (faceted by training window; unsuffixed = composition-adjusted S2,
+`*_announced` = announced 2024-fixed-basket S1).
+Headline (June 2026 run): composition-adjusted η ≈ 19%
+(post-April central estimate; ~23% over the full window incl. the volatile Jan–Apr ramp),
+announced-basis ~32–38% — all above the model's current flat 10% assumption. See
+[`docs/eta_calibration_methodology.md`](docs/eta_calibration_methodology.md). Needs ~22 GB free RAM
+(the panel is ~550 MB on disk and expands in memory).
+
 ## Sibling repo dependencies
 
 Both must be cloned at the same directory level as this repo. Step 0 reads RDS snapshots, daily ETR CSVs, and Treasury revenue from those checkouts; if either is missing, the script aborts with a clear error pointing at the expected path.
