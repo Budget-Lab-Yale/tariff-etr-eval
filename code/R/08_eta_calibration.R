@@ -68,6 +68,18 @@ rev <- read_dta("data/working/revenue_monthly.dta") %>%
   filter(ym >= WIN_LO, ym <= WIN_HI) %>%
   distinct(ym, .keep_all = TRUE)
 
+# --- AD/CVD strip: remove antidumping/countervailing duty from the COLLECTED
+# side (both the Census shape cal_dut_mo and the Treasury level customs_duties,
+# by the same dollars) so eta measures the compliance gap and not legally-owed
+# AD/CVD. INERT until resources/adcvd_collected.csv exists; see
+# code/R/adcvd_strip.R. Must run BEFORE treas_train_etr / treas_march_etr.
+source("code/R/adcvd_strip.R")
+adcvd <- load_adcvd_collected()
+if (!is.null(adcvd)) {
+  st <- apply_adcvd_strip(cells, rev, adcvd)
+  cells <- st$panel; rev <- st$rev
+}
+
 treas_train_etr <- with(filter(rev, ym != TEST_YM),
                         sum(customs_duties) / sum(imports_value))
 treas_march_etr <- rev$treas_etr[rev$ym == TEST_YM]
