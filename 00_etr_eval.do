@@ -198,6 +198,20 @@ else {
 }
 
 * ==============================================================================
+* Step 7: Value-misreporting decomposition (R; quantity/weight identity)
+* Needs the augmented IMDB quantity/weight columns -- run Step 0 with run_pull=1
+* once, or `Rscript code/R/00_pull_raw_data.R --only-imdb`, before this step.
+* ==============================================================================
+
+if $run_vmr {
+    di as text "=== Step 7: Value-misreporting decomposition ===" _n
+    shell Rscript "${code}R/09_value_misreporting.R"
+}
+else {
+    di as text "=== Step 7: SKIPPED (run_vmr = 0) ===" _n
+}
+
+* ==============================================================================
 * Done
 * ==============================================================================
 

@@ -24,6 +24,10 @@
 #                                                       # NOT consumed by Stata,
 #                                                       # only by 2b fallback)
 #   Rscript code/R/00_pull_raw_data.R --skip-imdb      # skip IMDB bulk
+#   Rscript code/R/00_pull_raw_data.R --only-imdb      # IMDB bulk only (no
+#                                                       # sibling repos/tokens;
+#                                                       # rebuilds the two IMDB
+#                                                       # CSVs from cached ZIPs)
 #   Rscript code/R/00_pull_raw_data.R --only-tracker    # sections 3a-3e only
 #   Rscript code/R/00_pull_raw_data.R --only-counterfactual  # sections 3d-3e only
 #   Rscript code/R/00_pull_raw_data.R --refresh-tracker # rebuild tracker data
@@ -209,6 +213,13 @@ if ("--only-tracker" %in% cli_args) {
 if ("--only-counterfactual" %in% cli_args) {
   RUN_CENSUS <- FALSE; RUN_IMDB <- FALSE; RUN_TRACKER <- FALSE; RUN_IMPACTS <- FALSE
   RUN_COUNTERFACTUAL <- TRUE
+}
+if ("--only-imdb" %in% cli_args) {
+  # IMDB bulk parse only (no sibling repos / API tokens needed). Used to
+  # regenerate the augmented imdb_detail.csv / imdb_hs10_country_monthly.csv
+  # with quantity + shipping-weight columns from cached ZIPs.
+  RUN_CENSUS <- FALSE; RUN_IMDB <- TRUE; RUN_TRACKER <- FALSE
+  RUN_COUNTERFACTUAL <- FALSE; RUN_IMPACTS <- FALSE
 }
 if ("--refresh-tracker" %in% cli_args) {
   RUN_REFRESH_TRACKER <- TRUE
@@ -519,13 +530,19 @@ imdb_months <- seq(as.Date("2024-01-01"), Sys.Date(), by = "month")
 YEAR_MONTHS_IMDB <- format(imdb_months, "%Y-%m")
 
 # Rich fixed-width spec: includes preference code, district, rate provision
-# (needed for FTA decomposition, max-district crosscheck)
+# (needed for FTA decomposition, max-district crosscheck) plus consumption
+# quantity (qy1/qy2) and shipping weight by mode (air/vessel/containerized),
+# for the value-misreporting decomposition (09_value_misreporting.R).
+# NOTE on weight: Census reports weight ONLY for air + vessel modes; LAND
+# shipments (truck/rail) carry zero weight, so ves+air systematically
+# undercounts Canada/Mexico. cnt_wgt is a SUBSET of ves_wgt (not additive).
 imdb_fwf_rich <- fwf_positions(
-  start     = c( 1, 11, 15, 17, 21, 23, 27,  74,  89, 104),
-  end       = c(10, 14, 16, 18, 22, 26, 28,  88, 103, 118),
+  start     = c( 1, 11, 15, 17, 21, 23, 27,  74,  89, 104,  44,  59, 239, 284, 329),
+  end       = c(10, 14, 16, 18, 22, 26, 28,  88, 103, 118,  58,  73, 253, 298, 343),
   col_names = c("commodity", "cty_code", "cty_subco", "dist_entry",
                 "rate_prov", "year", "month",
-                "con_val_mo", "dut_val_mo", "cal_dut_mo")
+                "con_val_mo", "dut_val_mo", "cal_dut_mo",
+                "con_qy1_mo", "con_qy2_mo", "air_wgt_mo", "ves_wgt_mo", "cnt_wgt_mo")
 )
 
 #' Download one IMDB ZIP. Returns path or NULL. Skips if already cached.
@@ -590,8 +607,14 @@ parse_imdb_detail <- function(zip_path) {
       month      = as.integer(trimws(month)),
       con_val_mo = as.numeric(trimws(con_val_mo)),
       dut_val_mo = as.numeric(trimws(dut_val_mo)),
-      cal_dut_mo = as.numeric(trimws(cal_dut_mo))
+      cal_dut_mo = as.numeric(trimws(cal_dut_mo)),
+      con_qy1_mo = as.numeric(trimws(con_qy1_mo)),
+      con_qy2_mo = as.numeric(trimws(con_qy2_mo)),
+      air_wgt_mo = as.numeric(trimws(air_wgt_mo)),
+      ves_wgt_mo = as.numeric(trimws(ves_wgt_mo)),
+      cnt_wgt_mo = as.numeric(trimws(cnt_wgt_mo))
     ) |>
+    # Keep quantity/weight-zero rows that still carry value: filter only on value.
     filter(grepl("^[0-9]+$", commodity), !is.na(year),
            coalesce(con_val_mo, 0) != 0) |>
     rename(hs10 = commodity) |>
@@ -629,7 +652,8 @@ rm(imdb_detail_chunks); gc(verbose = FALSE)
 # --- Output 1: Detail-level (for FTA decomposition, district crosscheck) ---
 write_csv(
   imdb_detail |> select(hs10, cty_code, cty_subco, dist_entry, rate_prov,
-                         year_month, con_val_mo, dut_val_mo, cal_dut_mo),
+                         year_month, con_val_mo, dut_val_mo, cal_dut_mo,
+                         con_qy1_mo, con_qy2_mo, air_wgt_mo, ves_wgt_mo, cnt_wgt_mo),
   file.path(RAW_DIR, "imdb_detail.csv")
 )
 log_msg(sprintf("  Detail: %s rows, %d months",
@@ -637,10 +661,19 @@ log_msg(sprintf("  Detail: %s rows, %d months",
                 n_distinct(imdb_detail$year_month)))
 
 # --- Output 2: Aggregated to HS10 x country x month (for main pipeline) ---
+# Quantities/weights are additive to this grain (the HTS unit-of-measure is
+# fixed within an HS10). ship_wgt_mo = air + vessel (the only modes Census
+# weighs); cnt_wgt is kept separately but NOT added (it is a subset of ves).
 imdb_agg <- imdb_detail |>
   summarise(con_val_mo = sum(con_val_mo, na.rm = TRUE),
             cal_dut_mo = sum(cal_dut_mo, na.rm = TRUE),
-            .by = c(hs10, cty_code, year_month))
+            con_qy1_mo = sum(con_qy1_mo, na.rm = TRUE),
+            con_qy2_mo = sum(con_qy2_mo, na.rm = TRUE),
+            air_wgt_mo = sum(air_wgt_mo, na.rm = TRUE),
+            ves_wgt_mo = sum(ves_wgt_mo, na.rm = TRUE),
+            cnt_wgt_mo = sum(cnt_wgt_mo, na.rm = TRUE),
+            .by = c(hs10, cty_code, year_month)) |>
+  mutate(ship_wgt_mo = coalesce(air_wgt_mo, 0) + coalesce(ves_wgt_mo, 0))
 write_csv(imdb_agg, file.path(RAW_DIR, "imdb_hs10_country_monthly.csv"))
 log_msg(sprintf("  Aggregated: %s rows", format(nrow(imdb_agg), big.mark = ",")))
 rm(imdb_detail, imdb_agg); gc(verbose = FALSE)

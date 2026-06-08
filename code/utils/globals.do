@@ -156,6 +156,7 @@ global run_analysis   1     // Step 3: six-tier decomposition and figures (consu
 global run_fta        1     // Step 4: FTA/preference decomposition (needs imdb_detail.csv)
 global run_crosscheck 1     // Step 5: max-district tracker validation (needs imdb_detail.csv)
 global run_baseline   1     // Step 6: baseline ETR diagnostic
+global run_vmr        1     // Step 7: value-misreporting decomposition (R; needs augmented IMDB quantity/weight cols -- one prior run_pull=1, or `00_pull_raw_data.R --only-imdb`)
 
 * --- Step 0 R-flag passthrough (only relevant when run_pull = 1) ---
 * Each global maps to a CLI flag forwarded to code/R/00_pull_raw_data.R.
