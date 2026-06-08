@@ -22,6 +22,10 @@ The pipeline has two stages: R assembles raw data from external APIs and sibling
 | 5b | `code/05b_tracker_over_diagnostic.do` | Standalone (not in orchestrator): false-positive companion to 5a — surfaces cells where the tracker rate over-states the Census-collected duty, attributed by preference / rate-provision channel. Output: `tracker_over_*.csv`. |
 | 6 | `code/06_baseline_etr_diagnostic.do` | Tracker `total_rate` (= `rate_h2avg`, S1) vs `rate_2024`-reconstruction at 2024 weights (`figure_diagnostic`) |
 | 7 | `code/07_cumulative_duty_gap.do` | Standalone (not in orchestrator): cumulative Census IMDB vs Treasury monthly customs duties — dollar-level analogue of `gap_timing` (S4→T) |
+| 8 | `code/R/08_eta_calibration.R` | Standalone R (run separately): calibrate the compliance gap η from the actual-vs-statutory gap (constant / two-way / full-interaction specs; train 2025m1–2026m2, test 2026m3). Outputs `eta_*.csv`, `figure_eta_*.png`. |
+| 9 | `code/R/09_value_misreporting.R` | **Orchestrator Step 7** (`$run_vmr`, runs after Step 6). Decomposes post-tariff import-value changes into real flow change vs value under-invoicing using Census quantity / shipping weight, with a cross-partner within-product control. Outputs `vmr_*.csv`, `figure_vmr_*.png`. See [Value-misreporting decomposition](#value-misreporting-decomposition-coder09_value_misreportingr) and `docs/value_misreporting_methodology.md`. |
+
+> Note: the orchestrator (`00_etr_eval.do`) runs Steps 0–6 then the R value-misreporting step (`$run_vmr`, labeled "Step 7" in the orchestrator → `code/R/09_value_misreporting.R`). Rows 5a/5b/7 are standalone Stata diagnostics; row 8 (η calibration) is run on its own via `Rscript`.
 
 ### Step 0 — R data assembly (`code/R/00_pull_raw_data.R`)
 
@@ -78,6 +82,14 @@ Validates tracker statutory rates against max observed ETR across customs distri
 
 Diagnostic at 2024 weights comparing tracker `total_rate` (baseline USMCA already applied) vs the `rate_2024` reconstruction (`cf_usmca2024`). Both use 2024 baseline USMCA assumptions, so any gap between them isolates reconstruction methodology; matched/nonzero universe slices isolate zero-rate-dropping and unmatched-product effects. Builds its own panel from `weights_2024.dta` (different universe from `merged_analysis.dta`). Output: `figure_diagnostic` + diagnostic table.
 
+### Value-misreporting decomposition (`code/R/09_value_misreporting.R`)
+
+Orchestrator **Step 7** (`$run_vmr`, after Step 6). Asks how much of each post-tariff *value* change is a real change in trade flows versus *value misreporting* (under-invoicing to shrink the dutiable base). Within a flow (HS10 × country) it uses the accounting identity `Δln(value) = Δln(quantity) + Δln(unit_value)`: a real value decline should be matched by a quantity decline, whereas value falling with quantity flat means the implied unit value collapsed — a misreporting signal. To net out genuine world-price moves, each tariffed flow's unit-value change is compared to the value-weighted change of **untariffed origins of the same HS10** over the same months (a cross-partner, within-product control). Flows are sorted into six buckets; the headline is the value-weighted share that is "value down, quantity flat" (loose) and the same net of the control (strict), reported by partner × product with China broken out.
+
+This channel is **orthogonal to η**: under-invoicing scales value down and duty = rate × value falls proportionally, so `duty/value` (hence η) is unchanged — η is structurally blind to it. The deliverable is therefore a sidecar to `eta_by_*.csv` on the same partner × product grid.
+
+Requires the quantity/shipping-weight columns added to the IMDB pull in Step 0 — run `Rscript code/R/00_pull_raw_data.R --only-imdb` once if they are not yet present. Outputs: `results/tables/vmr_{decomp_by_partner_product,by_partner,by_product,china_by_hs2,flow_classified,identity_check}.csv` and `results/figures/figure_vmr_{suspect_share_by_partner,suspect_share_heatmap,dln_scatter}[_titled].png`. Method, thresholds, and limitations: `docs/value_misreporting_methodology.md`.
+
 ## Running the pipeline
 
 ### R data pull (Step 0)
@@ -86,6 +98,9 @@ Diagnostic at 2024 weights comparing tracker `total_rate` (baseline USMCA alread
 Rscript code/R/00_pull_raw_data.R                       # IMDB + tracker + impacts (~30–60 min)
 Rscript code/R/00_pull_raw_data.R --with-census         # also pull Census HS2 API (hours)
 Rscript code/R/00_pull_raw_data.R --skip-imdb           # skip IMDB bulk downloads
+Rscript code/R/00_pull_raw_data.R --only-imdb           # IMDB bulk only — rebuild the two IMDB
+                                                        #   CSVs (incl. quantity/weight cols) from
+                                                        #   cached ZIPs; no sibling repos/tokens
 Rscript code/R/00_pull_raw_data.R --only-tracker        # sections 3a–3e only (~15 min)
 Rscript code/R/00_pull_raw_data.R --only-counterfactual # sections 3d–3g only (~10 min)
 Rscript code/R/00_pull_raw_data.R --refresh-tracker     # rebuild tracker first (~hours)
@@ -103,7 +118,7 @@ Not yet in the publish — these still require the sibling checkout (warn-and-sk
 
 Use `--only-tracker` after updating the tracker repo to regenerate snapshot CSVs, USMCA shares, and counterfactual rate files. Use `--refresh-tracker` to rebuild the tracker end-to-end (revision dates, HTS JSON, DataWeb USMCA shares, top-level + per-scenario snapshots, daily ETRs) before the export steps; requires `DATAWEB_API_TOKEN` in `tariff-rate-tracker/.env` and may halt at `01_scrape_revision_dates.R` if a new HTS revision needs manual policy-date curation. Composes with the other flags.
 
-### Stata pipeline (Steps 1–6)
+### Stata pipeline (Steps 1–6 + value-misreporting)
 
 ```stata
 cd <repo-root>
@@ -119,6 +134,7 @@ Toggle steps via globals in `code/utils/globals.do` (execution order):
 - `$run_fta` (Step 4): FTA/preference decomposition (needs `imdb_detail.csv`)
 - `$run_crosscheck` (Step 5): max-district validation (needs `imdb_detail.csv`)
 - `$run_baseline` (Step 6): baseline ETR diagnostic
+- `$run_vmr` (Step 7): value-misreporting decomposition (`code/R/09_value_misreporting.R`; needs the Step 0 quantity/weight columns — see [Value-misreporting decomposition](#value-misreporting-decomposition-coder09_value_misreportingr))
 
 ### Compliance calibration (Step 8, R)
 
