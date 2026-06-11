@@ -30,6 +30,8 @@ mkdir -p slurm/logs
 
 module purge
 module load Stata/19
+# R for orchestrator Step 7 (value-misreporting) -- Rscript must be on PATH
+module load R/4.4.1-foss-2022b
 
 # Sanity: MP license core cap (expect 16) and visible cores.
 stata-mp -q -b -e 'di c(processors_max)' >/dev/null 2>&1 || true
