@@ -21,19 +21,19 @@
 #                              or a tariff-impact-tracker sibling.
 #
 # Usage:
-#   Rscript code/R/00_pull_raw_data.R                 # IMDB + tracker + impacts
-#   Rscript code/R/00_pull_raw_data.R --with-census    # add Census HS2 API
+#   Rscript code/01a_pull_raw_data.R                 # IMDB + tracker + impacts
+#   Rscript code/01a_pull_raw_data.R --with-census    # add Census HS2 API
 #                                                       # (hours-long; output is
 #                                                       # NOT consumed by Stata,
 #                                                       # only by 2b fallback)
-#   Rscript code/R/00_pull_raw_data.R --skip-imdb      # skip IMDB bulk
-#   Rscript code/R/00_pull_raw_data.R --only-imdb      # IMDB bulk only (no
+#   Rscript code/01a_pull_raw_data.R --skip-imdb      # skip IMDB bulk
+#   Rscript code/01a_pull_raw_data.R --only-imdb      # IMDB bulk only (no
 #                                                       # sibling repos/tokens;
 #                                                       # rebuilds the two IMDB
 #                                                       # CSVs from cached ZIPs)
-#   Rscript code/R/00_pull_raw_data.R --only-tracker    # sections 3a-3e only
-#   Rscript code/R/00_pull_raw_data.R --only-counterfactual  # sections 3d-3e only
-#   Rscript code/R/00_pull_raw_data.R --refresh-tracker # rebuild tracker data
+#   Rscript code/01a_pull_raw_data.R --only-tracker    # sections 3a-3e only
+#   Rscript code/01a_pull_raw_data.R --only-counterfactual  # sections 3d-3e only
+#   Rscript code/01a_pull_raw_data.R --refresh-tracker # rebuild tracker data
 #                                                       # (snapshots, daily ETR,
 #                                                       # USMCA shares, scenarios)
 #                                                       # before the export steps;
@@ -41,12 +41,12 @@
 #                                                       # DATAWEB_API_TOKEN env var.
 #                                                       # Composes with other flags.
 #                                                       # Requires sibling checkout.
-#   Rscript code/R/00_pull_raw_data.R --tracker-data=PATH  # read snapshots +
+#   Rscript code/01a_pull_raw_data.R --tracker-data=PATH  # read snapshots +
 #                                                       # daily ETRs from a
 #                                                       # specific tracker publish
 #                                                       # (e.g. a pinned vintage
 #                                                       # instead of latest)
-#   Rscript code/R/00_pull_raw_data.R --no-shared-tracker  # force the sibling-
+#   Rscript code/01a_pull_raw_data.R --no-shared-tracker  # force the sibling-
 #                                                       # checkout path even if
 #                                                       # the shared publish exists
 #
@@ -82,7 +82,7 @@ library(here)
 library(stringi)
 library(yaml)
 
-here::i_am("code/R/00_pull_raw_data.R")
+here::i_am("code/01a_pull_raw_data.R")
 
 # --- Paths ---
 RAW_DIR     <- here("data", "raw")
@@ -1013,7 +1013,7 @@ if (is.null(iw_path) && file.exists(LOCAL_IW_RDS)) iw_path <- LOCAL_IW_RDS
 # vendored one is somehow missing. All paths are passed explicitly, so the
 # script's here()-based defaults are never relied on.
 if (is.null(iw_path)) {
-  build_script <- here("code", "R", "build_import_weights.R")
+  build_script <- here("code", "build_import_weights.R")
   crosswalk    <- here("resources", "hs10_gtap_crosswalk.csv")
   if (!file.exists(build_script) && HAVE_SIBLING) {
     build_script <- file.path(TRACKER_DIR, "src", "build_import_weights.R")
@@ -1044,7 +1044,7 @@ if (is.null(iw_path)) {
     }
   } else {
     log_msg("    WARNING: build_import_weights.R or crosswalk not found ",
-            "(looked for vendored copies in code/R/ + resources/)")
+            "(looked for vendored copies in code/ + resources/)")
   }
 }
 
@@ -1061,7 +1061,7 @@ if (!is.null(iw_path)) {
           "import_weights_2024.csv (2024 weights are fixed).")
 } else {
   log_msg("    WARNING: no weights RDS and no existing import_weights_2024.csv.")
-  log_msg("    Expected the vendored code/R/build_import_weights.R + ")
+  log_msg("    Expected the vendored code/build_import_weights.R + ")
   log_msg("    resources/hs10_gtap_crosswalk.csv to rebuild weights from Census")
   log_msg("    IMDB automatically -- check they are present.")
 }

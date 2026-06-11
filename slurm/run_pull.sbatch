@@ -9,7 +9,7 @@
 #SBATCH --output=slurm/logs/pull-%j.log
 #SBATCH --mail-type=END,FAIL
 
-# Stage 1 -- R data assembly (code/R/00_pull_raw_data.R).
+# Stage 1 -- R data assembly (code/01a_pull_raw_data.R).
 #
 # Publish mode (default): snapshots + daily ETRs + h2avg counterfactual come
 # from the shared tracker publish (config/local_paths.yaml tracker_data_dir);
@@ -46,7 +46,7 @@ echo "[pull] start $(date)"
 
 # Default flags = publish mode + IMDB + counterfactual + Treasury.
 # Add --refresh-tracker only with a DataWeb token (rebuilds USMCA scenarios / S0).
-Rscript code/R/00_pull_raw_data.R
+Rscript code/01a_pull_raw_data.R
 
 echo "[pull] done $(date)"
 echo "[pull] data/raw contents:"

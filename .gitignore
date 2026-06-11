@@ -71,3 +71,6 @@ Thumbs.db
 
 # User-specific local paths (committed template: config/local_paths.yaml.example)
 config/local_paths.yaml
+
+# Stata golden snapshot for the R-port verifier (scripts/verify_r_port.R)
+results_stata_golden/
