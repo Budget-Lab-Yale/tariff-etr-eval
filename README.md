@@ -43,7 +43,7 @@ Rscript code/01a_pull_raw_data.R --tracker-data=PATH   # pin a publish vintage
 Rscript code/01a_pull_raw_data.R --no-shared-tracker   # force sibling checkout
 ```
 
-**Publish vs full mode.** The shared tracker publish does not carry the USMCA scenario snapshots, so in publish mode the S0 panel (`rate_2024`) and `rate_usmca_monthly` are absent; the pipeline auto-detects this (`have_s0` attribute on `panel.rds`) and the ladder degrades to S1–S4 + T. Full mode requires a tracker checkout with `DATAWEB_API_TOKEN`. See `docs/shared_publish_extensions.md` and `docs/open_questions.md` #2.
+**Publish vs full mode.** Since publish vintage `2026-06-10-22` the shared publish carries the USMCA scenario snapshots (`scenarios/usmca_2024`, `scenarios/usmca_monthly`), so publish mode builds the S0 panel (`rate_2024`) and `rate_usmca_monthly` and the ladder runs the full S0–S4 + T. Against older vintages the pipeline auto-detects the missing scenarios (`have_s0` attribute on `panel.rds`) and degrades to S1–S4 + T. A tracker checkout with `DATAWEB_API_TOKEN` is now needed only to rebuild tracker data itself (`--refresh-tracker`). See `docs/shared_publish_extensions.md` and `docs/open_questions.md` #2.
 
 ### Step 01b — panel build (`code/01b_build_panel.R`)
 

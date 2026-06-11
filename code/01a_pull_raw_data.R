@@ -950,13 +950,36 @@ if (USE_SHARED_TRACKER) {
   log_msg(sprintf("    -> %d top-level snapshot CSVs written", n_top))
 }
 
-# USMCA scenario snapshots are not in the shared publish (core-only builds);
-# they always come from the sibling checkout when it is present.
+# USMCA scenario snapshots. Since publish vintage 2026-06-10-22 the shared
+# publish carries the USMCA scenario series (scenarios/<scn>/snapshots/
+# valid_from=*/rates.parquet, same revision set as actual/) -- the main ask
+# in docs/shared_publish_extensions.md. Prefer those over a checkout: the
+# framework requires scenario rates from the same engine + vintage as the
+# published production series. Only usmca_2024 (S0) and usmca_monthly
+# (explainer) are consumed; the publish drops usmca_h2avg (== top-level by
+# construction) and usmca_none (not used by the R ladder).
 SCENARIOS <- c("usmca_none", "usmca_2024", "usmca_monthly", "usmca_h2avg")
-if (!HAVE_SIBLING) {
-  log_msg("    WARNING: USMCA scenario snapshots are not in the shared")
-  log_msg("    publish and no sibling checkout found -- skipping scenario")
-  log_msg("    exports (see docs/shared_publish_extensions.md).")
+PUBLISH_SCENARIOS <- c("usmca_2024", "usmca_monthly")
+if (USE_SHARED_TRACKER) {
+  for (scn in PUBLISH_SCENARIOS) {
+    scn_src <- file.path(TRACKER_DATA_DIR, "scenarios", scn, "snapshots")
+    if (!dir.exists(scn_src)) {
+      log_msg(sprintf("    NOTE: publish carries no '%s' scenario snapshots", scn))
+      log_msg("    (pre-2026-06-10-22 vintage?) -- skipping; ladder degrades to S1-S4 + T.")
+      next
+    }
+    log_msg(sprintf("  Exporting scenario from publish: %s ...", scn))
+    scn_map <- export_snapshots_shared(scn_src, file.path(SNAP_DIR, scn))
+    miss <- setdiff(SHARED_REV_MAP$revision, scn_map$revision)
+    if (length(miss) > 0)
+      log_msg(sprintf("    WARNING: %s lacks %d revision(s) present in actual/: %s",
+                      scn, length(miss), paste(miss, collapse = ", ")))
+    log_msg(sprintf("    -> %d %s snapshot CSVs written", nrow(scn_map), scn))
+  }
+} else if (!HAVE_SIBLING) {
+  log_msg("    WARNING: no shared publish in use and no sibling checkout")
+  log_msg("    found -- skipping scenario exports (see")
+  log_msg("    docs/shared_publish_extensions.md).")
 } else {
   for (scn in SCENARIOS) {
     scn_src <- file.path(ts_dir, scn)
@@ -1370,16 +1393,16 @@ build_counterfactual <- function(scenario, out_file) {
   invisible(NULL)
 }
 
-# Publish-mode variant of build_counterfactual for the h2avg panel only.
-# The tracker verifies that its usmca_h2avg scenario snapshots are byte-for-byte
-# identical to the top-level production snapshots, so rate_h2avg == top-level
-# total_rate. In publish mode the per-scenario RDS aren't available, but the
-# top-level snapshots ARE -- 3a already exported them to SNAP_DIR from the
-# publish parquet. So we day-weight those CSVs with the same machinery as
-# build_counterfactual (mrw weights + 8-digit leaf expansion) to produce
-# counterfactual_h2avg.csv. This drives S1 (x 2024 wts) and S2 (x monthly wts)
-# in the Stata ladder.
-build_counterfactual_h2avg_from_snapshots <- function(snap_dir, out_file) {
+# Publish-mode variant of build_counterfactual: day-weights snapshot CSVs
+# (exported from publish parquet in 3a) into an HS10 x country x month rate
+# panel with the same machinery as build_counterfactual (mrw weights +
+# 8-digit leaf expansion). Used for:
+#   SNAP_DIR (top-level)     -> counterfactual_h2avg.csv         (S1/S2; the
+#     tracker verifies usmca_h2avg == top-level production, so rate_h2avg
+#     == top-level total_rate)
+#   SNAP_DIR/usmca_2024      -> counterfactual_usmca2024.csv     (S0)
+#   SNAP_DIR/usmca_monthly   -> counterfactual_usmca_monthly.csv (explainer)
+build_counterfactual_from_snapshot_csvs <- function(snap_dir, out_file) {
   # Stream per year-month and append to the CSV, so peak memory is bounded by
   # one month's revision snapshots rather than all (rev x ym) copies at once.
   # A full publish snapshot is ~4.85M rows; holding ~50 (rev x ym) copies OOMs.
@@ -1459,18 +1482,30 @@ build_counterfactual_h2avg_from_snapshots <- function(snap_dir, out_file) {
   invisible(NULL)
 }
 
-# Scenario rate panels. With a shared publish, only the h2avg panel is
-# reconstructable (= top-level production rates); the USMCA scenario snapshots
-# (usmca_none / usmca_2024 / usmca_monthly) are NOT published -- the publish's
-# scenarios/ dir carries forced_labor + no_ieepa only -- so they need the
-# sibling checkout. Dropping them means the Stata ladder runs as S1-S4 + T
-# (S0 omitted) in publish mode. See docs/shared_publish_extensions.md.
+# Scenario rate panels. With a shared publish the h2avg panel comes from the
+# top-level snapshots, and -- since publish vintage 2026-06-10-22 -- the
+# usmca_2024 (S0) and usmca_monthly panels from the published scenario
+# snapshots exported in 3a. Presence of counterfactual_usmca2024.csv flips
+# have_s0 in 01b, so the ladder runs S0-S4 + T; vintages without scenario
+# snapshots degrade to S1-S4 + T as before. usmca_none stays checkout-only
+# (not published, not used by the R ladder).
 if (USE_SHARED_TRACKER) {
   log_msg("  Publish mode: building counterfactual_h2avg.csv from top-level snapshots...")
-  build_counterfactual_h2avg_from_snapshots(SNAP_DIR, "counterfactual_h2avg.csv")
-  log_msg("    NOTE: S0 (counterfactual_usmca2024.csv), counterfactual_usmca_none.csv,")
-  log_msg("    and counterfactual_usmca_monthly.csv are NOT built in publish mode")
-  log_msg("    (USMCA scenario snapshots not yet published). Stata ladder = S1-S4 + T.")
+  build_counterfactual_from_snapshot_csvs(SNAP_DIR, "counterfactual_h2avg.csv")
+  pub_scn_outputs <- c(usmca_2024    = "counterfactual_usmca2024.csv",
+                       usmca_monthly = "counterfactual_usmca_monthly.csv")
+  for (scn in names(pub_scn_outputs)) {
+    scn_dir <- file.path(SNAP_DIR, scn)
+    if (length(list.files(scn_dir, pattern = "^snapshot_.*\\.csv$")) == 0) {
+      log_msg(sprintf("    NOTE: no %s snapshot CSVs under %s --", scn, scn_dir))
+      log_msg(sprintf("    %s not built; ladder runs without it.",
+                      pub_scn_outputs[[scn]]))
+      next
+    }
+    log_msg(sprintf("  Publish mode: building %s from %s snapshots...",
+                    pub_scn_outputs[[scn]], scn))
+    build_counterfactual_from_snapshot_csvs(scn_dir, pub_scn_outputs[[scn]])
+  }
 } else if (!HAVE_SIBLING) {
   log_msg("    WARNING: scenario snapshots require the sibling checkout --")
   log_msg("    skipping counterfactual rate builds (see docs/shared_publish_extensions.md).")

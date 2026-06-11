@@ -8,9 +8,10 @@
 #                         vs Treasury actual, with policy-event reference lines
 #   figure_daily_overlay  paper 4.5: daily statutory ETR with monthly means
 #
-# The USMCA adjustment explainer (Stata 03b section D) requires the S0 /
-# usmca_monthly scenario panels, which the shared tracker publish does not
-# carry -- it returns with full (DataWeb) mode; see docs/open_questions.md.
+# The USMCA adjustment explainer (Stata 03b section D) is not yet ported to
+# R. Its S0 / usmca_monthly input panels exist in publish mode since tracker
+# vintage 2026-06-10-22 -- only the figure port remains; see
+# docs/open_questions.md #2.
 # =============================================================================
 
 here::i_am("code/03b_figures_baseline.R")
@@ -67,4 +68,4 @@ p <- ggplot(daily, aes(date, weighted_etr)) +
 save_fig(p, "figure_daily_overlay", "Daily statutory ETR with monthly means",
          "Step line: tracker daily import-weighted statutory ETR; points: monthly means at mid-month")
 
-msg("[03b] done. (USMCA adjustment explainer deferred: needs full-mode panels)")
+msg("[03b] done. (USMCA adjustment explainer not yet ported -- open_questions #2)")

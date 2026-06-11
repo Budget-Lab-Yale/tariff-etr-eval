@@ -29,13 +29,17 @@ figures, VMR. Not yet ported from `archive/stata/`:
   - 03/03b long-tail figures: 2x2 occupancy tables (`cmp_2x2_*`),
     `monthly_summary` workbook, gap-quantile table, S2S4/S1S2 facet figures.
 
-**2. USMCA adjustment explainer + S0 rung need full (DataWeb) mode**
-*(carried over from the publish-mode work, 2026-06-08)*
-The shared tracker publish lacks the USMCA scenario snapshots, so S0
-(`rate_2024`), `rate_usmca_monthly`, and 03b's adjustment-explainer figure are
-absent in publish mode. Request to the tracker maintainer:
-`docs/shared_publish_extensions.md`. The R pipeline auto-detects and degrades
-to S1–S4 + T (`have_s0` attribute on `panel.rds`).
+**2. USMCA adjustment explainer figure still unported**
+*(opened 2026-06-08 as "S0 needs full mode"; narrowed 2026-06-11)*
+S0 is now resolved: publish vintage `2026-06-10-22` added the USMCA scenario
+snapshots (`scenarios/usmca_2024`, `scenarios/usmca_monthly` — delivered per
+`docs/shared_publish_extensions.md`), and 01a builds
+`counterfactual_usmca2024.csv` / `counterfactual_usmca_monthly.csv` in publish
+mode, so the ladder runs S0–S4 + T. Older vintages still degrade to S1–S4 + T
+(`have_s0` attribute on `panel.rds`). Remaining: the 03b USMCA
+adjustment-explainer figure (Stata 03b section D) was never ported to R — the
+input panels now exist, so it's just the figure port. Note the Stata golden
+(`results_stata_golden/`) predates S0 and lacks the `s0` column/figures.
 
 **3. De-minimis component and the Tariff Model** *(opened 2026-06-10)*
 02a's gap_timing decomposition estimates the postal-channel duty with the
