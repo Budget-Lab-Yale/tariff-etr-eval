@@ -284,6 +284,14 @@ log_msg("=======================================================")
 
 # Log tracker-source provenance up front so every run records which data it
 # consumed (the shared publish carries vintage + git commit in its manifest).
+write_rates_meta <- function(vintage, source, commit = NA_character_) {
+  # Vintage sidecar (practice from tariff-etr-adj): downstream steps stamp
+  # this into result tables via utils.R::tracker_vintage().
+  readr::write_csv(
+    data.frame(vintage = vintage, source = source, git_commit = commit,
+               pulled_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S")),
+    file.path(RAW_DIR, "statutory_rates_meta.csv"))
+}
 if (USE_SHARED_TRACKER) {
   log_msg("  Tracker data: shared publish at ", TRACKER_DATA_DIR)
   manifest_path <- file.path(TRACKER_DATA_DIR, "manifest.json")
@@ -292,15 +300,23 @@ if (USE_SHARED_TRACKER) {
     mf_commit <- if (is.null(mf$git$commit)) "?" else substr(mf$git$commit, 1, 9)
     log_msg("    vintage=", mf$vintage, " commit=", mf_commit,
             " schema=", mf$schema_version, " rate_unit=", mf$rate_unit)
+    write_rates_meta(as.character(mf$vintage), TRACKER_DATA_DIR, mf_commit)
     if (!identical(mf$rate_unit, "fraction")) {
       log_msg("    WARNING: publish rate_unit is '", mf$rate_unit,
               "' -- the Stata pipeline assumes fractional rates")
     }
   } else {
     log_msg("    WARNING: manifest.json not found in publish")
+    write_rates_meta("unknown-publish", TRACKER_DATA_DIR)
   }
 } else {
   log_msg("  Tracker data: sibling checkout at ", TRACKER_DIR)
+  ck_commit <- tryCatch(
+    system2("git", c("-C", TRACKER_DIR, "rev-parse", "--short", "HEAD"),
+            stdout = TRUE, stderr = FALSE)[1],
+    error = function(e) NA_character_)
+  write_rates_meta(paste0("checkout-", format(Sys.Date())), TRACKER_DIR,
+                   ck_commit)
 }
 
 

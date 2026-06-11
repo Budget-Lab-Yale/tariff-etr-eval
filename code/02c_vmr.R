@@ -49,7 +49,8 @@ msg("[02c] Value-misreporting decomposition...")
 msg("  [1] Loading IMDB aggregate + rate path...")
 agg <- fread(file.path(DIR_RAW, "imdb_hs10_country_monthly.csv"),
              colClasses = list(character = c("hs10", "cty_code", "year_month")),
-             showProgress = FALSE) %>% as_tibble()
+             showProgress = FALSE, integer64 = "double") |>
+  fix_int64() |> as_tibble()
 need <- c("con_qy1_mo", "ship_wgt_mo")
 miss <- setdiff(need, names(agg))
 if (length(miss) > 0)

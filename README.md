@@ -4,313 +4,166 @@ Comparing actual vs. statutory effective tariff rates during the 2025–2026 US 
 
 ## Overview
 
-This project evaluates the gap between **statutory** tariff rates (what the Harmonized Tariff Schedule says importers should pay) and **actual** collection rates (customs duties collected as a share of import value). The gap is decomposed into USMCA adjustment, trade diversion, all-other preferences, residual, and timing/enforcement channels using a **six-tier framework** (S0 → S1 → S2 → S3 → S4 → T). See [Six-tier framework](#six-tier-framework) below for definitions, channel directions, and sign properties; `docs/six_tier_framework_plan.md` carries the full math derivation and per-authority applicability matrix.
+This project evaluates the gap between **statutory** tariff rates (what the Harmonized Tariff Schedule says importers should pay) and **actual** collection rates (customs duties collected as a share of import value). The gap is decomposed into USMCA adjustment, trade diversion, all-other preferences, residual, and timing/enforcement channels using a **six-tier framework** (S0 → S1 → S2 → S3 → S4 → T). See [Six-tier framework](#six-tier-framework) below; `docs/six_tier_framework_plan.md` carries the full math derivation and per-authority applicability matrix.
+
+The pipeline is **pure R**, structured like the sibling production repo [`tariff-etr-adj`](../tariff-etr-adj) (data → analysis → figures, with figures reading only CSV outputs). The original Stata pipeline is preserved in `archive/stata/` and was used as the numerical golden reference for the port (`scripts/verify_r_port.R`).
 
 ## Pipeline
 
-The pipeline has two stages: R assembles raw data from external APIs and sibling repos; Stata cleans, merges, and runs all analysis.
+```
+00_run_all.R                      orchestrator (logs to logs/run_all_*.log)
+├── 01a  code/01a_pull_raw_data.R       raw data pull (on demand; ~30–60 min)
+├── 01b  code/01b_build_panel.R         data/raw CSVs -> data/processed/panel.rds
+├── 02a  code/02a_ladder.R              tiers S0–S4 + T, channel gaps, strips
+├── 02b  code/02b_decomposition.R       Shapley diversion + attributions + cmp_*
+├── 02c  code/02c_vmr.R                 value-misreporting decomposition
+├── 03a  code/03a_figures_framework.R   framework + VMR figures
+└── 03b  code/03b_figures_baseline.R    paper baseline figures
+```
 
-| Step | Script | What |
-|------|--------|------|
-| 0 | `code/R/00_pull_raw_data.R` | IMDB bulk (HS10 detail), tracker snapshots (incl. `total_rate` ≡ `rate_h2avg`), Treasury revenue, USMCA + non-USMCA preference share files (Census HS2 API opt-in via `--with-census`) |
-| 1 | `code/01_etr_clean.do` | Import CSVs, clean, merge Census × tracker at HS10 × country × month; carry the three counterfactual rate panels (`rate_2024` for S0, `rate_h2avg` for S1/S2 — the framework anchor — and `rate_all_pref` for S3) onto `merged_analysis.dta` |
-| 2 | `code/02_counterfactual_ladder.do` | Six-tier waterfall (S0→S1→S2→S3, joined to T) — canonical tier values |
-| 3 | `code/03_etr_analysis.do` + `code/03b_baseline_figures.do` | 03: six-tier ETR decomposition + ladder/channel figures + S1→S2 trade-diversion Shapley decomp (country and product partitions) + S2→S3, S3→S4 per-group attributions + 4-panel attribution facets + diagnostic tables; 03b: paper §4.1 baseline figure + §4.5 daily overlay + USMCA adjustment explainer + supplementary monthly summary table |
-| 4 | `code/04_fta_decomposition.do` | Preference channel decomposition (USMCA, KORUS, GSP, duty-free, etc.) |
-| 5 | `code/05_max_district_crosscheck.do` | Validate tracker rates vs. max observed across customs districts |
-| 5a | `code/05a_tracker_miss_diagnostic.do` | Standalone (not in orchestrator): false-negative diagnostic for `tariff-rate-tracker` — surfaces (HS10, country, month) cells where the tracker rate is zero but Census collected positive duty. Output: `tracker_miss_*.csv`. |
-| 5b | `code/05b_tracker_over_diagnostic.do` | Standalone (not in orchestrator): false-positive companion to 5a — surfaces cells where the tracker rate over-states the Census-collected duty, attributed by preference / rate-provision channel. Output: `tracker_over_*.csv`. |
-| 6 | `code/06_baseline_etr_diagnostic.do` | Tracker `total_rate` (= `rate_h2avg`, S1) vs `rate_2024`-reconstruction at 2024 weights (`figure_diagnostic`) |
-| 7 | `code/07_cumulative_duty_gap.do` | Standalone (not in orchestrator): cumulative Census IMDB vs Treasury monthly customs duties — dollar-level analogue of `gap_timing` (S4→T) |
-| 8 | `code/R/08_eta_calibration.R` | Standalone R (run separately): calibrate the compliance gap η from the actual-vs-statutory gap (constant / two-way / full-interaction specs; train 2025m1–2026m2, test 2026m3). Outputs `eta_*.csv`, `figure_eta_*.png`. |
-| 9 | `code/R/09_value_misreporting.R` | **Orchestrator Step 7** (`$run_vmr`, runs after Step 6). Decomposes post-tariff import-value changes into real flow change vs value under-invoicing using Census quantity / shipping weight, with a cross-partner within-product control. Outputs `vmr_*.csv`, `figure_vmr_*.png`. See [Value-misreporting decomposition](#value-misreporting-decomposition-coder09_value_misreportingr) and `docs/value_misreporting_methodology.md`. |
+| Layer | Inputs | Outputs |
+|---|---|---|
+| 01 (data) | Census IMDB bulk, tracker publish/checkout, Treasury snapshot | `data/raw/*.csv`, `data/processed/panel.rds` |
+| 02 (analysis) | `panel.rds`, `data/raw` | `results/tables/*.csv` only |
+| 03 (figures) | `results/tables/*.csv` **only** | `results/figures/*.png` (each as `<stub>.png` clean + `<stub>_titled.png`) |
 
-> Note: the orchestrator (`00_etr_eval.do`) runs Steps 0–6 then the R value-misreporting step (`$run_vmr`, labeled "Step 7" in the orchestrator → `code/R/09_value_misreporting.R`). Rows 5a/5b/7 are standalone Stata diagnostics; row 8 (η calibration) is run on its own via `Rscript`.
+Shared machinery lives in `code/utils.R` (partner/product partitions, Wong colorblind-safe palette, `compute_tier`, Shapley two-way `shapley_decomp`, `per_group_attribution`, tracker-vintage stamping, `save_fig`). The strip modules in `code/strips/` (ported from `tariff-etr-adj`) decompose the S4→T timing gap in-memory; they never modify `data/`.
 
-### Step 0 — R data assembly (`code/R/00_pull_raw_data.R`)
+### Step 01a — raw data pull (`code/01a_pull_raw_data.R`)
 
-Pulls from four sources and writes CSVs to `data/raw/`. Sections can be toggled via command-line flags (see [Running the pipeline](#running-the-pipeline)).
+Pulls Census IMDB bulk ZIPs, tracker statutory-rate snapshots + daily ETRs (from the shared publish when configured in `config/local_paths.yaml`, else a sibling checkout), USMCA counterfactual reconstructions, non-USMCA preference shares, and Treasury revenue (vendored snapshot `resources/treasury_revenue.csv`). Flags:
 
-- **Section 1 — Census API** (HS2 × country × month, *opt-in via `--with-census`*): consumption value, calculated duty, dutiable value. Output is no longer consumed by the Stata pipeline — HS2-level rollups aggregate IMDB HS10 data instead. Section is retained for ad-hoc use and to seed the Section 2b HS10 fallback.
-- **Section 2 — Census IMDB bulk ZIPs** — two outputs:
-  - `imdb_detail.csv`: HS10 × country × district × preference × rate_prov × month (for FTA decomposition, district crosscheck)
-  - `imdb_hs10_country_monthly.csv`: aggregated to HS10 × country × month (for main pipeline)
-  - Census API HS10 fallback: fills months not yet available in IMDB bulk (auto-detected)
-- **Section 3a–3c — `tariff-rate-tracker`**: statutory rate snapshots, daily ETRs, and revision dates from the shared publish (parquet) when configured, else converted from a sibling checkout's RDS; plus 2024 import weights (read from a prebuilt RDS, or self-built from Census IMDB via the tracker's `build_import_weights.R` when none exists). See [Tracker data source](#tracker-data-source-shared-publish-vs-sibling-checkout).
-- **Section 3d–3e — USMCA counterfactual rate reconstruction**: copies USMCA product-level utilization shares from the tracker (2024 annual + monthly 2025–2026 from USITC DataWeb SPI data), then reconstructs HS10 × country × month rates by applying shares to pre-USMCA statutory components and day-weighting across revisions within months. Output: `counterfactual_usmca2024.csv` and `counterfactual_usmca_monthly.csv`.
-- **Section 3f — Non-USMCA preference shares from IMDB**: aggregates `imdb_detail.csv` by (HS10, country, month) and classifies into 9 preference channels (USMCA, KORUS, other_fta, GSP/AGOA, duty_free, ch99_dutiable, mfn_dutiable, ftz_bonded, other) via `classify_pref_channel`. Output: `imdb_other_pref_shares_monthly.csv`.
-- **Section 3g — S2 → S3 preference-delta file**: per-cell rate reduction `delta_base + delta_recip` from non-USMCA preference shares × pre-preference component rates. Output: `counterfactual_other_pref_delta_monthly.csv` (sparse — only cells with positive non-USMCA preference share). See `docs/six_tier_framework_plan.md` §6.6 for derivation.
-- **Section 4 — `tariff-impact-tracker`** (sibling): Treasury revenue (actual ETR).
+```bash
+Rscript code/01a_pull_raw_data.R                       # full pull
+Rscript code/01a_pull_raw_data.R --only-imdb           # IMDB CSVs from cached ZIPs
+Rscript code/01a_pull_raw_data.R --only-tracker        # tracker sections only
+Rscript code/01a_pull_raw_data.R --only-counterfactual # counterfactual panels only
+Rscript code/01a_pull_raw_data.R --refresh-tracker     # rebuild tracker first (~hours, DataWeb token)
+Rscript code/01a_pull_raw_data.R --tracker-data=PATH   # pin a publish vintage
+Rscript code/01a_pull_raw_data.R --no-shared-tracker   # force sibling checkout
+```
 
-### Step 1 — Clean & merge (`code/01_etr_clean.do`)
+**Publish vs full mode.** The shared tracker publish does not carry the USMCA scenario snapshots, so in publish mode the S0 panel (`rate_2024`) and `rate_usmca_monthly` are absent; the pipeline auto-detects this (`have_s0` attribute on `panel.rds`) and the ladder degrades to S1–S4 + T. Full mode requires a tracker checkout with `DATAWEB_API_TOKEN`. See `docs/shared_publish_extensions.md` and `docs/open_questions.md` #2.
 
-Imports all CSVs, assigns partner groups, maps months to HTS revisions, merges Census HS10 trade data with tracker snapshot rates on `(hs10, country, revision)`, and merges in three counterfactual rate panels (B6 `cf_usmca_monthly.dta` → `rate_usmca_monthly` for the USMCA explainer; B7 `cf_usmca2024.dta` → `rate_2024` for S0; B7b `cf_h2avg.dta` → `rate_h2avg` for S1/S2; B8 `cf_pref_delta.dta` → `rate_all_pref` for S3). Computes 2024 fixed weights and monthly weights. Output: `data/working/merged_analysis.dta` carrying `total_rate`, `rate_2024`, `rate_h2avg`, `rate_usmca_monthly`, `rate_all_pref`, `imports`, `con_val_mo` on every row.
+### Step 01b — panel build (`code/01b_build_panel.R`)
 
-### Step 2 — Counterfactual ladder (`code/02_counterfactual_ladder.do`)
+One row per (HS10 × country × month) over the analysis window: Census value/duty/quantity, the day-weighted statutory rate panels (`rate_h2avg` for S1/S2, `rate_all_pref` for S3, `rate_2024` for S0 when present), 2024 + monthly weights, partner/product partitions. Integrity checks (key uniqueness, non-negative rates, S3 ≤ S2) fail fast. The per-revision `tracker_snapshots` merge from the Stata pipeline is deliberately not ported (only the archived 06 diagnostic consumed it).
 
-Thin script. Loads `merged_analysis.dta` and calls `compute_tier` 4× for the aggregate ladder (S0/S1/S2/S3) and 4× for the country ladder, joins T from `revenue_monthly.dta`. Single source of truth for ladder values consumed by Step 3.
+### Step 02a — ladder (`code/02a_ladder.R`)
 
-- S0: `rate_2024 × imports` (USMCA frozen 2024 × 2024 wts)
-- S1: `rate_h2avg × imports` (Post-July 2025 USMCA × 2024 wts)
-- S2: `rate_h2avg × con_val_mo` (Post-July 2025 USMCA × monthly wts)
-- S3: `rate_all_pref × con_val_mo` (S2 minus non-USMCA preference delta × monthly wts)
-- T:  Treasury actual
+Computes the tiers and channel gaps (definitions below), joins Treasury, and — new relative to the Stata pipeline — decomposes `gap_timing` (S4 − T) into:
 
-Output: `counterfactual_ladder.dta` (overall) + `counterfactual_by_country.dta` (by `partner_group`).
+- **de-minimis postal channel** — carrier-remitted duty with no Census entry counterpart, estimated from the step in the monthly Treasury−Census duty gap at the 2025-09 global de-minimis break (`code/strips/deminimis_strip.R`);
+- **AD/CVD deposits** — in Treasury but structurally excluded from Census `cal_dut_mo` (interim curated level in `resources/adcvd_collected.csv`, single source of truth in `tariff-etr-adj`);
+- **residual timing/enforcement** — what remains.
 
-### Step 3 — Analysis & figures (`code/03_etr_analysis.do` + `code/03b_baseline_figures.do`)
+Headline tables are stamped with the tracker vintage (`tracker_vintage` column; `results/tables/run_meta.csv` records vintage + window per step).
 
-Step 3 runs two scripts back-to-back. **03** is the framework decomposition; **03b** is paper-output figures using a separate methodology.
+### Step 02b — decompositions (`code/02b_decomposition.R`)
 
-**`03_etr_analysis.do`** — Six-tier decomposition. Section A reads S0/S1/S2/S3 + T from `counterfactual_ladder.dta` and adds S4 (Census collected ETR). Section B does the Shapley two-way decomposition of **S1→S2** (trade diversion) into between-group + within-group, twice — once partitioning by `partner_group` (country lens), once by `product_group` (product lens). Both lenses sum to the same `gap_diversion`. Outputs `diversion_by_country.dta`, `diversion_by_product.dta`, and `_avg.csv` summaries; figs D1 (aggregate decomp time series), D2 (country stacked-bar contributions), D3 (product stacked-bar contributions). Section D (figs 4–6) uses `compute_tier` on `rate_h2avg` so its statutory line is identical-by-construction to S2. Section D7 mirrors D2 with `product_group` and adds a `heatplot`-based figure P3 (S2−S4 gap on the product × partner grid).
+S1→S2 trade-diversion Shapley two-way (between/within) under the country and product partitions — both lenses sum to `gap_diversion` and are validated against the ladder each run; S2→S3 and S3→S4 per-group attributions; S0→S1 attribution in full mode; `cmp_*` comparison tables (S2 vs S4 vs T by partner/product, HS2 ranking, top-HS10 anomalies, S1 vs S2 by group).
 
-The framework's S1 panel (`rate_h2avg × imports`) **equals the tracker's daily ETR collapsed to monthly** by construction — so the paper's headline §4.1 "baseline statutory" line in `figure_baseline.png` is also S1. Framework backbone aligns with the headline figure.
+### Step 02c — value misreporting (`code/02c_vmr.R`)
 
-**`03b_baseline_figures.do`** — paper figures: §4.1 baseline (= framework S1), §4.5 daily overlay, supplementary monthly summary table, **§3 USMCA adjustment explainer**. Section D produces `figure_adjustment_explainer.png` (CA + MX statutory ETR under three USMCA scenarios — 2024 baseline, monthly empirical, post-July 2025 baseline; the empirical line moves between the two reference lines mid-2025) and `figure_adjustment_country.png` (period-averaged S0−S1 gap by partner group, dominated by CA and MX). Plus `adjustment_by_country.csv`.
-
-**Figure naming convention.** Every `figure_*.png` is exported in two versions — `figure_X.png` (no titles/subtitles, default for slides) and `figure_X_titled.png` (with titles/subtitles, for the paper draft). Every figure site uses the inline `foreach v in titled clean { ... }` pattern: define `local opt_title` and `local sfx` conditionally on `v`, then build the graph with `\`opt_title'` and export with `\`sfx'`. (`graph display, title("")` is not valid Stata syntax, so post-hoc title clearing isn't an option.)
-
-### Step 4 — FTA decomposition (`code/04_fta_decomposition.do`)
-
-Decomposes the S2→S3 exemptions gap into preference channels using IMDB detail data (`cty_subco`, `rate_prov`): USMCA, KORUS, other FTAs, GSP/AGOA, duty-free entries, ch99 dutiable, MFN dutiable. Also computes USMCA/KORUS utilization rates. Requires `imdb_detail.csv`.
-
-### Step 5 — Max-district crosscheck (`code/05_max_district_crosscheck.do`)
-
-Validates tracker statutory rates against max observed ETR across customs districts per HS10 × country. Classifies into match / tracker_higher / observed_higher. Tracker-higher = universal preference use; observed-higher = possible tracker parsing error. Requires `imdb_detail.csv`.
-
-### Step 6 — Baseline ETR diagnostic (`code/06_baseline_etr_diagnostic.do`)
-
-Diagnostic at 2024 weights comparing tracker `total_rate` (baseline USMCA already applied) vs the `rate_2024` reconstruction (`cf_usmca2024`). Both use 2024 baseline USMCA assumptions, so any gap between them isolates reconstruction methodology; matched/nonzero universe slices isolate zero-rate-dropping and unmatched-product effects. Builds its own panel from `weights_2024.dta` (different universe from `merged_analysis.dta`). Output: `figure_diagnostic` + diagnostic table.
-
-### Value-misreporting decomposition (`code/R/09_value_misreporting.R`)
-
-Orchestrator **Step 7** (`$run_vmr`, after Step 6). Asks how much of each post-tariff *value* change is a real change in trade flows versus *value misreporting* (under-invoicing to shrink the dutiable base). Within a flow (HS10 × country) it uses the accounting identity `Δln(value) = Δln(quantity) + Δln(unit_value)`: a real value decline should be matched by a quantity decline, whereas value falling with quantity flat means the implied unit value collapsed — a misreporting signal. To net out genuine world-price moves, each tariffed flow's unit-value change is compared to the value-weighted change of **untariffed origins of the same HS10** over the same months (a cross-partner, within-product control). Flows are sorted into six buckets; the headline is the value-weighted share that is "value down, quantity flat" (loose) and the same net of the control (strict), reported by partner × product with China broken out.
-
-This channel is **orthogonal to η**: under-invoicing scales value down and duty = rate × value falls proportionally, so `duty/value` (hence η) is unchanged — η is structurally blind to it. The deliverable is therefore a sidecar to `eta_by_*.csv` on the same partner × product grid.
-
-Requires the quantity/shipping-weight columns added to the IMDB pull in Step 0 — run `Rscript code/R/00_pull_raw_data.R --only-imdb` once if they are not yet present. Outputs: `results/tables/vmr_{decomp_by_partner_product,by_partner,by_product,china_by_hs2,flow_classified,identity_check}.csv` and `results/figures/figure_vmr_{suspect_share_by_partner,suspect_share_heatmap,dln_scatter}[_titled].png`. Method, thresholds, and limitations: `docs/value_misreporting_methodology.md`.
+Decomposes post-tariff import-value changes into real flow change vs value under-invoicing using the identity Δln(value) = Δln(quantity) + Δln(unit value) around each flow's tariff event, with a cross-partner within-product control. Orthogonal to the η compliance gap (under-invoicing moves duty and value proportionally). Method: `docs/value_misreporting_methodology.md`; planned upgrades (placebo floor, dose-response, related-party split): `docs/vmr_v2_proposal.md`.
 
 ## Running the pipeline
 
-### R data pull (Step 0)
+```bash
+Rscript 00_run_all.R                  # 01b -> 03b (default; needs data/raw populated)
+Rscript 00_run_all.R --with-pull      # run the raw pull first
+Rscript 00_run_all.R --skip-data      # 02a -> 03b, reuse panel.rds
+Rscript 00_run_all.R --figures-only   # 03a + 03b only
+```
+
+On the BL cluster run via SLURM (`slurm/RUNBOOK.md`): `sbatch slurm/run_pull.sbatch` (stage 1, data) then `sbatch slurm/run_r.sbatch` (stage 2, analysis; ~5 min). The panel build freads a 73M-row rate file — use a compute node, not the login node. `slurm/run_stata.sbatch` runs the archived Stata pipeline for golden-reference comparisons.
+
+### Validating against the Stata golden
 
 ```bash
-Rscript code/R/00_pull_raw_data.R                       # IMDB + tracker + impacts (~30–60 min)
-Rscript code/R/00_pull_raw_data.R --with-census         # also pull Census HS2 API (hours)
-Rscript code/R/00_pull_raw_data.R --skip-imdb           # skip IMDB bulk downloads
-Rscript code/R/00_pull_raw_data.R --only-imdb           # IMDB bulk only — rebuild the two IMDB
-                                                        #   CSVs (incl. quantity/weight cols) from
-                                                        #   cached ZIPs; no sibling repos/tokens
-Rscript code/R/00_pull_raw_data.R --only-tracker        # sections 3a–3e only (~15 min)
-Rscript code/R/00_pull_raw_data.R --only-counterfactual # sections 3d–3g only (~10 min)
-Rscript code/R/00_pull_raw_data.R --refresh-tracker     # rebuild tracker first (~hours)
-Rscript code/R/00_pull_raw_data.R --tracker-data=PATH   # pin a specific tracker publish vintage
-Rscript code/R/00_pull_raw_data.R --no-shared-tracker   # force the sibling-checkout path
-```
-
-#### Tracker data source: shared publish vs sibling checkout
-
-On the BL cluster, Step 0 reads statutory rate snapshots (3a) and daily ETRs + revision dates (3c) from the **shared tracker publish** (`model_data/Tariff-Rate-Tracker/latest`: parquet + `manifest.json`; vintage and git commit are logged at the top of each run). The publish location is machine-specific and lives in the gitignored `config/local_paths.yaml` (key `tracker_data_dir`; copy `config/local_paths.yaml.example` and edit). Resolution order: `--tracker-data=PATH` → `--no-shared-tracker` → `TRACKER_DATA_DIR` env var → `tracker_data_dir` from `config/local_paths.yaml` if it exists → sibling checkout. With no publish configured (e.g. off-cluster) the script behaves exactly as before, reading everything from the sibling checkout.
-
-In shared mode, `revision_dates.csv` is **derived from the publish** (one revision per `valid_from=` snapshot directory — the publish's dating is authoritative for the rates being used), with `policy_event` annotations joined from the vendored lookup `resources/revision_policy_events.csv`.
-
-Not yet in the publish — these still require the sibling checkout (warn-and-skip otherwise): 2024 import weights (3b), USMCA share files (3d), and the four USMCA scenario snapshot sets behind the counterfactual panels (3e). A plain `git clone` of the tracker suffices for 3b and 3d: the share files are committed there, and when no prebuilt weights RDS exists anywhere, 3b **self-builds** it by running the tracker's committed `src/build_import_weights.R` against this repo's IMDB ZIP cache (`data/imdb/raw/`; missing 2024 ZIPs are downloaded, ~10–30 min once, output cached in `data/weights/`). The scenario snapshots are the one input only the tracker build itself can produce — `docs/shared_publish_extensions.md` is the request to the tracker maintainer for those (plus two small publish fixes).
-
-Use `--only-tracker` after updating the tracker repo to regenerate snapshot CSVs, USMCA shares, and counterfactual rate files. Use `--refresh-tracker` to rebuild the tracker end-to-end (revision dates, HTS JSON, DataWeb USMCA shares, top-level + per-scenario snapshots, daily ETRs) before the export steps; requires `DATAWEB_API_TOKEN` in `tariff-rate-tracker/.env` and may halt at `01_scrape_revision_dates.R` if a new HTS revision needs manual policy-date curation. Composes with the other flags.
-
-### Stata pipeline (Steps 1–6 + value-misreporting)
-
-```stata
-cd <repo-root>
-do 00_etr_eval.do
-```
-
-Toggle steps via globals in `code/utils/globals.do` (execution order):
-
-- `$run_pull` (Step 0): R data pulls (hours-long; off by default)
-- `$run_clean` (Step 1): import, clean, merge → `merged_analysis.dta`
-- `$run_ladder` (Step 2): counterfactual ladder → `counterfactual_ladder.dta`
-- `$run_analysis` (Step 3): six-tier decomposition and figures (consumes ladder)
-- `$run_fta` (Step 4): FTA/preference decomposition (needs `imdb_detail.csv`)
-- `$run_crosscheck` (Step 5): max-district validation (needs `imdb_detail.csv`)
-- `$run_baseline` (Step 6): baseline ETR diagnostic
-- `$run_vmr` (Step 7): value-misreporting decomposition (`code/R/09_value_misreporting.R`; needs the Step 0 quantity/weight columns — see [Value-misreporting decomposition](#value-misreporting-decomposition-coder09_value_misreportingr))
-
-### Compliance calibration (Step 8, R)
-
-```bash
-Rscript code/R/08_eta_calibration.R
-```
-
-Calibrates the *State of Tariffs* compliance parameter η — the share of statutory tariff revenue
-not realized as collections — from the observed statutory-vs-actual gap, and tests it out of sample
-on the post-IEEPA (Section 122) regime. Reads `data/working/merged_analysis.dta` and
-`data/working/revenue_monthly.dta` (so run after the Stata Step 1 clean) directly via `haven`.
-Identifies the cross-sectional *shape* from Census-declared duties and pins the aggregate *level*
-to Treasury (timing factor `k`), across two statutory baselines (S1 announced / S2
-composition-adjusted), three specifications (constant, two-way, full-interaction with
-empirical-Bayes shrinkage), and two training windows (full 2025m1–2026m2 vs post-April 2025m5–2026m2,
-to drop the volatile ramp); test = 2026m3 throughout. Outputs `results/tables/eta_*.csv`, a bundled
-`results/tables/eta_analysis.xlsx` (one sheet per table, with a readme tab), and
-`results/figures/figure_eta_*.png` (faceted by training window; unsuffixed = composition-adjusted S2,
-`*_announced` = announced 2024-fixed-basket S1).
-Headline (June 2026 run): composition-adjusted η ≈ 19%
-(post-April central estimate; ~23% over the full window incl. the volatile Jan–Apr ramp),
-announced-basis ~32–38% — all above the model's current flat 10% assumption. See
-[`docs/eta_calibration_methodology.md`](docs/eta_calibration_methodology.md). Needs ~22 GB free RAM
-(the panel is ~550 MB on disk and expands in memory).
-
-## Sibling repo dependencies
-
-Both should be cloned at the same directory level as this repo. Step 0 reads RDS snapshots, daily ETR CSVs, and Treasury revenue from those checkouts. On the BL cluster, the shared tracker publish replaces the `tariff-rate-tracker` checkout for snapshots and daily ETRs (see [Tracker data source](#tracker-data-source-shared-publish-vs-sibling-checkout)); the checkout is still needed for import weights, USMCA shares, and scenario snapshots, and `tariff-impact-tracker` is always needed for Treasury revenue. With no publish and no checkout, the script aborts with a clear error pointing at the expected path.
-
-- [`Budget-Lab-Yale/tariff-rate-tracker`](https://github.com/Budget-Lab-Yale/tariff-rate-tracker) — statutory rates, daily ETR, import weights, revision dates, USMCA product shares (from USITC DataWeb SPI data).
-- [`Budget-Lab-Yale/tariff-impact-tracker`](https://github.com/Budget-Lab-Yale/tariff-impact-tracker) — Treasury revenue (actual ETR).
-
-Suggested layout:
-
-```
-GitHub/
-├── tariff-etr-eval/         # this repo
-├── tariff-rate-tracker/     # https://github.com/Budget-Lab-Yale/tariff-rate-tracker
-└── tariff-impact-tracker/   # https://github.com/Budget-Lab-Yale/tariff-impact-tracker
+sbatch slurm/run_stata.sbatch          # archived Stata pipeline -> results/tables
+cp -a results results_stata_golden     # snapshot
+sbatch slurm/run_r.sbatch              # R pipeline overwrites results/tables
+Rscript scripts/verify_r_port.R        # numeric comparison, 1e-6 pp tolerance
 ```
 
 ## Six-tier framework
 
 | Tier | Definition |
 |------|------------|
-| S0 | Statutory @ USMCA 2024 baseline shares × 2024 import weights |
+| S0 | Statutory @ USMCA 2024 baseline shares × 2024 import weights *(full mode only)* |
 | S1 | Statutory @ Post-July 2025 USMCA baseline shares × 2024 import weights (= the paper's headline statutory line) |
 | S2 | Statutory @ Post-July 2025 USMCA baseline shares × monthly weights |
 | S3 | + non-USMCA preferences (Annex II / ITA / Ch98 / KORUS / GSP / FTAs), monthly IMDB-derived shares |
 | S4 | Census collected ETR (cal_dut / con_val at HS10 × cty, summed) |
 | T  | Treasury actual ETR |
 
-The waterfall decomposes the statutory–actual ETR gap into five sequential channels. The S0→S1 step is treated as "explainable backstory" and shown via the USMCA adjustment explainer figures in `03b`; main analysis lives between S1 and T.
+The waterfall decomposes the statutory–actual ETR gap into sequential channels. The S0→S1 step is "explainable backstory" (USMCA paperwork catch-up); main analysis lives between S1 and T.
 
-1. **USMCA adjustment (S0 → S1)** — hold weights at 2024, shift USMCA from 2024 baseline (~38% CA / ~50% MX) to post-July 2025 baseline (~89% both). Mostly retrospective: firms filed USMCA claims late, and a July 2025 reporting change made the underlying utilization visible. `gap_adjustment` is mostly one-signed.
-2. **Trade diversion (S1 → S2)** — hold post-July 2025 USMCA, shift weights from 2024 to actual monthly. Composition shift in trade flows. Sign-bearing — negative ("reverse diversion") for CA/MX/China/ROW because their imports are concentrated in inelastic high-tariff categories. Decomposed Shapley two-way in 03 Section B (figs D1–D3).
-3. **All-other preferences (S2 → S3)** — apply non-USMCA preference claim shares (Annex II / ITA / Ch98 / KORUS / GSP / other_fta) from IMDB. Per-authority math: `delta_base = (s_duty_free + s_korus + s_gsp + s_other_fta) × base_rate_pre`, `delta_recip = s_duty_free × recip_rate_pre`. Structurally non-negative.
-4. **Residual (S3 → S4)** — remaining gap between statutory (with all preferences applied) and Census collected. Captures specific-duty AVE failures, AD/CVD, tracker error not yet corrected, behavioral noise within HS10 × cty cells. Structurally positive (Census-declared duties undershoot the cell-level reconstruction).
-5. **Timing / enforcement (S4 → T)** — Treasury vs Census aggregation. Refunds, post-entry adjustments, FTZ deferrals, cash-vs-accrual timing. Bidirectional; has trended strongly negative since mid-2025 (Treasury cash receipts now exceed Census-declared duties by a widening cumulative margin).
+1. **USMCA adjustment (S0 → S1)** — hold weights at 2024, shift USMCA from 2024 baseline (~38% CA / ~50% MX) to post-July 2025 baseline (~89% both). Mostly retrospective.
+2. **Trade diversion (S1 → S2)** — hold rates, shift weights from 2024 to actual monthly. Decomposed Shapley two-way in 02b.
+3. **All-other preferences (S2 → S3)** — non-USMCA preference claim shares from IMDB (`delta_base`/`delta_recip` math in `docs/six_tier_framework_plan.md` §6.6). Structurally non-negative.
+4. **Residual (S3 → S4)** — statutory-with-preferences vs Census collected: specific-duty AVE failures, tracker error, behavioral noise.
+5. **Timing / enforcement (S4 → T)** — Treasury vs Census aggregation: refunds, FTZ deferrals, cash-vs-accrual, **plus the de-minimis postal and AD/CVD channels now split out explicitly in 02a**.
 
-USMCA shares are product-level (HS10 × country) from USITC DataWeb SPI program codes (S/S+). Non-USMCA preference shares come from IMDB importer-declared `cty_subco` and `rate_prov` fields, classified via `classify_pref_channel`. The applicability matrix encoded in tracker steps 6c (FTA/GSP for `base`) and 7 (USMCA for `base`/`recip`/`fent`/`232`/`s122` with `0.40` content rule for auto/MHD) is preserved by the R reconstruction logic. See `docs/six_tier_framework_plan.md` §6 for the full math, including the per-preference applicability matrix and sign-reversal explanation.
+The framework's S1 panel equals the tracker's daily ETR collapsed to monthly by construction, so the paper's headline §4.1 "baseline statutory" line is also S1.
 
-The framework's S1 panel equals the tracker's daily ETR collapsed to monthly by construction, so the paper's headline §4.1 "baseline statutory" line is also S1 — the framework backbone aligns with the headline figure.
+### Aggregation methodology
 
-## Aggregation methodology
+All tiers are single-stage row-level value-weighted averages over the panel: `Σ(rate × weight) / Σ(weight)` (`compute_tier` in `code/utils.R`). Rate and weight columns sit on the same row; no HS2 bridging. Zero-tariff products **must be included** in the denominator (dropping them inflates the ETR from ~3.4% to ~27%). `rate_h2avg` is the tracker's production `total_rate` (USMCA at post-July-2025 claim rates), day-weighted within months; `rate_2024` and `rate_usmca_monthly` swap only the USMCA layer.
 
-All ETR tiers are computed via single-stage row-level value-weighted averages over the (HS10 × country × month) cells of `merged_analysis.dta`: `Sum(rate × weight) / Sum(weight)`. Rate columns (`rate_2024`, `rate_h2avg` ≡ `total_rate`, `rate_usmca_monthly`, `rate_all_pref`) and weight columns (`imports` for 2024, `con_val_mo` for monthly) sit on the same row, so `compute_tier` collapses are uniform across tiers and figures. No HS2 bridging.
+## Sibling repo dependencies
 
-Zero-tariff products **must be included** in the denominator. Dropping them inflates the ETR from ~3.4% to ~27%.
-
-`rate_h2avg` is the framework alias for the tracker's production `total_rate` column — built in the `tariff-rate-tracker` sibling at `src/06_calculate_rates.R` with USMCA scaled by **post-July 2025 average claim rates** (~89% for CA/MX). `rate_2024` swaps that to **2024-baseline claim rates** (~38% CA / ~50% MX); `rate_usmca_monthly` swaps to **monthly empirical rates** (USITC DataWeb). Same authority stacking, MFN exemptions, and IEEPA floor logic in all three; only the USMCA layer differs.
-
-## Reusable Stata programs (`code/utils/programs.do`)
-
-- `assign_partner_group <varname>` — maps Census country codes to 8 partner groups (China, CA, MX, EU, JP, KR, UK, ROW).
-- `safe_divide <num> <den> <newvar> [default]` — handles zero-denominator division.
-- `report_merge "<label>"` — reports match / master-only / using-only counts after `merge`.
-- `build_month_rev_map, saving(...)` — produces ym → revision crosswalk.
-- `compute_tier, ratevar() weightvar() outfile() outvar() [byvar() percent]` — tier ETR aggregation; operates on the in-memory dataset (caller `preserve`s/`restore`s). Used by 02's ladder, 03 Section D, and 06.
-- `compute_diversion_decomp, ratevar() byvar() outfile() outvar_prefix()` — Shapley two-way decomposition of a fixed-rate-weights-shift gap into between-group + within-group components. Called against `rate_h2avg` to decompose S1→S2 trade diversion. Group is `partner_group` (country lens) or `product_group` (product lens). Both lenses sum to the same `gap_diversion`. Used by 03 Section B and 03b's USMCA adjustment explainer.
-- `compute_per_group_attribution, ratevar_left() ratevar_right() weightvar() byvar() outfile() outvar()` — per-group dollar attribution under fixed weights: `(Σ_g rate_left × w − Σ_g rate_right × w) / Σ_total w`. Used for S2→S3 (`rate_h2avg` vs `rate_all_pref`) and S3→S4 (`rate_all_pref` vs `census_etr`) per-group breakdowns. Distinct from `compute_diversion_decomp` because the weights-fixed case is mechanically zero on the between-group Shapley term.
-- `classify_pref_channel <subco> <rateprov> <cty>` — bins IMDB entries into 9 preference / rate-provision channels (mirrored in R section 3f). Used by 04 and 05a/05b.
-- `export_fig <stub> [, width(N)]` — graph export to `${figures}<stub>.png` at 2400 px width by default.
-- HS2 chapter labels (`hs2_lbl`, 99 chapters).
+- [`Budget-Lab-Yale/tariff-rate-tracker`](https://github.com/Budget-Lab-Yale/tariff-rate-tracker) — statutory rates, daily ETR, import weights, revision dates, USMCA product shares. On the BL cluster the **shared publish** (`tracker_data_dir` in `config/local_paths.yaml`, copy from `config/local_paths.yaml.example`) replaces the checkout for snapshots + daily ETRs; the checkout is still needed for full-mode USMCA scenario panels.
+- [`Budget-Lab-Yale/tariff-impact-tracker`](https://github.com/Budget-Lab-Yale/tariff-impact-tracker) — Treasury revenue. Optional: the vendored snapshot `resources/treasury_revenue.csv` (provenance: `resources/treasury_revenue_SOURCE.md`) makes the pipeline self-contained.
+- [`tariff-etr-adj`](../tariff-etr-adj) (private sibling) — **production home of the η compliance-gap calibration**. The η work formerly in this repo is archived (`archive/eta/`) to avoid drifting implementations; this repo's VMR decomposition is the base-erosion sidecar to adj's `eta_by_*` deliverables.
 
 ## Data sources
 
-| Source | Repo / API | What |
-|--------|------------|------|
-| Census IMDB bulk | `census.gov/trade/downloads/` | HS10 × country × district × preference detail (primary monthly source; HS2 rollups derived from this) |
-| Census Bureau API | `api.census.gov` | HS2 × country monthly trade — opt-in via `--with-census`; not consumed by the Stata pipeline |
-| Tariff Rate Tracker | [`Budget-Lab-Yale/tariff-rate-tracker`](https://github.com/Budget-Lab-Yale/tariff-rate-tracker) | HTS10 × country statutory rates, daily ETR, import weights. On the BL cluster, snapshots + daily ETRs come from the shared publish (`model_data/Tariff-Rate-Tracker/latest`, configured in `config/local_paths.yaml`) instead of a checkout |
-| Tariff Impact Tracker | [`Budget-Lab-Yale/tariff-impact-tracker`](https://github.com/Budget-Lab-Yale/tariff-impact-tracker) | Monthly actual ETR (Treasury customs duties / imports) |
+| Source | What |
+|--------|------|
+| Census IMDB bulk (`census.gov/trade/downloads/`) | HS10 × country × district × preference detail; value, duty, quantity, shipping weight |
+| Tariff Rate Tracker (publish or checkout) | HTS10 × country statutory rates, daily ETR, import weights, revision dates |
+| Treasury (vendored Haver snapshot) | Monthly customs duties + goods imports (actual ETR) |
+| USITC DataWeb SPI | USMCA product-level utilization shares (full mode) |
 
-`--refresh-tracker` shells out to the tracker repo and rebuilds its outputs end-to-end before the export step; this requires `DATAWEB_API_TOKEN` set in `tariff-rate-tracker/.env` (free token from <https://dataweb.usitc.gov>) and ~60–90 minutes. Both sibling repos publish their own setup instructions.
+## Repository layout
 
-## Output
-
-Every figure is exported in two versions: `figure_X.png` (no titles/subtitles, default for slides) and `figure_X_titled.png` (with titles/subtitles, for the paper draft).
-
-**Figures** (`results/figures/`):
-
-- `figure_baseline.png` — paper §4.1 headline: monthly statutory (= S1) vs Treasury-actual ETR
-- `figure_ladder.png` — five-line ladder: S0, S1, S2, S3, Treasury actual
-- `figure_gap_stacked.png` — USMCA-adjustment vs main-analytic gap, stacked monthly
-- `figure_channel_stacked.png` — S1→Treasury split into diversion / others / residual+timing
-- `figure_diversion_{decomp,country,product}.png` — S1→S2 Shapley two-way (aggregate and partitions)
-- `figure_s1s2_facets_{country,product}.png` — S1 vs S2 group-level ETR facets
-- `figure_others_{country,product,channel_stack}.png` — S2→S3 attribution
-- `figure_residual_{country,product}.png` — S3→S4 per-group residuals
-- `figure_s2s4_{overall,gap_country,gap_product,facets_country,facets_product,heatmap}.png` — S2 vs S4 vs T comparison
-- `figure_attribution_{country,product}.png` — 4-panel attribution facets across all decomposable channels
-- `figure_adjustment_{explainer,country}.png` — S0→S1 USMCA explainer (paper §3, 03b)
-- `figure_diagnostic.png` — self-consistency check at 2024 weights (06)
-- `figure_cumulative_duty_gap.png` — cumulative Census-vs-Treasury duty gap (07, standalone)
-
-**Tables** (`results/tables/`):
-
-- `decomp_monthly.csv` — monthly six-tier decomposition (S0–S4–T) + channel gaps (`gap_adjustment`, `gap_diversion`, `gap_others`, `gap_residual`, `gap_timing`)
-- `counterfactual_ladder.csv` — overall ladder (S0/S1/S2/S3 + T)
-- `counterfactual_by_country.csv` — country-level ladder for Shapley input
-- `diversion_by_country_avg.csv` / `diversion_by_product_avg.csv` — period-mean Shapley contributions
-- `attribution_by_country.csv` / `attribution_by_product.csv` — per-group monthly contributions across the four decomposable channels
-- `cumulative_duty_gap.csv` — monthly Census vs Treasury duties + cumulative diff (from 07)
-- `fta_decomp_monthly.csv` / `fta_utilization_rates.csv` — preference channel breakdown
-- `cmp_overall_monthly.csv` / `cmp_partner_monthly.csv` / `cmp_product_monthly.csv` — S2 vs S4 vs T tables
-- `max_district_summary.csv` — tracker validation statistics
-- `tracker_miss_*.csv` / `tracker_over_*.csv` — diagnostic deliverables for the tracker maintainer (false-negative and false-positive directions)
+```
+00_run_all.R              orchestrator
+code/                     pipeline (01a/01b/02a/02b/02c/03a/03b, utils.R, strips/)
+scripts/                  verify_r_port.R, verify_counterfactuals.R
+slurm/                    RUNBOOK.md + sbatch runners (logs/ gitignored)
+resources/                committed inputs (product groups, Treasury snapshot,
+                          AD/CVD curated level, crosswalks, policy events)
+data/raw|imdb|processed/  gitignored, rebuilt by 01a/01b
+results/tables|figures/   gitignored, rebuilt by 02*/03*; run_meta.csv carries
+                          the tracker vintage per step
+docs/                     method notes, paper outline, open_questions.md tracker
+paper/                    paper draft (Rmd)
+archive/stata/            retired Stata pipeline (golden reference for the port)
+archive/eta/              η calibration (production home: tariff-etr-adj)
+archive/exploratory/      GTAP validation + AD/CVD spot checks
+```
 
 ## Requirements
 
-**R** (Step 0 only): `httr`, `jsonlite`, `dplyr`, `readr`, `here`, `stringi`, `yaml`; plus `arrow` when reading the shared tracker publish (any mode except `--no-shared-tracker` on the BL cluster).
-
-**Stata 17+**: `ftools`, `reghdfe`, `gtools`, `estout`, `coefplot`, `plotplainblind`, `heatplot` (with deps `palettes`, `colrspace`). Install with:
-
-```stata
-ssc install ftools, replace
-ssc install reghdfe, replace
-ssc install gtools, replace
-ssc install estout, replace
-ssc install coefplot, replace
-ssc install plotplainblind, replace
-ssc install heatplot, replace
-ssc install palettes, replace
-ssc install colrspace, replace
-```
-
-Set `CENSUS_API_KEY` in `~/.Renviron` for Census API access.
-
-## Key configuration (`code/utils/globals.do`)
-
-- Path globals: `$dir`, `$code`, `$data`, `$raw`, `$working`, `$results`, `$figures`, `$tables`.
-- Analysis window: `$start_ym` to `$end_ym` (Jan 2025 – Feb 2026).
-- Partner groups: China, Canada, Mexico, EU, Japan, S. Korea, UK, ROW.
-- Product groups (9, defined in `resources/product_groups.csv`, merged into `merged_analysis.dta` in 01): Steel & Aluminum, Autos & Auto Parts, Electronics & Machinery, Pharmaceuticals, Energy & Minerals, Chemicals & Plastics, Apparel & Textiles, Food & Agriculture, Other Manufactured.
-- Policy event dates: `$event_fentanyl`, `$event_liberation`, etc. (for figure reference lines).
-- Color palette: `$color_actual` (red), `$color_statutory` (navy), `$color_gap` (green); partner-specific colors `$color_china/canada/mexico/...`; product-specific colors `$color_steel/autos/elec/pharma/energy/chem/apparel/food/other`.
-- Graph scheme: `plotplainblind` (colorblind-friendly).
+R ≥ 4.4 with `dplyr`, `tidyr`, `readr`, `data.table` (+`bit64`), `ggplot2`, `scales`, `here`; `yaml`/`jsonlite` for config + vintage resolution; `arrow` only for the publish-reading sections of 01a. No Stata required (the archive needs Stata 17+ with `gtools` if re-run).
 
 ## Conventions
 
-- Orchestrator naming: `00_etr_eval.do` (numeric prefix `00_` signals top-level runner).
-- Stata globals defined centrally in `globals.do`, never hardcoded in analysis scripts.
-- All raw data written to `data/raw/`, intermediate `.dta` to `data/working/`, final output to `results/`.
-- R uses `here::i_am()` for path resolution; Stata uses `$dir` auto-detected from `c(pwd)`.
-- Census country codes are strings (e.g., "5700" = China), mapped via `assign_partner_group`.
+- `year_month` is a `"YYYY-MM"` string key everywhere in R; tier values in percent, gaps in pp, panel rates as ratios.
+- Every figure exports as `<stub>.png` (clean, slides) + `<stub>_titled.png` (paper).
+- Design debt and deferred ports are tracked in `docs/open_questions.md` — update it in the same commit as the change.
 
 ## Further reading
 
-- `docs/six_tier_framework_plan.md` — math derivation (Shapley two-way, applicability matrix, sign-bearing channel discussion).
-- `docs/paper_outline.md` — current paper outline, with figure-name map, Shapley derivation, and Eck et al. (2026) cross-validation.
-- `docs/etr-literature-review.md` — context on the statutory-actual ETR gap literature.
-- `docs/slides/etr_divergence_slides.Rmd` — 42-frame Beamer deck (with `header.tex` preamble and `etr_divergence_slides_notes.md` speaker notes). Render with `rmarkdown::render("docs/slides/etr_divergence_slides.Rmd")`; uses `xelatex` and pulls figures from `results/figures/`.
-- `docs/tracker_miss_report.md` / `docs/tracker_over_report.md` — diagnostic handoffs to the `tariff-rate-tracker` maintainer (false-negative and false-positive rate-parsing errors).
-- `docs/tracker_audits/` — audit memos resolving specific tracker bug findings.
+- `docs/six_tier_framework_plan.md` — framework math and applicability matrix
+- `docs/value_misreporting_methodology.md` + `docs/vmr_v2_proposal.md` — VMR method and v2 design
+- `docs/eta_calibration_methodology.md` — η methodology (work lives in tariff-etr-adj)
+- `docs/etr-literature-review.md` — related literature
+- `docs/paper_outline.md` — paper structure and headline results
 
 ## License
 
-MIT — see `LICENSE`. Copyright © 2026 The Budget Lab at Yale.
+MIT — see `LICENSE`.

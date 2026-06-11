@@ -94,6 +94,17 @@ POLICY_EVENTS <- tibble::tribble(
   as.Date("2026-02-24"), "SCOTUS / S.122")
 
 # --- Small numeric helpers ----------------------------------------------------
+#' Coerce any integer64 columns (from data.table::fread on >2^31 values) to
+#' double, in place. integer64 silently corrupts double arithmetic in dplyr
+#' pipelines, so every fread in this pipeline passes through this sweep.
+fix_int64 <- function(dt) {
+  if (!requireNamespace("bit64", quietly = TRUE)) return(dt)
+  for (j in names(dt))
+    if (inherits(dt[[j]], "integer64"))
+      data.table::set(dt, j = j, value = as.numeric(dt[[j]]))
+  dt
+}
+
 safe_divide <- function(num, den, default = NA_real_) {
   out <- ifelse(!is.na(den) & den != 0, num / den, default)
   ifelse(is.na(out), default, out)

@@ -42,7 +42,7 @@ msg("[01b] Building analysis panel (%s .. %s)...", ANALYSIS_LO, ANALYSIS_HI)
 msg("  [1] Census IMDB aggregate...")
 cen <- fread(file.path(DIR_RAW, "imdb_hs10_country_monthly.csv"),
              colClasses = list(character = c("hs10", "cty_code", "year_month")),
-             showProgress = FALSE, integer64 = "double")
+             showProgress = FALSE, integer64 = "double") |> fix_int64()
 cen <- cen[year_month >= ANALYSIS_LO & year_month <= ANALYSIS_HI]
 msg("      %s rows in window", format(nrow(cen), big.mark = ","))
 
@@ -54,7 +54,7 @@ msg("  [2] Rate panels...")
 cf <- fread(file.path(DIR_RAW, "counterfactual_h2avg.csv"),
             select = c("hts10", "cty_code", "total_rate", "year_month"),
             colClasses = list(character = c("hts10", "cty_code", "year_month")),
-            showProgress = FALSE, integer64 = "double")
+            showProgress = FALSE, integer64 = "double") |> fix_int64()
 setnames(cf, c("hts10", "total_rate"), c("hs10", "rate_h2avg"))
 cf <- cf[year_month >= ANALYSIS_LO & year_month <= ANALYSIS_HI]
 setkey(cf, hs10, cty_code, year_month)
@@ -70,7 +70,7 @@ rm(cf); invisible(gc(FALSE))
 # S3: sparse non-USMCA preference delta; absent cells get delta 0.
 pref <- fread(file.path(DIR_RAW, "counterfactual_other_pref_delta_monthly.csv"),
               colClasses = list(character = c("hs10", "cty_code", "year_month")),
-              showProgress = FALSE, integer64 = "double")
+              showProgress = FALSE, integer64 = "double") |> fix_int64()
 setkey(pref, hs10, cty_code, year_month)
 cen <- pref[cen]
 cen[is.na(delta_base),  delta_base  := 0]
@@ -86,7 +86,7 @@ optional_panel <- function(dt, file, rate_name) {
     dt[, (rate_name) := NA_real_]
     return(dt)
   }
-  p <- fread(path, colClasses = "character", showProgress = FALSE, integer64 = "double")
+  p <- fread(path, colClasses = "character", showProgress = FALSE, integer64 = "double") |> fix_int64()
   if ("hts10" %in% names(p)) setnames(p, "hts10", "hs10")
   p[, total_rate := as.numeric(total_rate)]
   p <- p[year_month >= ANALYSIS_LO & year_month <= ANALYSIS_HI,
@@ -106,7 +106,7 @@ HAVE_S0 <- !all(is.na(cen$rate_2024))
 msg("  [3] Weights...")
 w24 <- fread(file.path(DIR_RAW, "import_weights_2024.csv"),
              colClasses = list(character = c("hs10", "cty_code")),
-             showProgress = FALSE, integer64 = "double")
+             showProgress = FALSE, integer64 = "double") |> fix_int64()
 w24[, w_2024 := imports / sum(imports)]
 setkey(w24, hs10, cty_code)
 setkey(cen, hs10, cty_code)
