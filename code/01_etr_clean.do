@@ -56,6 +56,24 @@ di as text "==========================================" _n
 
 
 * ======================================================================
+* Counterfactual-panel availability (publish-mode detection)
+* ======================================================================
+* S0 (rate_2024) and the usmca_monthly diagnostic panel are built from the
+* tracker's USMCA scenario snapshots, which are NOT in the shared publish.
+* When the R pull runs in publish mode those CSVs are absent; detect that
+* here and degrade the ladder to S1-S4 + T. Globals persist into 02/03.
+* Detection is done AFTER any Step-0 pull (01 runs after Step 0), so it is
+* robust to run_pull = 1 in the same session.
+global have_s0            = fileexists("${raw}counterfactual_usmca2024.csv")
+global have_usmca_monthly = fileexists("${raw}counterfactual_usmca_monthly.csv")
+di as text "  Counterfactual panels: S0 (rate_2024)=" $have_s0 ///
+    ", usmca_monthly=" $have_usmca_monthly
+if !$have_s0 {
+    di as text "    -> publish mode: ladder will run S1-S4 + T (S0 omitted)"
+}
+
+
+* ======================================================================
 * A. CENSUS TRADE DATA
 * ======================================================================
 *
@@ -338,26 +356,36 @@ di as text "       `=_N' product-country pairs"
 * best estimate of the statutory rate embedding actual USMCA behavior.
 * Used directly for tier S2.
 
-di as text "  [B6] Counterfactual rates (USMCA monthly, S2 panel)..."
+di as text "  [B6] Counterfactual rates (USMCA monthly, diagnostic panel)..."
 
-import delimited using "$raw/counterfactual_usmca_monthly.csv", ///
-    clear stringcols(1 2 3)
-capture rename hts10 hs10
+if $have_usmca_monthly {
+    * stringcols(_all) + destring by NAME: the R pull does not guarantee
+    * column order (counterfactual_h2avg.csv once moved total_rate into
+    * position 3, which a positional stringcols silently turned into a
+    * string and broke the rate merge downstream with r(109)).
+    import delimited using "$raw/counterfactual_usmca_monthly.csv", ///
+        clear stringcols(_all)
+    capture rename hts10 hs10
+    destring total_rate, replace
 
-gen year  = real(substr(year_month, 1, 4))
-gen month = real(substr(year_month, 6, 7))
-gen int ym = ym(year, month)
-format ym %tm
-drop year month year_month
+    gen year  = real(substr(year_month, 1, 4))
+    gen month = real(substr(year_month, 6, 7))
+    gen int ym = ym(year, month)
+    format ym %tm
+    drop year month year_month
 
-rename total_rate rate_usmca_monthly
+    rename total_rate rate_usmca_monthly
 
-keep hs10 cty_code ym rate_usmca_monthly
-sort hs10 cty_code ym
-gisid hs10 cty_code ym         // gtools (faster than isid)
-compress
-save "$working/cf_usmca_monthly.dta", replace
-di as text "       `=_N' HS10 x country x month rows"
+    keep hs10 cty_code ym rate_usmca_monthly
+    sort hs10 cty_code ym
+    gisid hs10 cty_code ym         // gtools (faster than isid)
+    compress
+    save "$working/cf_usmca_monthly.dta", replace
+    di as text "       `=_N' HS10 x country x month rows"
+}
+else {
+    di as text "       SKIPPED: counterfactual_usmca_monthly.csv absent (publish mode)"
+}
 
 
 * --- B7. Counterfactual rates (USMCA frozen at 2024 baseline) ---
@@ -366,26 +394,32 @@ di as text "       `=_N' HS10 x country x month rows"
 * held at 2024 product-level utilization shares. Used for tiers S0
 * (× 2024 weights) and S1 (× monthly weights).
 
-di as text "  [B7] Counterfactual rates (USMCA 2024 baseline, S0/S1 panel)..."
+di as text "  [B7] Counterfactual rates (USMCA 2024 baseline, S0 panel)..."
 
-import delimited using "$raw/counterfactual_usmca2024.csv", ///
-    clear stringcols(1 2 3)
-capture rename hts10 hs10
+if $have_s0 {
+    import delimited using "$raw/counterfactual_usmca2024.csv", ///
+        clear stringcols(_all)
+    capture rename hts10 hs10
+    destring total_rate, replace
 
-gen year  = real(substr(year_month, 1, 4))
-gen month = real(substr(year_month, 6, 7))
-gen int ym = ym(year, month)
-format ym %tm
-drop year month year_month
+    gen year  = real(substr(year_month, 1, 4))
+    gen month = real(substr(year_month, 6, 7))
+    gen int ym = ym(year, month)
+    format ym %tm
+    drop year month year_month
 
-rename total_rate rate_2024
+    rename total_rate rate_2024
 
-keep hs10 cty_code ym rate_2024
-sort hs10 cty_code ym
-gisid hs10 cty_code ym
-compress
-save "$working/cf_usmca2024.dta", replace
-di as text "       `=_N' HS10 x country x month rows"
+    keep hs10 cty_code ym rate_2024
+    sort hs10 cty_code ym
+    gisid hs10 cty_code ym
+    compress
+    save "$working/cf_usmca2024.dta", replace
+    di as text "       `=_N' HS10 x country x month rows"
+}
+else {
+    di as text "       SKIPPED: counterfactual_usmca2024.csv absent (publish mode)"
+}
 
 
 * --- B7b. Counterfactual rates (Post-July 2025 USMCA baseline, S1/S2 panel) ---
@@ -400,9 +434,12 @@ di as text "       `=_N' HS10 x country x month rows"
 
 di as text "  [B7b] Counterfactual rates (Post-July 2025 USMCA baseline, S1/S2 panel)..."
 
+* This CSV's column order is (hts10, cty_code, total_rate, year_month) --
+* a positional stringcols(1 2 3) strings total_rate and breaks the merge.
 import delimited using "$raw/counterfactual_h2avg.csv", ///
-    clear stringcols(1 2 3)
+    clear stringcols(_all)
 capture rename hts10 hs10
+destring total_rate, replace
 
 gen year  = real(substr(year_month, 1, 4))
 gen month = real(substr(year_month, 6, 7))
@@ -430,8 +467,9 @@ di as text "       `=_N' HS10 x country x month rows"
 di as text "  [B8] Non-USMCA preference delta (S3 panel)..."
 
 import delimited using "$raw/counterfactual_other_pref_delta_monthly.csv", ///
-    clear stringcols(1 2 3)
+    clear stringcols(_all)
 capture rename hts10 hs10
+destring delta_base delta_recip, replace
 
 gen year  = real(substr(year_month, 1, 4))
 gen month = real(substr(year_month, 6, 7))
@@ -581,32 +619,47 @@ di as text "      2024 weight match: `n_wt_match' of " _N " obs"
 replace imports = 0 if missing(imports)
 replace w_2024  = 0 if missing(w_2024)
 
-** Merge S2 rate panel: USMCA at monthly shares
-merge 1:1 hs10 cty_code ym using "$working/cf_usmca_monthly.dta", ///
-    keep(match master) gen(_merge_cfm)
-qui count if _merge_cfm == 3
-local n_cfm_match = r(N)
-replace rate_usmca_monthly = 0 if missing(rate_usmca_monthly)
-drop _merge_cfm
-local cfm_pct = 100 * `n_cfm_match' / _N
-di as text "      USMCA-monthly rate matched: `n_cfm_match' / " _N ///
-    " (" string(`cfm_pct', "%4.1f") "%)"
+** Merge diagnostic panel: USMCA at monthly shares (not a canonical tier).
+** Absent in publish mode -- create as missing so the schema (labels/order/
+** asserts, and 05a/05b consumers) stays intact.
+if $have_usmca_monthly {
+    merge 1:1 hs10 cty_code ym using "$working/cf_usmca_monthly.dta", ///
+        keep(match master) gen(_merge_cfm)
+    qui count if _merge_cfm == 3
+    local n_cfm_match = r(N)
+    replace rate_usmca_monthly = 0 if missing(rate_usmca_monthly)
+    drop _merge_cfm
+    local cfm_pct = 100 * `n_cfm_match' / _N
+    di as text "      USMCA-monthly rate matched: `n_cfm_match' / " _N ///
+        " (" string(`cfm_pct', "%4.1f") "%)"
+}
+else {
+    gen double rate_usmca_monthly = .
+    di as text "      USMCA-monthly panel absent -- rate_usmca_monthly = . (publish mode)"
+}
 
-** Merge S0 rate panel: USMCA frozen at 2024 baseline
-merge 1:1 hs10 cty_code ym using "$working/cf_usmca2024.dta", ///
-    keep(match master) gen(_merge_cf24)
-qui count if _merge_cf24 == 3
-local n_cf24_match = r(N)
-replace rate_2024 = 0 if missing(rate_2024)
-drop _merge_cf24
-local cf24_pct = 100 * `n_cf24_match' / _N
-di as text "      USMCA-2024 rate matched: `n_cf24_match' / " _N ///
-    " (" string(`cf24_pct', "%4.1f") "%)"
-** cf_usmca2024 is built from the same R pipeline universe as cf_usmca_monthly,
-** so its match rate should approach 100%. A drop signals an upstream regression.
-if `cf24_pct' < 95 {
-    di as error "WARNING: cf_usmca2024 match rate below 95% -- investigate"
-    di as error "         (expected to match cf_usmca_monthly universe)"
+** Merge S0 rate panel: USMCA frozen at 2024 baseline. Absent in publish mode
+** -- create as missing; the ladder (02) then runs S1-S4 + T.
+if $have_s0 {
+    merge 1:1 hs10 cty_code ym using "$working/cf_usmca2024.dta", ///
+        keep(match master) gen(_merge_cf24)
+    qui count if _merge_cf24 == 3
+    local n_cf24_match = r(N)
+    replace rate_2024 = 0 if missing(rate_2024)
+    drop _merge_cf24
+    local cf24_pct = 100 * `n_cf24_match' / _N
+    di as text "      USMCA-2024 rate matched: `n_cf24_match' / " _N ///
+        " (" string(`cf24_pct', "%4.1f") "%)"
+    ** cf_usmca2024 is built from the same R pipeline universe as cf_usmca_monthly,
+    ** so its match rate should approach 100%. A drop signals an upstream regression.
+    if `cf24_pct' < 95 {
+        di as error "WARNING: cf_usmca2024 match rate below 95% -- investigate"
+        di as error "         (expected to match cf_usmca_monthly universe)"
+    }
+}
+else {
+    gen double rate_2024 = .
+    di as text "      USMCA-2024 (S0) panel absent -- rate_2024 = . (publish mode)"
 }
 
 ** Merge S1/S2 rate panel: Post-July 2025 USMCA baseline (rate_h2avg)

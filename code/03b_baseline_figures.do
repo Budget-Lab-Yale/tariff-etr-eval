@@ -440,6 +440,20 @@ di as text "      Saved $tables/monthly_summary.xlsx (`=_N' months, Summary shee
 
 di as text _n "  [D] USMCA adjustment explainer..."
 
+* Section D is the S0 (rate_2024) + monthly-USMCA explainer. Both panels are
+* absent in publish mode (rate_2024 is all-missing, rate_usmca_monthly absent),
+* so the whole section is skipped there. Detect from rate_2024's non-missing
+* count rather than $have_s0, so 03b is robust when run standalone.
+preserve
+    use "$working/merged_analysis.dta", clear
+    qui count if !missing(rate_2024)
+    local has_s0 = (r(N) > 0)
+restore
+if !`has_s0' {
+    di as text "      SKIPPED: S0 / usmca_monthly panels absent (publish mode)"
+}
+if `has_s0' {
+
 * --- D1. Build CA + MX monthly statutory ETRs under three USMCA scenarios ---
 
 di as text "      D1. CA and MX statutory ETR under {2024, monthly, h2avg} USMCA"
@@ -576,6 +590,8 @@ foreach v in titled clean {
         name(g_adj_country, replace)
     export_fig figure_adjustment_country`sfx'
 }
+
+} // end if `has_s0' (Section D USMCA adjustment explainer)
 
 
 di as text _n "  03b_baseline_figures complete." _n

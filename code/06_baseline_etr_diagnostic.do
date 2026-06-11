@@ -59,6 +59,16 @@ di as text _n "=========================================="
 di as text "  06_baseline_etr_diagnostic"
 di as text "==========================================" _n
 
+* This diagnostic is the S0->S1 USMCA-adjustment comparison; it requires the
+* rate_2024 (cf_usmca2024) panel, which is absent in publish mode. Skip cleanly
+* and return to the orchestrator rather than erroring on the missing merge.
+capture confirm file "$working/cf_usmca2024.dta"
+if _rc != 0 {
+    di as text "  06_baseline_etr_diagnostic: SKIPPED " ///
+        "(cf_usmca2024 panel absent -- publish mode)"
+    exit
+}
+
 
 * ======================================================================
 * A. MONTH -> REVISION MAP

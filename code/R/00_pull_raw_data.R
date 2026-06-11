@@ -15,7 +15,10 @@
 #                              (and all of section 3 otherwise) comes from
 #                              a sibling checkout. See "Tracker data source"
 #                              below.
-#   4. tariff-impact-tracker -- Treasury revenue (actual ETR)
+#   4. Treasury revenue      -- vendored resources/treasury_revenue.csv
+#                              (committed Haver snapshot; default). Optional
+#                              override via local_paths.yaml treasury_revenue_csv
+#                              or a tariff-impact-tracker sibling.
 #
 # Usage:
 #   Rscript code/R/00_pull_raw_data.R                 # IMDB + tracker + impacts
@@ -97,10 +100,17 @@ IMPACTS_DIR <- file.path(dirname(here()), "tariff-impact-tracker")
 # TRACKER_DATA_DIR env var.
 LOCAL_PATHS_FILE <- here("config", "local_paths.yaml")
 SHARED_TRACKER_DEFAULT <- NULL
+# Optional explicit Treasury revenue CSV (key: treasury_revenue_csv). When set,
+# Section 4 copies it instead of requiring a tariff-impact-tracker sibling --
+# useful when revenue is produced by a different repo / shared location.
+SHARED_TREASURY_CSV <- NULL
 if (file.exists(LOCAL_PATHS_FILE)) {
   lp <- read_yaml(LOCAL_PATHS_FILE)
   if (!is.null(lp$tracker_data_dir) && nzchar(lp$tracker_data_dir)) {
     SHARED_TRACKER_DEFAULT <- lp$tracker_data_dir
+  }
+  if (!is.null(lp$treasury_revenue_csv) && nzchar(lp$treasury_revenue_csv)) {
+    SHARED_TREASURY_CSV <- lp$treasury_revenue_csv
   }
 }
 
@@ -974,37 +984,42 @@ if (HAVE_SIBLING) {
 if (is.null(iw_path) && file.exists(LOCAL_IW_RDS)) iw_path <- LOCAL_IW_RDS
 
 # Self-build fallback: no prebuilt RDS anywhere (data/weights/ is gitignored
-# in the tracker, so a fresh clone has none). Run the tracker's committed
-# src/build_import_weights.R -- deterministic from public Census IMDB ZIPs,
-# so the output matches the weights behind the tracker's own daily series
-# (which the S1 = daily-ETR identity depends on). Reuses Section 2's ZIP
-# cache via --raw-dir; any missing 2024 ZIPs are downloaded into it
-# (--keep-zips so the cache survives). Output lands in this repo's
-# data/weights/, never inside the tracker checkout.
-if (is.null(iw_path) && HAVE_SIBLING) {
-  build_script <- file.path(TRACKER_DIR, "src", "build_import_weights.R")
-  if (file.exists(build_script)) {
-    log_msg("    No weights RDS found -- building via the tracker's ",
-            "build_import_weights.R")
+# in the tracker, so a fresh clone has none). Build via the VENDORED
+# build_import_weights.R + hs10_gtap_crosswalk.csv (copied from the tracker
+# into this repo), so this works in publish mode with no sibling checkout.
+# The build is deterministic from public Census IMDB ZIPs, so the output
+# matches the weights behind the tracker's own daily series (which the
+# S1 = daily-ETR identity depends on). Reuses Section 2's ZIP cache via
+# --raw-dir; any missing 2024 ZIPs are downloaded into it (--keep-zips so the
+# cache survives). Output lands in this repo's data/weights/.
+#
+# The vendored script is preferred; the sibling's copy is used only if the
+# vendored one is somehow missing. All paths are passed explicitly, so the
+# script's here()-based defaults are never relied on.
+if (is.null(iw_path)) {
+  build_script <- here("code", "R", "build_import_weights.R")
+  crosswalk    <- here("resources", "hs10_gtap_crosswalk.csv")
+  if (!file.exists(build_script) && HAVE_SIBLING) {
+    build_script <- file.path(TRACKER_DIR, "src", "build_import_weights.R")
+    crosswalk    <- file.path(TRACKER_DIR, "resources", "hs10_gtap_crosswalk.csv")
+  }
+  if (file.exists(build_script) && file.exists(crosswalk)) {
+    log_msg("    No weights RDS found -- building via build_import_weights.R")
+    log_msg("      script:    ", build_script)
+    log_msg("      crosswalk: ", crosswalk)
     log_msg("    (downloads any missing 2024 IMDB ZIPs into data/imdb/; ",
             "~10-30 min)")
     dir.create(dirname(LOCAL_IW_RDS), showWarnings = FALSE, recursive = TRUE)
     rscript_bin <- file.path(R.home("bin"),
                              if (.Platform$OS.type == "windows") "Rscript.exe"
                              else "Rscript")
-    old_wd <- getwd()
-    setwd(TRACKER_DIR)  # script resolves its here() defaults from the tracker
-    status <- tryCatch(
-      system2(rscript_bin,
-              args = c(shQuote(build_script),
-                       "--year", "2024",
-                       "--raw-dir", shQuote(IMDB_RAW),
-                       "--crosswalk", shQuote(file.path(TRACKER_DIR,
-                                                        "resources",
-                                                        "hs10_gtap_crosswalk.csv")),
-                       "--out", shQuote(LOCAL_IW_RDS),
-                       "--keep-zips")),
-      finally = setwd(old_wd))
+    status <- system2(rscript_bin,
+            args = c(shQuote(build_script),
+                     "--year", "2024",
+                     "--raw-dir", shQuote(IMDB_RAW),
+                     "--crosswalk", shQuote(crosswalk),
+                     "--out", shQuote(LOCAL_IW_RDS),
+                     "--keep-zips"))
     if (identical(status, 0L) && file.exists(LOCAL_IW_RDS)) {
       iw_path <- LOCAL_IW_RDS
       log_msg("    -> weights RDS built at data/weights/")
@@ -1012,7 +1027,8 @@ if (is.null(iw_path) && HAVE_SIBLING) {
       log_msg("    WARNING: weight build failed (exit status ", status, ")")
     }
   } else {
-    log_msg("    WARNING: tracker checkout has no src/build_import_weights.R")
+    log_msg("    WARNING: build_import_weights.R or crosswalk not found ",
+            "(looked for vendored copies in code/R/ + resources/)")
   }
 }
 
@@ -1029,8 +1045,9 @@ if (!is.null(iw_path)) {
           "import_weights_2024.csv (2024 weights are fixed).")
 } else {
   log_msg("    WARNING: no weights RDS and no existing import_weights_2024.csv.")
-  log_msg("    Clone tariff-rate-tracker alongside this repo; this section will")
-  log_msg("    then rebuild the weights from Census IMDB automatically.")
+  log_msg("    Expected the vendored code/R/build_import_weights.R + ")
+  log_msg("    resources/hs10_gtap_crosswalk.csv to rebuild weights from Census")
+  log_msg("    IMDB automatically -- check they are present.")
 }
 
 # --- 3c. Daily ETR CSVs (copy from tracker output) ---
@@ -1337,8 +1354,108 @@ build_counterfactual <- function(scenario, out_file) {
   invisible(NULL)
 }
 
-# Scenario snapshots only exist in the sibling checkout (not published).
-if (!HAVE_SIBLING) {
+# Publish-mode variant of build_counterfactual for the h2avg panel only.
+# The tracker verifies that its usmca_h2avg scenario snapshots are byte-for-byte
+# identical to the top-level production snapshots, so rate_h2avg == top-level
+# total_rate. In publish mode the per-scenario RDS aren't available, but the
+# top-level snapshots ARE -- 3a already exported them to SNAP_DIR from the
+# publish parquet. So we day-weight those CSVs with the same machinery as
+# build_counterfactual (mrw weights + 8-digit leaf expansion) to produce
+# counterfactual_h2avg.csv. This drives S1 (x 2024 wts) and S2 (x monthly wts)
+# in the Stata ladder.
+build_counterfactual_h2avg_from_snapshots <- function(snap_dir, out_file) {
+  # Stream per year-month and append to the CSV, so peak memory is bounded by
+  # one month's revision snapshots rather than all (rev x ym) copies at once.
+  # A full publish snapshot is ~4.85M rows; holding ~50 (rev x ym) copies OOMs.
+  # Snapshot CSVs are cached across months (a revision can serve several).
+  out_path <- file.path(RAW_DIR, out_file)
+  if (file.exists(out_path)) unlink(out_path)
+
+  ym_strs <- sort(unique(mrw$year_month))
+  # Read fresh each use (no cache): caching ~48 full snapshots would re-OOM.
+  # ~50 reads total; peak memory is one month's revisions + that month's result.
+  read_snap <- function(rev) {
+    f <- file.path(snap_dir, paste0("snapshot_", rev, ".csv"))
+    if (!file.exists(f)) {
+      log_msg(sprintf("    WARNING: %s missing -- h2avg omits revision %s",
+                      f, rev))
+      return(NULL)
+    }
+    tryCatch(
+      read_csv(f,
+               col_types = cols(.default = col_character(),
+                                total_rate = col_double()),
+               col_select = c("hts10", "country", "total_rate"),
+               progress = FALSE),
+      error = function(e) NULL)
+  }
+
+  total_rows <- 0L
+  first <- TRUE
+  for (ym in ym_strs) {
+    rev_rows <- mrw[mrw$year_month == ym, , drop = FALSE]
+    contribs <- list()
+    for (j in seq_len(nrow(rev_rows))) {
+      snap <- read_snap(rev_rows$revision[j])
+      if (is.null(snap) || nrow(snap) == 0) next
+      contribs[[length(contribs) + 1L]] <- snap |>
+        transmute(hts10, cty_code = country,
+                  wtd_rate = total_rate * rev_rows$weight[j])
+    }
+    if (length(contribs) == 0) next
+
+    month_res <- bind_rows(contribs) |>
+      summarise(total_rate = sum(wtd_rate), .by = c(hts10, cty_code)) |>
+      mutate(year_month = ym)
+    rm(contribs); gc(verbose = FALSE)
+
+    # 8-digit leaf expansion, per month (same logic as build_counterfactual).
+    if (!is.null(census_hs8_pairs)) {
+      parents <- month_res |>
+        filter(substr(hts10, 9, 10) == "00") |>
+        mutate(hs8 = substr(hts10, 1, 8))
+      expanded <- census_hs8_pairs |>
+        inner_join(parents, by = c("hs8", "cty_code"),
+                   relationship = "many-to-many") |>
+        filter(hs10 != hts10) |>
+        anti_join(month_res, by = c("hs10" = "hts10", "cty_code")) |>
+        transmute(hts10 = hs10, cty_code, total_rate, year_month = ym)
+      if (nrow(expanded) > 0) month_res <- bind_rows(month_res, expanded)
+      rm(parents, expanded)
+    }
+
+    write_csv(month_res, out_path, append = !first)
+    first <- FALSE
+    total_rows <- total_rows + nrow(month_res)
+    log_msg(sprintf("    %s: %s rows", ym,
+                    format(nrow(month_res), big.mark = ",")))
+    rm(month_res); gc(verbose = FALSE)
+  }
+
+  if (first) {
+    log_msg(sprintf("    WARNING: no snapshot CSVs loaded -- %s not written",
+                    out_file))
+  } else {
+    log_msg(sprintf("    -> %s: %s rows", out_file,
+                    format(total_rows, big.mark = ",")))
+  }
+  gc(verbose = FALSE)
+  invisible(NULL)
+}
+
+# Scenario rate panels. With a shared publish, only the h2avg panel is
+# reconstructable (= top-level production rates); the USMCA scenario snapshots
+# (usmca_none / usmca_2024 / usmca_monthly) are NOT published -- the publish's
+# scenarios/ dir carries forced_labor + no_ieepa only -- so they need the
+# sibling checkout. Dropping them means the Stata ladder runs as S1-S4 + T
+# (S0 omitted) in publish mode. See docs/shared_publish_extensions.md.
+if (USE_SHARED_TRACKER) {
+  log_msg("  Publish mode: building counterfactual_h2avg.csv from top-level snapshots...")
+  build_counterfactual_h2avg_from_snapshots(SNAP_DIR, "counterfactual_h2avg.csv")
+  log_msg("    NOTE: S0 (counterfactual_usmca2024.csv), counterfactual_usmca_none.csv,")
+  log_msg("    and counterfactual_usmca_monthly.csv are NOT built in publish mode")
+  log_msg("    (USMCA scenario snapshots not yet published). Stata ladder = S1-S4 + T.")
+} else if (!HAVE_SIBLING) {
   log_msg("    WARNING: scenario snapshots require the sibling checkout --")
   log_msg("    skipping counterfactual rate builds (see docs/shared_publish_extensions.md).")
 } else {
@@ -1400,7 +1517,12 @@ if (!file.exists(imdb_detail_path)) {
   # (delta_recip) only to the on-list (annex) share, removing the over-count
   # flagged in docs/six_tier_framework_plan.md sec. 6.7. The base exemption is
   # unaffected (both sub-channels still exempt the MFN base).
-  exempt_file <- file.path(TRACKER_DIR, "resources", "ieepa_exempt_products.csv")
+  # Prefer the vendored copy (works in publish mode with no sibling); fall
+  # back to the sibling's resources/ if the vendored one is missing.
+  exempt_file <- here("resources", "ieepa_exempt_products.csv")
+  if (!file.exists(exempt_file)) {
+    exempt_file <- file.path(TRACKER_DIR, "resources", "ieepa_exempt_products.csv")
+  }
   if (file.exists(exempt_file)) {
     exempt_hs10 <- read_csv(exempt_file,
                             col_types = cols(hts10 = col_character()),
@@ -1633,19 +1755,38 @@ if (!RUN_IMPACTS) {
   log_msg("--- 4. Tariff-Impact-Tracker: SKIPPED ---")
 } else {
 
-log_msg("--- 4. Tariff-Impact-Tracker (Revenue) ---")
+log_msg("--- 4. Treasury revenue ---")
 
-if (!dir.exists(IMPACTS_DIR)) {
-  stop("tariff-impact-tracker not found at: ", IMPACTS_DIR,
-       "\n  Expected sibling directory alongside this repo.", call. = FALSE)
+# Resolve the Treasury revenue CSV, in order:
+#   1. treasury_revenue_csv from config/local_paths.yaml (explicit override)
+#   2. tariff-impact-tracker sibling output/tariff_revenue.csv
+#   3. vendored resources/treasury_revenue.csv (committed snapshot; default)
+# The vendored snapshot keeps this repo self-contained: the series is a
+# Haver-sourced committed file (FTRU@GOVFIN customs duties + TMMCN@USINT goods
+# imports), NOT API-regenerable -- a free-API (FRED) reconstruction applies
+# different seasonal factors. Provenance: resources/treasury_revenue_SOURCE.md.
+# Missing all three is a WARNING, not a stop (pipeline runs without Treasury T).
+rev_src <- NULL
+vendored_treasury <- here("resources", "treasury_revenue.csv")
+impacts_cand      <- file.path(IMPACTS_DIR, "output", "tariff_revenue.csv")
+if (!is.null(SHARED_TREASURY_CSV) && file.exists(SHARED_TREASURY_CSV)) {
+  rev_src <- SHARED_TREASURY_CSV
+  log_msg("  Treasury source: local_paths.yaml treasury_revenue_csv")
+} else if (dir.exists(IMPACTS_DIR) && file.exists(impacts_cand)) {
+  rev_src <- impacts_cand
+  log_msg("  Treasury source: tariff-impact-tracker sibling")
+} else if (file.exists(vendored_treasury)) {
+  rev_src <- vendored_treasury
+  log_msg("  Treasury source: vendored resources/treasury_revenue.csv")
 }
 
-rev_src <- file.path(IMPACTS_DIR, "output", "tariff_revenue.csv")
-if (file.exists(rev_src)) {
+if (!is.null(rev_src)) {
   file.copy(rev_src, file.path(RAW_DIR, "tariff_revenue.csv"), overwrite = TRUE)
-  log_msg("  -> tariff_revenue.csv copied")
+  log_msg("  -> tariff_revenue.csv copied from ", rev_src)
 } else {
-  log_msg("  WARNING: tariff_revenue.csv not found")
+  log_msg("  WARNING: no Treasury revenue CSV found (expected vendored ")
+  log_msg("  resources/treasury_revenue.csv). The pipeline will run without")
+  log_msg("  the Treasury T tier.")
 }
 
 } # end RUN_IMPACTS

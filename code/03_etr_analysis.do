@@ -131,7 +131,16 @@ if _rc != 0 {
 }
 
 use "${working}/counterfactual_ladder.dta", clear
-keep ym s0 s1 s2 s3 treasury_actual
+* S0 is absent in publish mode (02 omits it when the rate_2024 panel is
+* missing). Detect from the loaded data so 03 is robust whether run via the
+* orchestrator (where $have_s0 is set) or standalone.
+capture confirm variable s0
+local has_s0 = (_rc == 0)
+local s0v = cond(`has_s0', "s0", "")
+if !`has_s0' {
+    di as text "      (publish mode: S0 absent -- six-tier reduces to S1-S4 + T)"
+}
+keep ym `s0v' s1 s2 s3 treasury_actual
 rename treasury_actual t
 tempfile ladder
 save `ladder'
@@ -154,7 +163,7 @@ use `ladder', clear
 merge 1:1 ym using `s4', nogenerate
 
 assert _N > 0
-foreach v in s0 s1 s2 s3 s4 {
+foreach v in `s0v' s1 s2 s3 s4 {
     qui count if missing(`v')
     if r(N) > 0 {
         di as error "ERROR: `v' has " r(N) " missing values (should be 0)"
@@ -166,7 +175,8 @@ if r(N) > 0 {
     di as error "WARNING: t (Treasury) missing for " r(N) ///
         " of `=_N' months -- gap_total will be missing for those months"
 }
-di as text "      Combined `=_N' months, tiers S0-S4 + T"
+di as text "      Combined `=_N' months, tiers " ///
+    cond(`has_s0', "S0-S4 + T", "S1-S4 + T")
 
 * Channel decomposition (pp). Sequential: each rung subtracts one channel.
 * gap_adjustment is mostly one-signed (USMCA claim rates rose 2024 -> post-July 2025
@@ -174,33 +184,45 @@ di as text "      Combined `=_N' months, tiers S0-S4 + T"
 * (negative country-period averages = "reverse diversion"). gap_others is
 * structurally non-negative by the delta math in R section 3g. See
 * docs/six_tier_framework_plan.md sec. 5a.
-gen double gap_adjustment = s0 - s1
+if `has_s0' {
+    gen double gap_adjustment = s0 - s1
+}
 gen double gap_diversion  = s1 - s2
 gen double gap_others     = s2 - s3
 gen double gap_residual   = s3 - s4 if !missing(s4)
 gen double gap_timing     = s4 - t  if !missing(s4) & !missing(t)
-gen double gap_total      = s0 - t  if !missing(t)
+if `has_s0' {
+    gen double gap_total      = s0 - t  if !missing(t)
+}
 
-label var s0  "S0: Statutory (USMCA 2024 baseline) x 2024 wts (%)"
+if `has_s0' {
+    label var s0  "S0: Statutory (USMCA 2024 baseline) x 2024 wts (%)"
+}
 label var s1  "S1: Statutory (Post-July 2025 USMCA) x 2024 wts (%)"
 label var s2  "S2: Statutory (Post-July 2025 USMCA) x monthly wts (%)"
 label var s3  "S3: + non-USMCA preferences x monthly wts (%)"
 label var s4  "S4: Census collected ETR (%)"
 label var t   "T:  Treasury actual ETR (%)"
-label var gap_adjustment "USMCA adjustment (S0-S1, pp)"
+if `has_s0' {
+    label var gap_adjustment "USMCA adjustment (S0-S1, pp)"
+}
 label var gap_diversion  "Trade diversion (S1-S2, pp)"
 label var gap_others     "All-other preferences (S2-S3, pp)"
 label var gap_residual   "Residual (S3-S4, pp)"
 label var gap_timing     "Timing/enforcement (S4-T, pp)"
-label var gap_total     "Total gap (S0-T, pp)"
+if `has_s0' {
+    label var gap_total     "Total gap (S0-T, pp)"
+}
 
 di as text _n "  === Six-Tier Decomposition ==="
-format s0 s1 s2 s3 s4 t %9.2f
+format `s0v' s1 s2 s3 s4 t %9.2f
 format gap_* %9.2f
-list ym s0 s1 s2 s3 s4 t, clean noobs
+list ym `s0v' s1 s2 s3 s4 t, clean noobs
 
 di as text _n "  === Channel Decomposition (pp) ==="
-list ym gap_adjustment gap_diversion gap_others gap_residual gap_timing gap_total, ///
+local gap_adj_v = cond(`has_s0', "gap_adjustment", "")
+local gap_tot_v = cond(`has_s0', "gap_total", "")
+list ym `gap_adj_v' gap_diversion gap_others gap_residual gap_timing `gap_tot_v', ///
     clean noobs
 
 sort ym
@@ -911,7 +933,9 @@ preserve
     save `res_c'
 restore
 
-* Per-country adjustment (S0 - S1) attribution
+* Per-country adjustment (S0 - S1) attribution -- only when the S0 panel
+* (rate_2024) exists. In publish mode adjustment_pp is set missing below.
+if `has_s0' {
 preserve
     use "$working/merged_analysis.dta", clear
     keep if ym >= $start_ym & ym <= $end_ym
@@ -919,6 +943,7 @@ preserve
         weightvar(imports) byvar(partner_group) percent ///
         outfile("$working/adjustment_by_country.dta") outvar(adjustment_pp)
 restore
+}
 
 preserve
     use "$working/diversion_by_country.dta", clear
@@ -928,7 +953,12 @@ preserve
     rename others_c_pp others_pp
     merge 1:1 ym partner_group using `res_c', nogenerate
     rename residual_c_pp residual_pp
-    merge 1:1 ym partner_group using "$working/adjustment_by_country.dta", nogenerate
+    if `has_s0' {
+        merge 1:1 ym partner_group using "$working/adjustment_by_country.dta", nogenerate
+    }
+    else {
+        gen double adjustment_pp = .
+    }
 
     label var adjustment_pp "USMCA adjustment (S0-S1) per country (pp)"
     label var diversion_pp  "Trade diversion (S1-S2) per country (pp)"
@@ -962,6 +992,7 @@ preserve
     save `res_p'
 restore
 
+if `has_s0' {
 preserve
     use "$working/merged_analysis.dta", clear
     keep if ym >= $start_ym & ym <= $end_ym
@@ -969,6 +1000,7 @@ preserve
         weightvar(imports) byvar(product_group) percent ///
         outfile("$working/adjustment_by_product.dta") outvar(adjustment_pp)
 restore
+}
 
 preserve
     use "$working/diversion_by_product.dta", clear
@@ -978,7 +1010,12 @@ preserve
     rename others_p_pp others_pp
     merge 1:1 ym product_group using `res_p', nogenerate
     rename residual_p_pp residual_pp
-    merge 1:1 ym product_group using "$working/adjustment_by_product.dta", nogenerate
+    if `has_s0' {
+        merge 1:1 ym product_group using "$working/adjustment_by_product.dta", nogenerate
+    }
+    else {
+        gen double adjustment_pp = .
+    }
 
     label var adjustment_pp "USMCA adjustment (S0-S1) per product (pp)"
     label var diversion_pp  "Trade diversion (S1-S2) per product (pp)"
@@ -1207,21 +1244,35 @@ graph drop g_p_adjustment g_p_diversion g_p_others g_p_residual
 di as text _n "  [C] Generating figures from six-tier decomposition..."
 
 use "${working}/decomp_monthly.dta", clear
-keep ym s0 s1 s2 s3 s4 t gap_*
+* Re-detect S0 availability from the decomp panel (figures may be re-run
+* standalone). `has_s0`/`s0v` from Section A persist within a single 03 run,
+* but re-deriving here keeps this figure block self-contained.
+capture confirm variable s0
+local has_s0 = (_rc == 0)
+local s0v = cond(`has_s0', "s0", "")
+keep ym `s0v' s1 s2 s3 s4 t gap_*
 
 * Sub-channels for figure stacking
 gen double gap_s3_t = s3 - t if !missing(t)   // residual + timing combined
 gen double gap_s1_t = s1 - t if !missing(t)   // total main-analytic gap (S1->T)
 
 di as text _n "  === Figure-input ladder ==="
-format s0 s1 s2 s3 t gap_* %9.2f
-list ym s0 s1 s2 s3 t gap_adjustment gap_diversion gap_others, clean noobs
+local gap_adj_v = cond(`has_s0', "gap_adjustment", "")
+format `s0v' s1 s2 s3 t gap_* %9.2f
+list ym `s0v' s1 s2 s3 t `gap_adj_v' gap_diversion gap_others, clean noobs
 
 
 * --- Figure 1: ETR line chart (S0, S1, S2, S3, Treasury) ---
 
 di as text _n "      Figure 1: ETR comparison"
 
+* Figures 1 and 1b lead with the S0 line; skip them wholesale in publish mode
+* (the R port regenerates an S1-anchored version). Numeric outputs are
+* unaffected.
+if !`has_s0' {
+    di as text "      Figure 1 / 1b: SKIPPED (S0 absent -- publish mode)"
+}
+if `has_s0' {
 foreach v in titled clean {
     if "`v'" == "titled" {
         local opt_title `"title("Statutory vs. Actual Effective Tariff Rates") subtitle("Six-tier ladder, Jan 2025 - Feb 2026")"'
@@ -1272,6 +1323,7 @@ foreach v in titled clean {
         name(g_ladder, replace)
     export_fig figure_ladder`sfx'
 }
+}
 
 
 * --- Figure 1b: ETR line chart without S3 (S0, S1, S2, Treasury) ---
@@ -1279,6 +1331,7 @@ foreach v in titled clean {
 
 di as text _n "      Figure 1b: ETR comparison (no S3)"
 
+if `has_s0' {
 foreach v in titled clean {
     if "`v'" == "titled" {
         local opt_title `"title("Statutory vs. Actual Effective Tariff Rates") subtitle("Six-rung ladder excluding the preference-adjusted line, Jan 2025 - Feb 2026")"'
@@ -1324,13 +1377,19 @@ foreach v in titled clean {
         name(g_ladder_no_s3, replace)
     export_fig figure_ladder_no_s3`sfx'
 }
+}
 
 
 * --- Figure 2: Gap decomposition stacked bar (S0->T, two stacks) ---
-* USMCA adjustment vs the main-analytic gap (S1->T).
+* USMCA adjustment vs the main-analytic gap (S1->T). Needs gap_adjustment,
+* so it is skipped in publish mode (no S0).
 
 di as text "      Figure 2: Gap decomposition (USMCA adjustment vs main analytic)"
 
+if !`has_s0' {
+    di as text "      Figure 2: SKIPPED (gap_adjustment needs S0 -- publish mode)"
+}
+if `has_s0' {
 foreach v in titled clean {
     if "`v'" == "titled" {
         local opt_title `"title("Statutory-Actual ETR Gap Decomposition") subtitle("Stacked components, Jan 2025 - Feb 2026")"'
@@ -1359,6 +1418,7 @@ foreach v in titled clean {
         graphregion(color(white)) ///
         name(g_gap_stacked, replace)
     export_fig figure_gap_stacked`sfx'
+}
 }
 
 

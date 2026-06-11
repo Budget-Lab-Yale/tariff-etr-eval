@@ -73,11 +73,20 @@ di as text _n "  [B] Computing aggregate ladder tiers..."
 
 tempfile tier_s0 tier_s1 tier_s2 tier_s3
 
+* S0 (rate_2024) is built only when the USMCA-2024 panel exists. In publish
+* mode it is absent (see 01's $have_s0); the ladder then runs S1-S4 + T, and
+* the S0->S1 "USMCA adjustment" rung is omitted. Computing it on an all-missing
+* rate_2024 would yield a misleading s0 = 0, so we skip it outright.
+if $have_s0 {
 preserve
     di as text "      S0: rate_2024 x imports (USMCA 2024 baseline x 2024 wts)"
     compute_tier, ratevar(rate_2024) weightvar(imports) ///
         outfile(`tier_s0') outvar(s0) percent
 restore
+}
+else {
+    di as text "      S0: SKIPPED (rate_2024 panel absent -- publish mode)"
+}
 
 preserve
     di as text "      S1: rate_h2avg x imports (Post-July 2025 USMCA x 2024 wts)"
@@ -104,8 +113,14 @@ restore
 
 di as text _n "  [C] Combining tiers and computing gaps..."
 
-use `tier_s0', clear
-merge 1:1 ym using `tier_s1', nogenerate
+* Combine tiers. Start from S1 when S0 is absent (publish mode); otherwise S0.
+if $have_s0 {
+    use `tier_s0', clear
+    merge 1:1 ym using `tier_s1', nogenerate
+}
+else {
+    use `tier_s1', clear
+}
 merge 1:1 ym using `tier_s2', nogenerate
 merge 1:1 ym using `tier_s3', nogenerate
 merge 1:1 ym using "$working/revenue_monthly.dta", ///
@@ -113,41 +128,58 @@ merge 1:1 ym using "$working/revenue_monthly.dta", ///
 rename actual_rate treasury_actual
 replace treasury_actual = treasury_actual * 100
 
+* `s0v' is "s0" when present, "" otherwise -- used to fold S0 into the
+* tier lists/loops below without per-site conditionals.
+local s0v = cond($have_s0, "s0", "")
+
 * Validate
 assert _N > 0
-foreach v in s0 s1 s2 s3 {
+foreach v in `s0v' s1 s2 s3 {
     qui count if missing(`v')
     if r(N) > 0 {
         di as error "WARNING: `v' has " r(N) " missing values"
     }
 }
 
-* Gap channels (pp). Sequential: each rung subtracts one channel.
-gen double gap_adjustment = s0 - s1
+* Gap channels (pp). Sequential: each rung subtracts one channel. The S0->S1
+* "USMCA adjustment" and S0->T total are only defined when S0 exists.
+if $have_s0 {
+    gen double gap_adjustment = s0 - s1
+}
 gen double gap_diversion  = s1 - s2
 gen double gap_others     = s2 - s3
 gen double gap_residual   = s3 - treasury_actual if !missing(treasury_actual)
-gen double gap_total      = s0 - treasury_actual if !missing(treasury_actual)
+if $have_s0 {
+    gen double gap_total  = s0 - treasury_actual if !missing(treasury_actual)
+}
 
 * Labels
-label var s0               "S0: Statutory (USMCA 2024 baseline), 2024 wts (%)"
+if $have_s0 {
+    label var s0           "S0: Statutory (USMCA 2024 baseline), 2024 wts (%)"
+}
 label var s1               "S1: Statutory (Post-July 2025 USMCA), 2024 wts (%)"
 label var s2               "S2: Statutory (Post-July 2025 USMCA), monthly wts (%)"
 label var s3               "S3: + non-USMCA preferences, monthly wts (%)"
 label var treasury_actual  "T: Treasury actual ETR (%)"
-label var gap_adjustment   "USMCA adjustment gap S0-S1 (pp)"
+if $have_s0 {
+    label var gap_adjustment "USMCA adjustment gap S0-S1 (pp)"
+}
 label var gap_diversion    "Trade diversion gap S1-S2 (pp)"
 label var gap_others       "All-others preference gap S2-S3 (pp)"
 label var gap_residual     "Residual gap S3-T (pp)"
-label var gap_total        "Total gap S0-T (pp)"
+if $have_s0 {
+    label var gap_total    "Total gap S0-T (pp)"
+}
 
 di as text _n "  === Counterfactual Ladder ==="
-format s0 s1 s2 s3 treasury_actual %9.2f
+format `s0v' s1 s2 s3 treasury_actual %9.2f
 format gap_* %9.2f
-list ym s0 s1 s2 s3 treasury_actual, clean noobs
+list ym `s0v' s1 s2 s3 treasury_actual, clean noobs
 
 di as text _n "  === Gap Decomposition (pp) ==="
-list ym gap_adjustment gap_diversion gap_others gap_residual gap_total, clean noobs
+local gap_adj_v = cond($have_s0, "gap_adjustment", "")
+local gap_tot_v = cond($have_s0, "gap_total", "")
+list ym `gap_adj_v' gap_diversion gap_others gap_residual `gap_tot_v', clean noobs
 
 sort ym
 compress
@@ -170,14 +202,20 @@ export delimited using "$tables/counterfactual_ladder.csv", replace
 di as text _n "  [D] Country-level ladder..."
 
 tempfile cty_s0 cty_s1 cty_s2 cty_s3
+local s0v = cond($have_s0, "s0", "")
 
 use `master', clear
 
+if $have_s0 {
 preserve
     di as text "      S0 by country (rate_2024 x imports)"
     compute_tier, ratevar(rate_2024) weightvar(imports) ///
         outfile(`cty_s0') outvar(s0) byvar(partner_group) percent
 restore
+}
+else {
+    di as text "      S0 by country: SKIPPED (rate_2024 absent -- publish mode)"
+}
 
 preserve
     di as text "      S1 by country (rate_h2avg x imports)"
@@ -197,26 +235,41 @@ preserve
         outfile(`cty_s3') outvar(s3) byvar(partner_group) percent
 restore
 
-use `cty_s0', clear
-merge 1:1 ym partner_group using `cty_s1', nogenerate
+if $have_s0 {
+    use `cty_s0', clear
+    merge 1:1 ym partner_group using `cty_s1', nogenerate
+}
+else {
+    use `cty_s1', clear
+}
 merge 1:1 ym partner_group using `cty_s2', nogenerate
 merge 1:1 ym partner_group using `cty_s3', nogenerate
 
 assert _N > 0
 
-gen double gap_adjustment = s0 - s1
+if $have_s0 {
+    gen double gap_adjustment = s0 - s1
+}
 gen double gap_diversion  = s1 - s2
 gen double gap_others     = s2 - s3
-gen double gap_s0_s3      = s0 - s3
+if $have_s0 {
+    gen double gap_s0_s3  = s0 - s3
+}
 
-label var s0             "S0: Statutory (USMCA 2024 baseline), 2024 wts (%)"
+if $have_s0 {
+    label var s0         "S0: Statutory (USMCA 2024 baseline), 2024 wts (%)"
+}
 label var s1             "S1: Statutory (Post-July 2025 USMCA), 2024 wts (%)"
 label var s2             "S2: Statutory (Post-July 2025 USMCA), monthly wts (%)"
 label var s3             "S3: + non-USMCA preferences, monthly wts (%)"
-label var gap_adjustment "USMCA adjustment (pp)"
+if $have_s0 {
+    label var gap_adjustment "USMCA adjustment (pp)"
+}
 label var gap_diversion  "Trade diversion (pp)"
 label var gap_others     "All-others preferences (pp)"
-label var gap_s0_s3      "Total S0-S3 gap (pp)"
+if $have_s0 {
+    label var gap_s0_s3      "Total S0-S3 gap (pp)"
+}
 
 sort ym partner_group
 compress
@@ -224,23 +277,28 @@ save "$working/counterfactual_by_country.dta", replace
 export delimited using "$tables/counterfactual_by_country.csv", replace
 
 * Summary: time-averaged by country (CSV exported for downstream / paper use).
+local gap_adj_v = cond($have_s0, "gap_adjustment", "")
 preserve
-    collapse (mean) s0 s1 s2 s3 ///
-                    gap_adjustment gap_diversion gap_others, ///
+    collapse (mean) `s0v' s1 s2 s3 ///
+                    `gap_adj_v' gap_diversion gap_others, ///
         by(partner_group)
 
-    label var s0             "S0 period avg (%)"
+    if $have_s0 {
+        label var s0         "S0 period avg (%)"
+    }
     label var s1             "S1 period avg (%)"
     label var s2             "S2 period avg (%)"
     label var s3             "S3 period avg (%)"
-    label var gap_adjustment "USMCA adjustment period avg (pp)"
+    if $have_s0 {
+        label var gap_adjustment "USMCA adjustment period avg (pp)"
+    }
     label var gap_diversion  "Trade diversion period avg (pp)"
     label var gap_others     "All-others preferences period avg (pp)"
 
     di as text _n "  === Country-Level Ladder (period average) ==="
-    format s0 s1 s2 s3 gap_adjustment gap_diversion gap_others %9.2f
-    list partner_group s0 s1 s2 s3 ///
-         gap_adjustment gap_diversion gap_others, clean noobs
+    format `s0v' s1 s2 s3 `gap_adj_v' gap_diversion gap_others %9.2f
+    list partner_group `s0v' s1 s2 s3 ///
+         `gap_adj_v' gap_diversion gap_others, clean noobs
 
     export delimited using "$tables/counterfactual_by_country_avg.csv", replace
 restore

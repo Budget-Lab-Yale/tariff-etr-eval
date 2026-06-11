@@ -13,3 +13,10 @@
 # Overridden by --tracker-data=PATH / TRACKER_DATA_DIR; bypassed entirely
 # by --no-shared-tracker.
 tracker_data_dir: /path/to/shared/model_data/Tariff-Rate-Tracker/latest
+
+# Explicit Treasury revenue CSV consumed by Section 4. When set, it is copied
+# to data/raw/tariff_revenue.csv instead of requiring a tariff-impact-tracker
+# sibling checkout. Schema: date, customs_duties, imports_value,
+# effective_rate, year, month. Leave unset to use the sibling's
+# output/tariff_revenue.csv (Section 4 warns and skips T if neither exists).
+# treasury_revenue_csv: /path/to/tariff_revenue.csv
