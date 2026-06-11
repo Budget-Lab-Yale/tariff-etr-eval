@@ -18,7 +18,9 @@ setwd(here::here())
 source("code/utils.R")
 
 GOLDEN <- "results_stata_golden/tables"
-TOL    <- 1e-6   # pp; tier math is identical so agreement should be exact-ish
+TOL    <- 1e-5   # pp. Tier math is identical so agreement is ~1e-13, except
+                 # columns that round-trip through Stata float (.dta) storage
+                 # (e.g. Treasury t), which carry ~1e-7 relative noise.
 
 if (!dir.exists(GOLDEN))
   stop("No golden snapshot at ", GOLDEN,
@@ -27,10 +29,16 @@ if (!dir.exists(GOLDEN))
 norm_keys <- function(df) {
   if ("ym" %in% names(df) && !"year_month" %in% names(df))
     df <- df %>% mutate(year_month = stata_ym(ym), ym = NULL)
+  # Stata's diversion tables prefix the Shapley columns by lens (c_/p_);
+  # the R tables use bare names.
+  for (p in c("c_", "p_"))
+    for (s in c("between", "within", "total"))
+      if (paste0(p, s) %in% names(df))
+        names(df)[names(df) == paste0(p, s)] <- s
   df
 }
 
-compare_table <- function(file, keys) {
+compare_table <- function(file, keys, exclude = character()) {
   gp <- file.path(GOLDEN, file); rp <- file.path(DIR_TABLES, file)
   if (!file.exists(gp)) { msg("  %-35s SKIP (no golden)", file); return(NA) }
   if (!file.exists(rp)) { msg("  %-35s MISSING in R output", file); return(Inf) }
@@ -38,7 +46,10 @@ compare_table <- function(file, keys) {
   r <- norm_keys(read_csv(rp, show_col_types = FALSE))
   num_cols <- intersect(names(g)[sapply(g, is.numeric)],
                         names(r)[sapply(r, is.numeric)])
-  num_cols <- setdiff(num_cols, keys)
+  num_cols <- setdiff(num_cols, c(keys, exclude))
+  if (length(num_cols) == 0) {
+    msg("  %-35s NO COMMON NUMERIC COLUMNS", file); return(Inf)
+  }
   j <- inner_join(g %>% select(all_of(c(keys, num_cols))),
                   r %>% select(all_of(c(keys, num_cols))),
                   by = keys, suffix = c("_stata", "_r"))
@@ -54,7 +65,12 @@ compare_table <- function(file, keys) {
 
 msg("Comparing R pipeline output to Stata golden (%s)...", GOLDEN)
 results <- c(
-  compare_table("counterfactual_ladder.csv",      "year_month"),
+  # Stata 02's ladder file defines gap_residual = S3 - T (no S4 there); the R
+  # ladder unifies on the six-tier definition gap_residual = S3 - S4, with
+  # S4 - T split out as gap_timing. decomp_monthly compares the unified
+  # definitions; exclude the differently-defined column here.
+  compare_table("counterfactual_ladder.csv",      "year_month",
+                exclude = c("gap_residual", "gap_total")),
   compare_table("counterfactual_by_country.csv",  c("year_month", "partner_group")),
   compare_table("counterfactual_by_country_avg.csv", "partner_group"),
   compare_table("decomp_monthly.csv",             "year_month"),
