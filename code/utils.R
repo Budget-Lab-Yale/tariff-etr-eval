@@ -50,9 +50,12 @@ stata_ym <- function(s) {
 # --- Partner groups (Census country codes; ports assign_partner_group) -------
 CTY_CHINA <- "5700"; CTY_CANADA <- "1220"; CTY_MEXICO <- "2010"
 CTY_JAPAN <- "5880"; CTY_SKOREA <- "5800"; CTY_UK     <- "4120"
-EU_CODES <- c("4280","4220","4230","4240","4253","4254","4270","4350","4360",
-              "4380","4390","4550","4560","4570","4590","4610","4690","4700",
-              "4720","4740","4810","4760","4770","4780","4840","4850","4870")
+# EU27 Census Schedule C codes, verified against the tracker's
+# resources/census_codes.csv (the archived globals.do list had off-by-a-digit
+# codes -- 4270/4760/etc. -- that sent FR, IT, NL, BE, IE, AT, SE, DK, FI to ROW).
+EU_CODES <- c("4330","4231","4870","4791","4910","4351","4099","4470","4050",
+              "4279","4280","4840","4370","4190","4759","4490","4510","4239",
+              "4730","4210","4550","4710","4850","4359","4792","4700","4010")
 PARTNER_LEVELS <- c("China","Canada","Mexico","EU","Japan","S. Korea","UK","ROW")
 
 assign_partner_group <- function(cty) {
