@@ -36,6 +36,7 @@ results/*.docx
 results/*.zip
 results/figures/
 results/tables/
+results/diagnostics/
 
 # Rendered docs
 docs/*.html
