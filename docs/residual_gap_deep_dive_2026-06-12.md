@@ -2,7 +2,7 @@
 
 **Authored by**: `tariff-etr-eval` (John Iselin, Yale Budget Lab)
 **Date**: 2026-06-12
-**Against**: panel vintage `2026-06-11-17` (R pipeline, full S0–S4+T ladder run of 2026-06-12, SLURM job 14981609) — i.e. **after** the 2026-06-04 tracker fix pass (incl. `c471770`, 8471 auto-parts scoping) and all Round 1–3 fixes from `tracker_miss_report.md` / `tracker_over_report.md`.
+**Against**: panel vintage `2026-06-11-17` (R pipeline, full S0–S4+T ladder run of 2026-06-12, SLURM job 14981609; partner-group cuts refreshed under job 15093772 after the EU_CODES fix in `9cb79d3` — all country-level figures in this report were unaffected by that fix) — i.e. **after** the 2026-06-04 tracker fix pass (incl. `c471770`, 8471 auto-parts scoping) and all Round 1–3 fixes from `tracker_miss_report.md` / `tracker_over_report.md`.
 **Companions**: `tracker_miss_report.md`, `tracker_over_report.md`, `tracker_audits/*` — patterns documented there are treated as *explained* and excluded; this note ranks what is still large and **unexplained** in the S3−S4 residual.
 
 ## Method
@@ -44,7 +44,7 @@ Where 7601 collects at full rate, scrap and ferroalloys collect at ~zero — str
 
 ### 3. Medical devices 9018–9022: the Nairobi Protocol channel (~$2.0 B in LATE; ~$300 M/mo)
 
-Implants, orthopedics, hearing aids, and instruments from Ireland ($594 M in ch90 ROW cells; 9021 at 13.9 % vs 0.9 %), Costa Rica (9018: 13.7 % vs 4.9 %), Denmark (9021: 13.9 % vs 0.2 %), Singapore (9019/9021: 9.9 % vs 0.03–0.05 %), Switzerland (9021: 22.1 % vs 6.7 %), Germany (13.8 % vs 4.4 %).
+Implants, orthopedics, hearing aids, and instruments from Ireland ($594 M in ch90 cells; 9021 at 13.9 % vs 0.9 %), Costa Rica (9018: 13.7 % vs 4.9 %), Denmark (9021: 13.9 % vs 0.2 %), Singapore (9019/9021: 9.9 % vs 0.03–0.05 %), Switzerland (9021: 22.1 % vs 6.7 %), Germany (13.8 % vs 4.4 %).
 
 These are 15 %-floor / reciprocal-rate countries; importers are paying ~zero. The likely vehicle is the **Nairobi Protocol secondary classification (9817.00.96, articles for the handicapped — duty-free, and CBP guidance exempts it from IEEPA reciprocal)**, which maps exactly onto implants/pacemakers/orthopedics/hearing aids but is invisible at the primary-HS10 level the tracker prices. This is a *distinct exemption channel* from Annex II (which the trackermiss Round 3 already covers) — Annex II non-claim produces duty *paid*; here duty is *not* paid.
 

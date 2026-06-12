@@ -20,8 +20,11 @@ REPO=/nfs/roberts/project/pi_nrs36/ji252/repos/tariff-etr-eval
 cd "$REPO"
 mkdir -p slurm/logs
 
+# 2024a stack to match run_full.sbatch (analysis packages verified 2026-06-12;
+# the 2022b arrow-R module is broken -- see slurm/RUNBOOK.md)
 module purge
-module load R/4.4.1-foss-2022b
+module load R/4.4.2-gfbf-2024a
+module load arrow-R/17.0.0.1-foss-2024a-R-4.4.2
 
 echo "[r] start $(date)"
 Rscript 00_run_all.R "$@"
