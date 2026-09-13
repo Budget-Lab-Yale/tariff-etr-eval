@@ -2,7 +2,8 @@
 
 > **⚠️ FROZEN (2026-07-01).** This repo is no longer developed. The paper and
 > slides now live in the streamlined successor
-> [**`tariff-etr-divergence`**](https://github.com/Budget-Lab-Yale/tariff-etr-divergence)
+> [**`statutory-vs-realized-tariffs`**](https://github.com/Budget-Lab-Yale/statutory-vs-realized-tariffs)
+> (renamed 2026-09-13 from `tariff-etr-divergence`)
 > (analysis core ported and validated bit-for-bit against this repo's
 > pipeline; VMR and the η-calibration were deliberately left behind — see the
 > successor's `docs/00_migration_plan.md`). This repo remains as the archive
