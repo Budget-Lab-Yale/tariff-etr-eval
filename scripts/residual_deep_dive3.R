@@ -1,6 +1,6 @@
 # Final drills for the residual deep dive
 suppressPackageStartupMessages(library(data.table))
-setwd("/nfs/roberts/project/pi_nrs36/ji252/repos/tariff-etr-eval")
+setwd(here::here())
 p <- as.data.table(readRDS("data/processed/panel.rds"))
 p[, res_usd := rate_all_pref * con_val_mo - cal_dut_mo]
 nm <- unique(fread("data/raw/daily_by_country.csv",

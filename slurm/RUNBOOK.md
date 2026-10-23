@@ -13,7 +13,7 @@ Cluster facts:
                 (matches the publish's build stack; the 2022b arrow-R/16.1.0
                 module is broken — missing libarrow_dataset.so.1601)
 - Partition:    `day`
-- Repo root:    `/nfs/roberts/project/pi_nrs36/ji252/repos/tariff-etr-eval`
+- Repo root:    `/path/to/repos/tariff-etr-eval`
 
 ## Mode: S1–S4 + T
 
@@ -36,7 +36,7 @@ Confirm `config/local_paths.yaml` points `tracker_data_dir` at the publish
 ## Run
 
 ```bash
-cd /nfs/roberts/project/pi_nrs36/ji252/repos/tariff-etr-eval
+cd /path/to/repos/tariff-etr-eval
 
 # Stage 1 (R pull). Several hours first pass (IMDB download/parse).
 pull_id=$(sbatch --parsable slurm/run_pull.sbatch)

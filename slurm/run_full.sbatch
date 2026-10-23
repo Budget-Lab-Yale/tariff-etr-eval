@@ -25,7 +25,7 @@
 
 set -euo pipefail
 
-REPO=/nfs/roberts/project/pi_nrs36/ji252/repos/tariff-etr-eval
+REPO="$(git -C "${SLURM_SUBMIT_DIR:-$PWD}" rev-parse --show-toplevel)"
 cd "$REPO"
 mkdir -p slurm/logs
 
